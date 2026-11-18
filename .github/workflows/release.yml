@@ -33,6 +33,8 @@ jobs:
           - { name: dashboard, context: ., file: apps/dashboard/Dockerfile }
           - { name: broker, context: ., file: apps/broker/Dockerfile }
           - { name: proxy, context: docker/proxy, file: docker/proxy/Dockerfile }
+          - { name: docker-proxy, context: docker/socket-proxy, file: docker/socket-proxy/Dockerfile }
+          - { name: npm-mirror, context: docker/npm-mirror, file: docker/npm-mirror/Dockerfile }
           # Must match the CLAUDE_CODE_VERSION default in docker-compose.yml.
           - { name: agent, context: docker/agent, file: docker/agent/Dockerfile, build_args: 'CLAUDE_CODE_VERSION=2.1.322' }
     env:

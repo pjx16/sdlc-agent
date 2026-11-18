@@ -93,3 +93,28 @@ describe('postgres network posture documentation', () => {
     expect(/breaking/i.test(unreleased)).toBe(true);
   });
 });
+
+describe('docker access and agent network hardening', () => {
+  it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('gives the worker no Docker socket, only docker-proxy, in %s', (file) => {
+    const yaml = readWithoutComments(file);
+    expect(serviceBlock(yaml, 'worker')).not.toContain('docker.sock');
+    expect(serviceBlock(yaml, 'worker')).toContain('DOCKER_HOST: tcp://docker-proxy:2375');
+    expect(serviceBlock(yaml, 'docker-proxy')).toContain('/var/run/docker.sock');
+    expect(serviceBlock(yaml, 'docker-proxy')).toMatch(/networks:\s*\[internal\]/);
+    expect(serviceBlock(yaml, 'docker-proxy')).toContain('ALLOWED_BIND_ROOTS');
+  });
+
+  it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('answers agents as llm-gateway on the agent network, and offers the npm mirror there, in %s', (file) => {
+    const yaml = readWithoutComments(file);
+    expect(serviceBlock(yaml, 'worker')).toMatch(/agent_net:\s*\n\s*aliases:\s*\[llm-gateway\]/);
+    expect(serviceBlock(yaml, 'npm-mirror')).toMatch(/networks:\s*\[agent_net, egress\]/);
+  });
+
+  it('ships the docker-proxy and npm-mirror images with every release', () => {
+    const release = readFileSync(repoFile('.github/workflows/release.yml'), 'utf8');
+    for (const name of ['docker-proxy', 'npm-mirror']) {
+      expect(release).toContain(`name: ${name},`);
+      expect(readFileSync(repoFile('deploy/docker-compose.yml'), 'utf8')).toContain(`sdlc-agent-${name}:`);
+    }
+  });
+});
