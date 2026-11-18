@@ -115,7 +115,7 @@ text{font-family:system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;f
         <path class="edge" d="M570 224 H898" marker-end="url(#a)"/>
         <text class="lab" x="590" y="216">clone · push · PRs · CI status</text>
         <path class="edge" d="M570 254 H850 V294 H898" marker-end="url(#a)"/>
-        <text class="lab" x="590" y="270">tickets and status (REST or MCP)</text>
+        <text class="lab" x="590" y="270">tickets and status (REST)</text>
         <path class="edge d" d="M570 240 H878 V511 H898" marker-end="url(#a)"/>
         <line class="edge" x1="870" y1="385" x2="898" y2="372" marker-end="url(#a)"/>
         <line class="edge" x1="870" y1="415" x2="898" y2="430" marker-end="url(#a)"/>
