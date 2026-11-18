@@ -1,0 +1,24 @@
+title = "sdlc-agent gitleaks config"
+
+[extend]
+useDefault = true
+
+# Only test fixtures are allowlisted: fake tokens used by unit and integration tests.
+[allowlist]
+description = "Test fixtures"
+paths = [
+  '''\.test\.tsx?$''',
+  '''apps/api/src/testing/''',
+  '''test/fake-claude/''',
+]
+regexes = [
+  '''sk-ant-oat01-(ABCDEF|AbCdEf|FAKE)''',
+  '''ghp_abcdefghij''',
+  '''ATATT3xFfGF0''',
+]
+
+# Atlassian MCP tool names in the shared settings are long identifiers, not credentials.
+[[allowlists]]
+description = "Atlassian MCP tool names"
+targetRules = ["atlassian-api-token"]
+paths = ['''packages/shared/src/global-settings\.ts''']

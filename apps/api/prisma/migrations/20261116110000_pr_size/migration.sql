@@ -1,0 +1,1 @@
+ALTER TABLE "Ticket" ADD COLUMN "prDiffLines" INTEGER, ADD COLUMN "prSizeLevel" TEXT;

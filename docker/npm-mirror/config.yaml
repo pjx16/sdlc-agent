@@ -1,0 +1,18 @@
+# Read-only npm mirror for agent containers. Reads are proxied to registry.npmjs.org and cached; nobody can publish or unpublish.
+storage: /verdaccio/storage
+# No users can be created or log in.
+max_users: -1
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+packages:
+  '**':
+    access: $all
+    # No group has this name, so nobody may publish or unpublish.
+    publish: nobody
+    unpublish: nobody
+    proxy: npmjs
+log: { type: stdout, format: pretty, level: warn }

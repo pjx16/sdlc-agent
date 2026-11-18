@@ -1,0 +1,1 @@
+ALTER TABLE "Project" ADD COLUMN "githubAuth" TEXT NOT NULL DEFAULT 'token';

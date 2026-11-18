@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "features": [
+    {
+      "key": "database",
+      "title": "Database",
+      "doc": "database.md",
+      "globs": [
+        "docker-compose.yml",
+        "deploy/docker-compose.yml",
+        "scripts/dev.sh",
+        "apps/api/src/prisma/**"
+      ],
+      "builtFromCommit": "996ad43600f7aac9a4d2b2c8dd100ed35d611881",
+      "updatedAt": "2026-11-14T17:40:31.595Z"
+      "key": "cli",
+      "title": "Cli",
+      "doc": "cli.md",
+      "key": "container-images",
+      "title": "Container Images",
+      "doc": "container-images.md",
+      "globs": [
+        "apps/api/Dockerfile",
+        "apps/api/docker-entrypoint.sh",
+        "docker/worker/**",
+        "apps/dashboard/Dockerfile",
+        ".dockerignore",
+        "docker-compose.yml",
+        "deploy/docker-compose.yml"
+      ],
+      "builtFromCommit": "9bdd93fe17d2a9669ce21f56201d9adbe708bc27",
+      "updatedAt": "2026-11-14T16:50:16.333Z"
+      "key": "setup",
+      "title": "Setup",
+      "doc": "setup.md",
+      "globs": [
+        "packages/cli/**",
+        "apps/api/src/worker/agent-runner/container-engine.ts",
+        "apps/api/src/worker/worker-runner.ts"
+      ],
+      "builtFromCommit": "4bea5d51c9ebcd0991d80a4cd55f84fe6e5c4173",
+      "updatedAt": "2026-11-14T17:26:50.139Z"
+    },
+    {
+      "key": "tracker",
+      "title": "Tracker",
+      "doc": "tracker.md",
+      "globs": [
+        "apps/api/src/jira/**",
+        "apps/api/src/worker/intake/**"
+      ],
+      "builtFromCommit": "a60b8fdc1bc292ea818a9413121ee185e8bc3740",
+      "updatedAt": "2026-11-14T12:28:43.201Z"
+    }
+  ]
+}

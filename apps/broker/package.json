@@ -1,0 +1,16 @@
+{
+  "name": "@sdlc/broker",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Token broker for the sdlc-agent GitHub App: hands out short-lived, repository-scoped tokens so a user never has to give a personal access token.",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "start": "node dist/main.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6"
+  }
+}

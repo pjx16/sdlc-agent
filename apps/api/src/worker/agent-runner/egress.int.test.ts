@@ -1,0 +1,47 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { type EgressFixture, shellInAgent, startEgress } from '../../testing/docker-fixture';
+
+/** curl through the proxy; prints "<http_code> exit=<curl exit>". Exit 0 with a real code means the tunnel was allowed. */
+const through = (port: number, host: string) =>
+  `curl -s -o /dev/null -w "%{http_code}" --max-time 15 -x http://proxy:${port} https://${host}/; echo " exit=$?"`;
+
+const outcome = async (script: string) => (await shellInAgent(script)).lines.join(' ');
+
+describe('egress from an agent container (BUILD_PLAN 6.1, F5)', () => {
+  let egress: EgressFixture;
+  beforeAll(async () => {
+    egress = await startEgress();
+  }, 120_000);
+  afterAll(async () => egress?.stop());
+
+  it('reaches the Prisma binary host through the proxy', async () => {
+    const out = await outcome(through(3128, 'binaries.prisma.sh'));
+    expect(out).toMatch(/exit=0/);
+    expect(out).not.toMatch(/^000/); // any real HTTP status means the tunnel opened
+  }, 60_000);
+
+  it('can no longer reach the Anthropic API or the npm registry through the proxy (the LLM gateway and the npm mirror replace them)', async () => {
+    for (const host of ['api.anthropic.com', 'registry.npmjs.org']) expect(await outcome(through(3128, host)), host).not.toMatch(/exit=0/);
+  }, 60_000);
+
+  it('refuses plain-HTTP requests to an allowlisted domain (CONNECT to 443 only)', async () => {
+    const out = await outcome('curl -s -o /dev/null -w "%{http_code}" --max-time 15 -x http://proxy:3128 http://binaries.prisma.sh/; echo " exit=$?"');
+    expect(out).toMatch(/^403 /); // the proxy answers 403 itself
+  }, 60_000);
+
+  it('cannot reach a host that is not on the allowlist', async () => {
+    const out = await outcome(through(3128, 'example.com'));
+    expect(out).toMatch(/^000/);
+    expect(out).not.toMatch(/exit=0/);
+  }, 60_000);
+
+  it('cannot bypass the proxy: no direct route and no DNS from the agent network', async () => {
+    const out = await outcome('curl -s -o /dev/null -w "%{http_code}" --max-time 8 https://api.anthropic.com/; echo " exit=$?"');
+    expect(out).toMatch(/^000/);
+    expect(out).not.toMatch(/exit=0/);
+  }, 60_000);
+
+  it('cannot reach the database or other internal services from the agent network', async () => {
+    expect(await outcome('getent hosts postgres api worker || echo unresolved')).toBe('unresolved');
+  }, 60_000);
+});
