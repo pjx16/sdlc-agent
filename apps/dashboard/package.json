@@ -2,6 +2,14 @@
   "name": "@sdlc/dashboard",
   "version": "0.0.1",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pjx16/sdlc-agent.git",
+    "directory": "apps/dashboard"
+  },
+  "homepage": "https://github.com/pjx16/sdlc-agent#readme",
+  "bugs": "https://github.com/pjx16/sdlc-agent/issues",
   "scripts": {
     "build": "next build",
     "dev": "API_URL=${API_URL:-http://localhost:4000} next dev -p 3000",

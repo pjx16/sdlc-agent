@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an idea or an improvement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        sdlc-agent is a `0.0.x` pre-release built in public. Ideas are welcome, but features outside the scope in the README are unlikely to be accepted. For security problems, do not open an issue: use the private advisory link on the issue chooser page.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways you solve this today, or other designs you thought about.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Checks
+      options:
+        - label: I read the scope and known limitations in the README.
+          required: true
+        - label: I searched existing issues for a similar request.
+          required: true

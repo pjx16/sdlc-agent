@@ -1,4 +1,4 @@
-# See docs/build-plan/v0.0.0/BUILD_PLAN.md section 6.1. Run `docker compose --profile build build` once to build the agent image.
+# Run `docker compose --profile build build` once to build the agent image.
 name: sdlc-agent
 
 services:

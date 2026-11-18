@@ -2,6 +2,14 @@
   "name": "@sdlc/broker",
   "version": "0.0.1",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pjx16/sdlc-agent.git",
+    "directory": "apps/broker"
+  },
+  "homepage": "https://github.com/pjx16/sdlc-agent#readme",
+  "bugs": "https://github.com/pjx16/sdlc-agent/issues",
   "description": "Token broker for the sdlc-agent GitHub App: hands out short-lived, repository-scoped tokens so a user never has to give a personal access token.",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

@@ -2,6 +2,14 @@
   "name": "@sdlc/api",
   "version": "0.0.1",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pjx16/sdlc-agent.git",
+    "directory": "apps/api"
+  },
+  "homepage": "https://github.com/pjx16/sdlc-agent#readme",
+  "bugs": "https://github.com/pjx16/sdlc-agent/issues",
   "scripts": {
     "build": "prisma generate && tsc -p tsconfig.build.json",
     "dev": "tsc-watch -p tsconfig.build.json --onSuccess \"node dist/main.js\"",
