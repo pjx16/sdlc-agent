@@ -50,6 +50,8 @@ Jira credentials are held by the orchestrator only. Agent containers never recei
 
 ## More detail
 
-- [README.md](../README.md): project overview, ticket selection and configuration.
+- [README.md](../README.md): project overview and how to add a project.
+- [CONFIGURATION.md](./CONFIGURATION.md): environment variables and per-project settings.
+- [CONFLUENCE.md](./CONFLUENCE.md): publishing plans to Confluence with the same credential.
 - [docs/kb/tracker.md](./kb/tracker.md): the flow, the data it touches and its edge cases.
 - [SECURITY.md](../SECURITY.md): the security policy.

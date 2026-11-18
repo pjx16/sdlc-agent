@@ -13,9 +13,16 @@
       ],
       "builtFromCommit": "996ad43600f7aac9a4d2b2c8dd100ed35d611881",
       "updatedAt": "2026-11-14T17:40:31.595Z"
+    },
+    {
       "key": "cli",
       "title": "Cli",
       "doc": "cli.md",
+      "globs": [
+        "packages/cli/**"
+      ]
+    },
+    {
       "key": "container-images",
       "title": "Container Images",
       "doc": "container-images.md",
@@ -30,6 +37,8 @@
       ],
       "builtFromCommit": "9bdd93fe17d2a9669ce21f56201d9adbe708bc27",
       "updatedAt": "2026-11-14T16:50:16.333Z"
+    },
+    {
       "key": "setup",
       "title": "Setup",
       "doc": "setup.md",

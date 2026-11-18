@@ -1,11 +1,12 @@
 # Architecture
 
-The architecture is documented once per version, so you can see what the system looked like at each release and how it changed.
+The architecture is documented once per version (these are revisions of the design, not release versions of the software, which is `0.0.x`), so you can see what the system looked like at each release and how it changed.
 
 | Version | Status | Folder |
 | --- | --- | --- |
-| **1.1.0** | Current | [`v1.1.0/`](./v1.1.0/README.md): adds the optional token broker and per-project GitHub access, the single plan gate, self-recovery, PR size limits |
-| 1.0.0 | Previous | [`v1.0.0/`](./v1.0.0/README.md): system, trust boundaries, ticket lifecycle, subtask loop, worker loop, stages, data model, design decisions |
+| **1.2.0** | Current | [`v1.2.0/`](./v1.2.0/README.md): docker-proxy, LLM gateway, read-only npm mirror, 16 agents, three reviewers, CI triage, Confluence hub, onboarding and the inbox |
+| 1.1.0 | Previous | [`v1.1.0/`](./v1.1.0/README.md): adds the optional token broker and per-project GitHub access, the single plan gate, self-recovery, PR size limits |
+| 1.0.0 | Older | [`v1.0.0/`](./v1.0.0/README.md): system, trust boundaries, ticket lifecycle, subtask loop, worker loop, stages, data model, design decisions |
 
 Each version folder holds a `README.md` and a `diagrams/` folder with its SVG files.
 
@@ -23,6 +24,9 @@ Newest first. One row per version folder, plus any fix worth recording.
 
 | Date | Version | Change | Why | PR |
 | --- | --- | --- | --- | --- |
+| 2026-11-18 | 1.2.0 | The worker reaches Docker through a filtering `docker-proxy` instead of the socket; agents call an LLM gateway in the worker instead of holding the Claude token; agents install from a read-only npm mirror; the egress proxy allows only Prisma's binary host | A prompt-injected agent must not be able to use the Claude token, publish packages or start privileged containers | n/a |
+| 2026-11-18 | 1.2.0 | 16 agents with generated `.claude/agents` files; PR, quality and security reviewers; CI triage; Confluence document hub; project onboarding, inbox and reruns; Jira is REST only | One agent, one job; fewer repeated holds for a person | n/a |
+| 2026-11-18 | 1.1.0 | Fix: the system diagram no longer says Jira is reached over "REST or MCP" (MCP mode was removed) | A mistake in the snapshot | n/a |
 | 2026-11-14 | 1.1.0 | New optional service `apps/broker` (the token broker) and a per-project choice of GitHub access: the personal token, or the sdlc-agent GitHub App as `sdlc-agent[bot]` with one-hour, single-repository tokens. New credentials `broker_url`, `broker_key`; `Project.githubAuth`; the worker picks the token per call | A user can try the pipeline without giving a personal token, and no secret that spans users is shipped to their system | #49 |
 | 2026-11-14 | 1.1.0 | The plan is the only approval gate: it lists the subtasks and the breakdown runs by itself. `AWAITING_BREAKDOWN_APPROVAL` stays in the state table for tickets already waiting, and the setting is ignored | A second approval looped the person in without adding a decision | #49 |
 | 2026-11-14 | 1.1.0 | Self-recovery: a `needs_help` hold first goes to the orchestrator (decision point `recovery`: retry or redo tests with a note, 3 attempts by default). Every orchestrator decision is stored, shown in the Decisions tab and commented on Jira | Stuck steps (an invalid red test, a failed push) were sending the person back in repeatedly | #49 |
