@@ -1,0 +1,133 @@
+import { PassThrough } from 'node:stream';
+import { Logger } from '@nestjs/common';
+import Docker from 'dockerode';
+import { LineSplitter } from './line-splitter';
+
+export type OutputStream = 'stdout' | 'stderr';
+
+/** One container, as far as the runner cares. Implemented over dockerode, and by a fake in unit tests. */
+export interface ContainerHandle {
+  readonly id: string;
+  /** Registers the output callback. Must be called before `start()`. */
+  attach(onLine: (line: string, stream: OutputStream) => void): Promise<void>;
+  start(): Promise<void>;
+  /** Resolves with the exit code once the container stops. */
+  wait(): Promise<number>;
+  kill(): Promise<void>;
+  /** Removes the container (forced), ignoring "already gone". */
+  remove(): Promise<void>;
+}
+
+export interface ContainerEngine {
+  create(options: Docker.ContainerCreateOptions): Promise<ContainerHandle>;
+  /** Removes every container carrying `label` (for example `sdlc.agent=true`); returns how many. */
+  removeByLabel(label: string): Promise<number>;
+  /** Pulls `name` when it is not present locally. Resolves with what happened. */
+  ensureImage(name: string): Promise<'present' | 'pulled'>;
+  /** Whether `name` is on this machine. Never pulls. */
+  imageExists(name: string): Promise<boolean>;
+}
+
+export const CONTAINER_ENGINE = Symbol('CONTAINER_ENGINE');
+
+const ignoreGone = (err: unknown): void => {
+  const status = (err as { statusCode?: number }).statusCode;
+  if (status === 404 || status === 409) return; // not found, or already being removed / not running
+  throw err;
+};
+
+class DockerodeHandle implements ContainerHandle {
+  constructor(private readonly container: Docker.Container) {}
+
+  get id(): string {
+    return this.container.id;
+  }
+
+  async attach(onLine: (line: string, stream: OutputStream) => void): Promise<void> {
+    const stream = await this.container.attach({ stream: true, stdout: true, stderr: true });
+    const out = new PassThrough();
+    const err = new PassThrough();
+    const outLines = new LineSplitter((l) => onLine(l, 'stdout'));
+    const errLines = new LineSplitter((l) => onLine(l, 'stderr'));
+    out.on('data', (c: Buffer) => outLines.push(c));
+    err.on('data', (c: Buffer) => errLines.push(c));
+    this.container.modem.demuxStream(stream, out, err);
+    stream.on('end', () => {
+      outLines.flush();
+      errLines.flush();
+    });
+  }
+
+  start(): Promise<void> {
+    return this.container.start() as unknown as Promise<void>;
+  }
+
+  async wait(): Promise<number> {
+    const result = (await this.container.wait()) as { StatusCode: number };
+    return result.StatusCode;
+  }
+
+  async kill(): Promise<void> {
+    await this.container.kill().catch(ignoreGone);
+  }
+
+  async remove(): Promise<void> {
+    await this.container.remove({ force: true, v: true }).catch(ignoreGone);
+  }
+}
+
+/** What to do when the agent image is not on this machine (it is built locally from a source checkout, behind a compose profile). */
+export function missingImageMessage(image: string): string {
+  return `The agent image ${image} is not available on this machine. Build it with: docker compose --profile build build agent-image`;
+}
+
+export class DockerodeEngine implements ContainerEngine {
+  private readonly logger = new Logger(DockerodeEngine.name);
+
+  constructor(private readonly docker: Docker = new Docker()) {}
+
+  async create(options: Docker.ContainerCreateOptions): Promise<ContainerHandle> {
+    try {
+      return new DockerodeHandle(await this.docker.createContainer(options));
+    } catch (err) {
+      if ((err as { statusCode?: number }).statusCode === 404 && /no such image/i.test(String((err as Error).message))) {
+        throw new Error(missingImageMessage(String(options.Image)), { cause: err });
+      }
+      throw err;
+    }
+  }
+
+  async imageExists(name: string): Promise<boolean> {
+    try {
+      await this.docker.getImage(name).inspect();
+      return true;
+    } catch (err) {
+      if ((err as { statusCode?: number }).statusCode === 404) return false;
+      throw err;
+    }
+  }
+
+  async ensureImage(name: string): Promise<'present' | 'pulled'> {
+    try {
+      await this.docker.getImage(name).inspect();
+      return 'present';
+    } catch (err) {
+      if ((err as { statusCode?: number }).statusCode !== 404) throw err;
+    }
+    this.logger.log(`Image ${name} is not present; pulling it`);
+    try {
+      const stream = await this.docker.pull(name);
+      await new Promise<void>((resolve, reject) => this.docker.modem.followProgress(stream, (err: Error | null) => (err ? reject(err) : resolve())));
+    } catch (err) {
+      throw new Error(`${missingImageMessage(name)} (the pull failed: ${err instanceof Error ? err.message : String(err)})`, { cause: err });
+    }
+    this.logger.log(`Pulled image ${name}`);
+    return 'pulled';
+  }
+
+  async removeByLabel(label: string): Promise<number> {
+    const containers = await this.docker.listContainers({ all: true, filters: { label: [label] } });
+    for (const info of containers) await new DockerodeHandle(this.docker.getContainer(info.Id)).remove();
+    return containers.length;
+  }
+}

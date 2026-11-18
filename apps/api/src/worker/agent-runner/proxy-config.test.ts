@@ -1,0 +1,28 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+const conf = readFileSync(path.resolve(__dirname, '../../../../../docker/proxy/squid.conf'), 'utf8');
+const rules = conf.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+
+describe('squid.conf allowlist (BUILD_PLAN 6.1)', () => {
+  it('listens on 3128 only', () => {
+    expect(rules.filter((r) => r.startsWith('http_port'))).toEqual(['http_port 3128']);
+  });
+
+  it('allows only the Prisma binary host on the base port (Anthropic goes through the LLM gateway, npm through the read-only mirror)', () => {
+    expect(rules).toContain('acl base_domains dstdomain binaries.prisma.sh');
+    expect(rules.join('\n')).not.toMatch(/anthropic|npmjs/i);
+    expect(rules).toContain('http_access allow port_base base_domains');
+  });
+
+  it('has no Jira or MCP allowance: agents never call Jira', () => {
+    expect(rules.join('\n')).not.toMatch(/mcp|3129/i);
+  });
+
+  it('only tunnels to port 443 and denies everything else, last', () => {
+    expect(rules).toContain('http_access deny connect_method !ssl_ports');
+    const access = rules.filter((r) => r.startsWith('http_access'));
+    expect(access.at(-1)).toBe('http_access deny all');
+  });
+});

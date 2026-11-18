@@ -1,0 +1,45 @@
+import type { ReactNode } from 'react';
+import { apiGet } from '@/lib/server-api';
+import type { SystemView } from '@/lib/types';
+import { LogoutButton } from './logout-button';
+import { RunControls } from './run-controls';
+import { AttentionTitle } from './attention-title';
+import { Sidebar } from './sidebar';
+import { PauseBanner } from './pause-banner';
+import { UsageWarningBanner } from './usage-warning-banner';
+import { SetupBanner } from './setup-banner';
+import type { SetupStatus } from '@sdlc/shared';
+
+/** What the top bar says about the pipeline (BUILD_PLAN 6.10): `Running <stage>`, `Idle` or `Paused`. */
+export function pipelineLabel(system: SystemView | null): { text: string; tone: 'green' | 'grey' | 'amber' } {
+  if (!system) return { text: 'Unknown', tone: 'grey' };
+  if (system.settings.pipelinePaused) return { text: 'Paused', tone: 'amber' };
+  if (system.runningStage) return { text: `Running ${system.runningStage.stage}`, tone: 'green' };
+  return { text: 'Idle', tone: 'grey' };
+}
+
+/** Left rail plus top bar with the pipeline state and, while paused, the banner. */
+export async function Shell({ children }: { children: ReactNode }) {
+  const system = await apiGet<SystemView>('/system').catch(() => null);
+  const setup = await apiGet<SetupStatus>('/setup/status').catch(() => null);
+  const label = pipelineLabel(system);
+  return (
+    <div className="flex min-h-screen">
+      <AttentionTitle count={(system?.inboxBadge ?? 0) + (system?.inboxFyi ?? 0)} />
+      <Sidebar pipeline={label} inboxBadge={system?.inboxBadge ?? 0} inboxFyi={system?.inboxFyi ?? 0} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center justify-between border-b border-border bg-surface/60 px-8 py-3 backdrop-blur">
+          <div className="eyebrow">Autonomous delivery pipeline</div>
+          <div className="flex items-center gap-3">
+            {system && <RunControls pipelinePaused={system.settings.pipelinePaused} intakePaused={system.settings.intakePaused} />}
+            <LogoutButton />
+          </div>
+        </header>
+        {setup && !setup.ready && <SetupBanner missing={setup.missing} adminCreated={setup.adminCreated} />}
+        {!system?.settings.pipelinePaused && <UsageWarningBanner system={system} />}
+        {system?.settings.pipelinePaused && <PauseBanner code={system.settings.pausedCode} reason={system.settings.pausedReason} resetsAt={system.settings.resetsAt} />}
+        <main className="flex-1 p-8">{children}</main>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,7 @@
+# Dev overlay, applied by scripts/dev.sh via COMPOSE_FILE.
+# Publishes Postgres on host loopback only, so `npm run dev` processes on the host can connect.
+# Prod and release installs never use this file, so their Postgres is not published.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"

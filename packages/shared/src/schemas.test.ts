@@ -1,0 +1,186 @@
+import { describe, expect, it } from 'vitest';
+import {
+  DEFAULT_GLOBAL_SETTINGS, DEFAULT_PROJECT_SETTINGS, GlobalSettingsSchema, ProjectInputSchema, ProjectSettingsSchema,
+  STACK_PREFILLS, TICKET_STATUSES, commandWarnings, DEFAULT_INTAKE_LABEL, deepMerge, defaultJiraJql, defaultLocalKeyPrefix, stageWarnings, zodFields,
+} from './index';
+
+const valid = { name: 'Billing API', repoUrl: 'https://github.com/acme/billing', stack: 'nestjs', testCmdTemplate: 'npx jest {files}' };
+
+describe('ProjectSettings defaults (section 7)', () => {
+  it('fills every default from an empty object', () => {
+    const s = ProjectSettingsSchema.parse({});
+    expect(s.stages.kbBuild).toEqual({ enabled: true, model: 'sonnet', maxTurns: 30 });
+    expect(s.stages.solutionDesign).toEqual({ enabled: true, model: 'opus', maxTurns: 15 });
+    expect(s.stages.technicalDesign).toEqual({ enabled: true, model: 'sonnet', maxTurns: 10 });
+    expect(s.stages.featureMap).toEqual({ enabled: true, model: 'haiku', maxTurns: 8 });
+    expect(s.stages.ciTriage).toEqual({ enabled: true, model: 'haiku', maxTurns: 5 });
+    expect(s.stages.tests).toEqual({ enabled: true, model: 'sonnet', maxTurns: 25 });
+    expect(s.stages.implement).toEqual({ enabled: true, model: 'sonnet', maxTurns: 40 });
+    expect(s.stages.fix).toEqual({ enabled: true, model: 'sonnet', maxTurns: 15 });
+    expect(s.stages.prReview).toEqual({ enabled: true, model: 'sonnet', maxTurns: 10 });
+    expect(s.stages.kbUpdate).toEqual({ enabled: true, model: 'sonnet', maxTurns: 15 });
+    expect(Object.keys(s.stages)).not.toContain('jiraIntake');
+    expect(Object.keys(s.stages)).not.toContain('jiraSync');
+    expect(s.gates).toEqual({ plan: true, breakdown: false });
+    expect(s.intake).toEqual({ paste: true });
+    expect(s.jiraWriteBack).toEqual({ comments: true, transitions: true, createSubtasks: true });
+    expect(s.jiraSubtaskTypeName).toBe('Sub-task');
+    expect(s.pr).toEqual({ earlyDraft: true, ciFixRound: true, ciTimeoutMin: 30 });
+    expect(s.limits).toEqual({ maxSubtasks: 8, maxTestFixRounds: 2, maxReviewRounds: 2, kbDocMaxLines: 300, reviewMaxDiffLines: 4000, prSoftLines: 600, prHardLines: 1500 });
+    expect(s.verify.redInvalidPatterns).toEqual(['Cannot find module', 'SyntaxError', 'error TS[0-9]+']);
+    expect(s.jiraApprovalStatuses).toEqual({});
+  });
+
+  it('has no breakdown gate: a stored setting that asks for one is ignored', () => {
+    expect(ProjectSettingsSchema.parse({ gates: { plan: true, breakdown: true } }).gates).toEqual({ plan: true, breakdown: false });
+  });
+
+  it('maps every ticket status to null by default', () => {
+    expect(Object.keys(DEFAULT_PROJECT_SETTINGS.jiraStatusMap).sort()).toEqual([...TICKET_STATUSES].sort());
+    expect(Object.values(DEFAULT_PROJECT_SETTINGS.jiraStatusMap).every((v) => v === null)).toBe(true);
+  });
+
+  it('keeps unspecified siblings when one nested value is given', () => {
+    const s = ProjectSettingsSchema.parse({ stages: { solutionDesign: { maxTurns: 20 } }, limits: { maxSubtasks: 3 } });
+    expect(s.stages.solutionDesign).toEqual({ enabled: true, model: 'opus', maxTurns: 20 });
+    expect(s.limits.maxSubtasks).toBe(3);
+    expect(s.limits.maxReviewRounds).toBe(2);
+  });
+
+  it('reports field-level errors with dotted paths', () => {
+    const r = ProjectSettingsSchema.safeParse({
+      stages: { solutionDesign: { maxTurns: 0, model: 'gpt' }, implement: { enabled: false } },
+      limits: { maxSubtasks: 'many' },
+      pr: { ciTimeoutMin: 0 },
+      verify: { redInvalidPatterns: ['('] },
+    });
+    expect(r.success).toBe(false);
+    const fields = zodFields(r.error!);
+    expect(fields['stages.solutionDesign.maxTurns']).toBe('must be at least 1');
+    expect(fields['stages.solutionDesign.model']).toBeTruthy();
+    expect(fields['stages.implement.enabled']).toBe('The implement stage cannot be disabled');
+    expect(fields['limits.maxSubtasks']).toBe('must be a number');
+    expect(fields['pr.ciTimeoutMin']).toBe('must be at least 1');
+    expect(fields['verify.redInvalidPatterns.0']).toBe('must be a valid regular expression');
+  });
+
+  it('rejects an unknown status key in the Jira status map only by dropping it', () => {
+    const s = ProjectSettingsSchema.parse({ jiraStatusMap: { DONE: 'Closed', BOGUS: 'x' } });
+    expect(s.jiraStatusMap.DONE).toBe('Closed');
+    expect('BOGUS' in s.jiraStatusMap).toBe(false);
+  });
+});
+
+describe('stage dependency warnings (F2)', () => {
+  it('has none by default', () => {
+    expect(stageWarnings(DEFAULT_PROJECT_SETTINGS)).toEqual([]);
+  });
+  it('warns for each disabled dependent stage', () => {
+    const s = ProjectSettingsSchema.parse({ stages: { solutionDesign: { enabled: false }, prReview: { enabled: false }, tests: { enabled: false } } });
+    expect(stageWarnings(s).map((w) => w.field)).toEqual([
+      'settings.stages.solutionDesign.enabled', 'settings.stages.tests.enabled', 'settings.stages.prReview.enabled',
+    ]);
+  });
+});
+
+describe('ProjectInput', () => {
+  it('accepts a minimal project and applies defaults', () => {
+    const p = ProjectInputSchema.parse(valid);
+    expect(p).toMatchObject({ baseBranch: 'dev', installCmd: '', typecheckCmd: '', kbDir: 'docs/kb', claudeMdMode: 'both', jiraMode: 'off', enabled: true, localKeyPrefix: 'BILL' });
+    expect(p.settings).toEqual(DEFAULT_PROJECT_SETTINGS);
+  });
+
+  it('requires {files} in the test command template', () => {
+    const r = ProjectInputSchema.safeParse({ ...valid, testCmdTemplate: 'npx jest' });
+    expect(zodFields(r.error!).testCmdTemplate).toBe('must contain {files}');
+  });
+
+  it('requires an HTTPS repository URL', () => {
+    for (const repoUrl of ['http://github.com/a/b', 'git@github.com:a/b.git', 'github.com/a/b', '', 'https://gitlab.com/a/b', 'https://github.com.evil.io/a/b', 'https://github.com/a', 'https://user@github.com/a/b', 'https://github.com/a/b@evil', 'https://github.com@evil.io/a/b']) {
+      expect(ProjectInputSchema.safeParse({ ...valid, repoUrl }).success, repoUrl).toBe(false);
+    }
+  });
+
+  it('accepts github.com repository URLs, with or without .git', () => {
+    for (const repoUrl of ['https://github.com/acme/billing', 'https://github.com/acme/billing.git']) {
+      expect(ProjectInputSchema.safeParse({ ...valid, repoUrl }).success, repoUrl).toBe(true);
+    }
+    expect(zodFields(ProjectInputSchema.safeParse({ ...valid, repoUrl: 'https://gitlab.com/a/b' }).error!).repoUrl).toBe('must be an HTTPS github.com repository URL');
+  });
+
+  it('reports every missing required field', () => {
+    const fields = zodFields(ProjectInputSchema.safeParse({}).error!);
+    expect(Object.keys(fields).sort()).toEqual(['name', 'repoUrl', 'stack', 'testCmdTemplate']);
+  });
+
+  it('validates kbDir, Jira key and local prefix', () => {
+    const f = zodFields(ProjectInputSchema.safeParse({ ...valid, kbDir: '../x', jiraProjectKey: 'abc', localKeyPrefix: 'a b' }).error!);
+    expect(Object.keys(f).sort()).toEqual(['jiraProjectKey', 'kbDir', 'localKeyPrefix']);
+  });
+
+  it('treats blank optional text as absent and keeps an explicit prefix', () => {
+    const p = ProjectInputSchema.parse({ ...valid, jiraJql: '  ', jiraProjectKey: '', localKeyPrefix: 'XY' });
+    expect(p.jiraJql).toBeUndefined();
+    expect(p.jiraProjectKey).toBeUndefined();
+    expect(p.localKeyPrefix).toBe('XY');
+  });
+
+  it('derives the local key prefix from the first 4 letters', () => {
+    expect(defaultLocalKeyPrefix('my-app 2')).toBe('MYAP');
+    expect(defaultLocalKeyPrefix('12')).toBe('PROJ');
+  });
+
+  it('nests settings errors under settings.*', () => {
+    const f = zodFields(ProjectInputSchema.safeParse({ ...valid, settings: { limits: { maxSubtasks: 0 } } }).error!);
+    expect(f['settings.limits.maxSubtasks']).toBe('must be at least 1');
+  });
+
+  it('provides stack prefills and warns about empty commands', () => {
+    expect(STACK_PREFILLS.nestjs.testCmdTemplate).toBe('npx jest {files}');
+    expect(STACK_PREFILLS.ts_node.installCmd).toBe('npm ci');
+    expect(commandWarnings(ProjectInputSchema.parse(valid)).map((w) => w.field)).toEqual(['installCmd', 'typecheckCmd']);
+    expect(commandWarnings({ installCmd: 'npm ci', typecheckCmd: 'tsc' })).toEqual([]);
+  });
+});
+
+describe('GlobalSettings', () => {
+  it('has the section 7 defaults', () => {
+    expect(DEFAULT_GLOBAL_SETTINGS).toMatchObject({
+      usageThresholdPct: 50, usageThresholdWeeklyPct: 80, calibratedWindowTokens: null, pollIntervalSec: 120,
+      stageTimeoutMin: 20, verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30,
+      modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
+    });
+    expect(Object.keys(DEFAULT_GLOBAL_SETTINGS)).not.toContain('jiraMcp');
+  });
+  it('validates ranges with field-level errors', () => {
+    const f = zodFields(GlobalSettingsSchema.safeParse({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } }).error!);
+    expect(Object.keys(f).sort()).toEqual(['modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
+  });
+});
+
+describe('defaultJiraJql', () => {
+  it("is the project's issues labelled sdlc-agent, oldest first, and empty without a key", () => {
+    expect(defaultJiraJql('ABC')).toBe('project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC');
+    expect(defaultJiraJql('  ABC ')).toBe('project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC');
+    expect(defaultJiraJql('')).toBe('');
+    expect(defaultJiraJql(undefined)).toBe('');
+    expect(DEFAULT_INTAKE_LABEL).toBe('sdlc-agent');
+  });
+});
+
+describe('deepMerge ignores prototype keys from request data', () => {
+  it('does not let __proto__, constructor or prototype change the result or its prototype', () => {
+    const patch = JSON.parse('{"__proto__":{"polluted":true},"constructor":{"x":1},"prototype":{"y":1},"ok":2}');
+    const merged = deepMerge({ a: 1 } as Record<string, unknown>, patch);
+    expect(merged).toEqual({ a: 1, ok: 2 });
+    expect(Object.getPrototypeOf(merged)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect((merged as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
+describe('deepMerge', () => {
+  it('merges objects recursively and replaces arrays and scalars', () => {
+    expect(deepMerge({ a: { b: 1, c: 2 }, d: [1, 2], e: 1 }, { a: { b: 9 }, d: [3], e: undefined })).toEqual({ a: { b: 9, c: 2 }, d: [3], e: 1 });
+  });
+});

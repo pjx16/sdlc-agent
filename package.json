@@ -1,0 +1,51 @@
+{
+  "name": "sdlc-agent",
+  "private": true,
+  "version": "0.0.1",
+  "packageManager": "npm@12.0.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test:int": "turbo run test:int",
+    "test:live": "turbo run test:live",
+    "test:e2e": "turbo run build --filter=@sdlc/api... && npm run test:e2e -w @sdlc/e2e",
+    "up:prod": "bash scripts/prod.sh",
+    "up:dev": "bash scripts/dev.sh",
+    "down": "docker compose -p sdlc-agent down",
+    "down:dev": "docker compose -p sdlc-agent-dev down",
+    "agents": "node scripts/generate-agents.mjs",
+    "formats": "node scripts/generate-formats.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "eslint": "^10.14.0",
+    "turbo": "^2.11.10",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "eslint": {
+      "minimatch": "^11.0.1"
+    },
+    "@eslint/config-array": {
+      "minimatch": "^11.0.1"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    },
+    "glob": {
+      "minimatch": "^11.0.1"
+    }
+  }
+}

@@ -1,0 +1,611 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------- enums
+
+enum ProjectStack {
+  ts_node
+  nestjs
+  nextjs
+}
+
+enum ClaudeMdMode {
+  ours
+  theirs
+  both
+}
+
+enum OnboardingStatus {
+  draft
+  profiling
+  proposed
+  confirmed
+}
+
+enum TicketKind {
+  feature
+  bug
+  chore
+}
+
+enum JiraMode {
+  rest
+  off
+}
+
+enum MirrorStatus {
+  pending
+  ok
+  failed
+}
+
+enum TicketSource {
+  jira
+  paste
+}
+
+enum TicketType {
+  story
+  bug
+  tech
+}
+
+enum TicketStatus {
+  NEW
+  KB
+  PLANNING
+  AWAITING_PLAN_APPROVAL
+  BREAKDOWN
+  AWAITING_BREAKDOWN_APPROVAL
+  IN_PROGRESS
+  REVIEW
+  KB_UPDATE
+  AWAITING_CI
+  IN_HUMAN_REVIEW
+  DONE
+  ON_HOLD
+  FAILED
+}
+
+enum HoldReason {
+  awaiting_answer
+  needs_help
+  manual
+  pr_closed
+  loop_limit
+}
+
+enum Actor {
+  system
+  user
+  jira
+}
+
+enum JiraSyncResult {
+  none
+  applied
+  failed
+}
+
+enum SubtaskStatus {
+  PENDING
+  TESTS
+  VERIFY_RED
+  IMPLEMENT
+  VERIFY_GREEN
+  FIXING
+  DONE
+}
+
+enum StageRunStatus {
+  queued
+  running
+  succeeded
+  failed
+  needs_input
+  killed
+}
+
+enum FixReason {
+  tests
+  review
+  ci
+}
+
+enum FindingStatus {
+  open
+  fixed
+  accepted
+}
+
+enum SupportStatus {
+  open
+  answered
+  resolved
+  dismissed
+}
+
+enum SupportKind {
+  approval
+  question
+  open_question
+  hold
+  ci_infra
+  onboarding
+  credential
+  pr_ready
+}
+
+enum SupportPriority {
+  blocking
+  normal
+  fyi
+}
+
+enum UsageSource {
+  event
+  estimate
+}
+
+// ---------------------------------------------------------------- models
+
+model Project {
+  id                 String           @id @default(uuid())
+  name               String           @unique
+  repoUrl            String
+  /// token | bot: personal token from Settings, or the sdlc-agent GitHub App's bot through the token broker.
+  githubAuth         String           @default("token")
+  baseBranch         String           @default("dev")
+  stack              ProjectStack
+  installCmd         String           @default("")
+  typecheckCmd       String           @default("")
+  testCmdTemplate    String
+  kbDir              String           @default("docs/kb")
+  claudeMdMode       ClaudeMdMode     @default(both)
+  jiraMode           JiraMode         @default(off)
+  /// New projects start in `draft`; the worker only runs `confirmed` ones (BUILD_PLAN v1 6.7).
+  onboardingStatus   OnboardingStatus @default(confirmed)
+  onboardingProposal Json?
+  onboardingError    String?
+  jiraProjectKey     String?
+  jiraJql            String?
+  localKeyPrefix     String
+  nextLocalNumber    Int              @default(1)
+  mirrorStatus       MirrorStatus     @default(pending)
+  mirrorError        String?
+  enabled            Boolean          @default(true)
+  /// ProjectSettings (validated by Zod in packages/shared)
+  settings           Json             @default("{}")
+  createdAt          DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(6)
+
+  tickets        Ticket[]
+  stageRuns      StageRun[]
+  supportTickets SupportTicket[]
+}
+
+/// One row (id "global").
+model GlobalSettings {
+  id                      String    @id @default("global")
+  usageThresholdPct       Int       @default(50)
+  usageThresholdWeeklyPct Int       @default(80)
+  calibratedWindowTokens  BigInt?
+  usageIgnoredUntil       DateTime? @db.Timestamptz(6)
+  pipelinePaused          Boolean   @default(false)
+  pausedReason            String?
+  /// The ERROR_CODES value behind the pause, when there is one (CLAUDE_AUTH, CLAUDE_USAGE_LIMIT, ...).
+  pausedCode              String?
+  resetsAt                DateTime? @db.Timestamptz(6)
+  intakePaused            Boolean   @default(false)
+  pollIntervalSec         Int       @default(120)
+  stageTimeoutMin         Int       @default(20)
+  verifyTimeoutSec        Int       @default(600)
+  workspaceRetentionDays  Int       @default(7)
+  logRetentionDays        Int       @default(30)
+  assistantTokenCap       Int       @default(200000)
+  /// { <stage>: { model, maxTurns } } for new projects (BUILD_PLAN v1 6.7).
+  stageDefaults           Json      @default("{}")
+  modelAliases            Json      @default("{\"haiku\":\"haiku\",\"sonnet\":\"sonnet\",\"opus\":\"opus\"}")
+  updatedAt               DateTime  @updatedAt @db.Timestamptz(6)
+}
+
+model Ticket {
+  id              String        @id @default(uuid())
+  projectId       String
+  project         Project       @relation(fields: [projectId], references: [id])
+  key             String
+  source          TicketSource
+  externalKey     String?
+  type            TicketType    @default(story)
+  title           String
+  body            String        @default("")
+  featureKey      String?
+  labels          Json          @default("[]")
+  /// Where the stale code of a rerun starts; the worker reverts from here before the stage runs again.
+  revertFromSha   String?
+  revertStage     String?
+  kind            TicketKind    @default(feature)
+  status          TicketStatus  @default(NEW)
+  holdReason      HoldReason?
+  holdFromStatus  TicketStatus?
+  branch          String?
+  prNumber        Int?
+  /// Changed lines of the branch against the base (added + deleted, lockfiles and generated files left out), measured after every subtask.
+  prDiffLines     Int?
+  /// The largest size limit the branch has crossed and been reported for: soft | hard. Reset when it falls back under.
+  prSizeLevel     String?
+  /// Commits the pipeline itself has pushed on this ticket's branch. A rerun may replace remote commits only if they are listed here.
+  pushedShas      String[]      @default([])
+  prUrl           String?
+  /// Set when the worker sees the PR merged: GitHub's merge time and the PR's size (lines added and deleted, files changed).
+  mergedAt        DateTime?     @db.Timestamptz(6)
+  prAdditions     Int?
+  prDeletions     Int?
+  prChangedFiles  Int?
+  planMarkdown    String?
+  /// The proposed subtasks while the ticket waits at the breakdown gate (validated by shared validateBreakdown).
+  breakdownDraft  Json?
+  reviewRound     Int           @default(0)
+  lastReviewedSha String?
+  ciFixPending    Boolean       @default(false)
+  ciFixDone       Boolean       @default(false)
+  /// The failed checks were run again once after the CI triager called the failure flaky.
+  ciRerunDone     Boolean       @default(false)
+  /// When the worker started waiting for the PR's checks (reset after a CI fix and on hold).
+  ciWaitStartedAt DateTime?     @db.Timestamptz(6)
+  /// Set by the "re-run KB update" action; the worker runs kbUpdate once for the ticket in IN_HUMAN_REVIEW and clears it.
+  kbUpdatePending Boolean       @default(false)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(6)
+
+  transitions    StateTransition[]
+  subtasks       Subtask[]
+  stageRuns      StageRun[]
+  findings       ReviewFinding[]
+  supportTickets SupportTicket[]
+  artifacts      StageArtifact[]
+  events         Event[]
+  decisions      OrchestratorDecision[]
+
+  @@unique([projectId, key])
+  @@unique([projectId, externalKey])
+  @@index([status, createdAt])
+  @@index([mergedAt])
+}
+
+model StateTransition {
+  id                String         @id @default(uuid())
+  ticketId          String
+  ticket            Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus        TicketStatus
+  toStatus          TicketStatus
+  at                DateTime       @default(now()) @db.Timestamptz(6)
+  actor             Actor
+  reason            String?
+  stageRunId        String?
+  jiraStatusApplied String?
+  jiraSyncResult    JiraSyncResult @default(none)
+  jiraSyncError     String?
+  /// advance | rerun | hold | resume | fail | retry | approve | reject (BUILD_PLAN v1 6.8)
+  kind              String         @default("advance")
+  /// The person's instructions for a rerun, or the reason for a rejection.
+  note              String?
+
+  @@index([ticketId, at])
+}
+
+model Subtask {
+  id                 String        @id @default(uuid())
+  ticketId           String
+  ticket             Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  seq                Int
+  externalKey        String?
+  title              String
+  description        String        @default("")
+  acceptanceCriteria Json          @default("[]")
+  files              Json          @default("[]")
+  dependsOn          Json          @default("[]")
+  status             SubtaskStatus @default(PENDING)
+  fixRounds          Int           @default(0)
+  testFiles          Json          @default("[]")
+  testCommit         String?
+  featCommit         String?
+  /// Why the last verify step failed (the tail of its output), for the next tests or fix run.
+  lastFailure        String?
+  /// Set by Retry: only `tests` runs after this count towards the verify-red retry limit.
+  retriedAt          DateTime?     @db.Timestamptz(6)
+  /// Set by "Redo tests": the worker discards this subtask's tests and implementation before the tests stage runs again.
+  redoTests          Boolean       @default(false)
+  /// Set by a per-subtask rerun: `tests` or `implementation`. The worker discards that part first.
+  rerunPart          String?
+
+  stageRuns StageRun[]
+
+  @@unique([ticketId, seq])
+}
+
+model StageRun {
+  id                       String         @id @default(uuid())
+  ticketId                 String?
+  ticket                   Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  projectId                String
+  project                  Project        @relation(fields: [projectId], references: [id])
+  subtaskId                String?
+  subtask                  Subtask?       @relation(fields: [subtaskId], references: [id], onDelete: SetNull)
+  stage                    String
+  model                    String
+  attempt                  Int            @default(1)
+  round                    Int            @default(0)
+  reason                   FixReason?
+  status                   StageRunStatus @default(queued)
+  startedAt                DateTime?      @db.Timestamptz(6)
+  endedAt                  DateTime?      @db.Timestamptz(6)
+  killRequested            Boolean        @default(false)
+  containerId              String?
+  cliVersion               String?
+  inputTokens              Int            @default(0)
+  outputTokens             Int            @default(0)
+  cacheReadTokens          Int            @default(0)
+  cacheWriteTokens         Int            @default(0)
+  costUsd                  Decimal        @default(0) @db.Decimal(12, 6)
+  numTurns                 Int            @default(0)
+  sessionId                String?
+  resultJson               Json?
+  logPath                  String?
+  error                    String?
+  /// An ERROR_CODES value (packages/shared/src/error-policy.ts) and who it belongs to.
+  errorCode                String?
+  errorSource              String?
+  /// When an automatic retry is due (CLAUDE_API_ERROR backoff).
+  retryAt                  DateTime?      @db.Timestamptz(6)
+  /// The commit range a code stage covered. A run that made no commit has the same sha in both.
+  startSha                 String?
+  endSha                   String?
+  /// Set when a rerun made this run obsolete: it is kept, greyed out and marked stale.
+  supersededAt             DateTime?      @db.Timestamptz(6)
+  supersededByTransitionId String?
+  /// auto | user | orchestrator
+  trigger                  String         @default("auto")
+
+  supportTickets SupportTicket[]
+
+  @@index([status])
+  @@index([ticketId, startedAt])
+}
+
+model ReviewFinding {
+  id       String        @id @default(uuid())
+  ticketId String
+  ticket   Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  round    Int
+  /// Which reviewer found it: prReview, qualityReview or securityReview.
+  reviewer String        @default("prReview")
+  severity String
+  file     String
+  line     Int?
+  issue    String
+  rule     String
+  fix      String
+  status   FindingStatus @default(open)
+}
+
+/// Everything that needs a person becomes exactly one of these (BUILD_PLAN v1 6.5). A partial unique index
+/// (see the migration) keeps at most one OPEN ticket per dedupeKey.
+model SupportTicket {
+  id            String                 @id @default(uuid())
+  kind          SupportKind
+  title         String
+  /// Markdown.
+  body          String
+  priority      SupportPriority        @default(blocking)
+  status        SupportStatus          @default(open)
+  projectId     String?
+  project       Project?               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Null for global items such as a credential.
+  ticketId      String?
+  ticket        Ticket?                @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  stageRunId    String?
+  stageRun      StageRun?              @relation(fields: [stageRunId], references: [id], onDelete: Cascade)
+  stage         String
+  /// For open_question: the answer the plan used.
+  defaultAnswer String?
+  /// The answer or the decision.
+  response      String?
+  resolvedBy    String?
+  createdAt     DateTime               @default(now()) @db.Timestamptz(6)
+  resolvedAt    DateTime?              @db.Timestamptz(6)
+  dedupeKey     String?
+  assistant     AssistantConversation?
+
+  @@index([status])
+  @@index([kind, status])
+  @@index([ticketId])
+}
+
+/// One chat per support ticket (BUILD_PLAN v1 6.6). `pendingAt` is set when the person sends a message; the worker answers it.
+model AssistantConversation {
+  id              String             @id @default(uuid())
+  supportTicketId String             @unique
+  supportTicket   SupportTicket      @relation(fields: [supportTicketId], references: [id], onDelete: Cascade)
+  /// The CLI session to resume; reset when older turns are replaced by the summary.
+  sessionId       String?
+  summary         String?
+  messageCount    Int                @default(0)
+  tokens          Int                @default(0)
+  pendingAt       DateTime?          @db.Timestamptz(6)
+  createdAt       DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(6)
+  messages        AssistantMessage[]
+
+  @@index([pendingAt])
+}
+
+model AssistantMessage {
+  id             String                @id @default(uuid())
+  conversationId String
+  conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// user | assistant
+  role           String
+  text           String
+  /// { kind: answer | plan_edit | rerun_note, text } the person can apply with one click.
+  draft          Json?
+  stageRunId     String?
+  at             DateTime              @default(now()) @db.Timestamptz(6)
+
+  @@index([conversationId, at])
+}
+
+/// Every version of a stage's output (BUILD_PLAN v1 6.8). The current one is the latest version that is not stale.
+model StageArtifact {
+  id              String    @id @default(uuid())
+  ticketId        String
+  ticket          Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  /// plan | breakdown | review | kb
+  stage           String
+  version         Int
+  data            Json
+  stageRunId      String?
+  supersededAt    DateTime? @db.Timestamptz(6)
+  /// The Confluence page of a plan (BUILD_PLAN v1 6.10).
+  externalUrl     String?
+  externalId      String?
+  externalVersion Int?
+  /// Hash of what was last sent to Confluence, so a page is only updated when its content changed.
+  externalSig     String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([ticketId, stage, version])
+  @@index([ticketId, stage])
+}
+
+model UsageSnapshot {
+  id           String      @id @default(uuid())
+  at           DateTime    @default(now()) @db.Timestamptz(6)
+  fiveHourPct  Float?
+  sevenDayPct  Float?
+  status       String?
+  resetsAt     DateTime?   @db.Timestamptz(6)
+  source       UsageSource
+  windowTokens Int         @default(0)
+  /// The run that ended just before this snapshot (null for idle samples).
+  stageRunId   String?
+  model        String?
+  /// Every window the rate_limit_event carried (five_hour, seven_day, per-model weekly, ...), as sent.
+  windows      Json?
+
+  @@index([at])
+}
+
+/// Audit log. type: intake | state | stage | usage | jira | git | settings | support | error
+model Event {
+  id         String   @id @default(uuid())
+  ticketId   String?
+  ticket     Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  type       String
+  message    String
+  at         DateTime @default(now()) @db.Timestamptz(6)
+  /// info | warn | error
+  level      String   @default("info")
+  /// system | orchestrator | claude | agent | jira | confluence | github | git | ci | user
+  source     String   @default("system")
+  stageRunId String?
+  subtaskId  String?
+  /// An ERROR_CODES value, when the event is about a failure.
+  errorCode  String?
+  data       Json?
+
+  @@index([ticketId, at])
+  @@index([at])
+  @@index([level, at])
+}
+
+/// Dashboard login session. Only the SHA-256 of the token is stored.
+/// Failed-login counts and lockouts per address, so a restart of the API does not reset them.
+model LoginLimit {
+  key         String   @id
+  failures    BigInt[] @default([])
+  lockedUntil BigInt   @default(0)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  expiresAt DateTime @db.Timestamptz(6)
+  ip        String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([expiresAt])
+}
+
+/// A credential entered in the dashboard. Secrets hold an AES-256-GCM payload (v1.<iv>.<tag>.<ciphertext>), other values plain text.
+model Credential {
+  key         String    @id
+  value       String
+  isSecret    Boolean
+  hint        String?
+  verifiedAt  DateTime? @db.Timestamptz(6)
+  verifyError String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+}
+
+/// The single admin login created in the setup wizard (argon2 hash).
+model AdminAccount {
+  id           String   @id @default("admin")
+  passwordHash String
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+}
+
+/// What the worker last did, so the dashboard can show that it is alive and what it is (not) doing. One row, written by the worker.
+model WorkerStatus {
+  id             String    @id @default("worker")
+  heartbeatAt    DateTime  @db.Timestamptz(6)
+  tickOutcome    String
+  tickDetail     String?
+  /// idle | cloning | intake | stage | housekeeping | paused | not_configured (BUILD_PLAN v1 6.1)
+  phase          String    @default("idle")
+  phaseDetail    String?
+  phaseSince     DateTime? @db.Timestamptz(6)
+  startedAt      DateTime? @db.Timestamptz(6)
+  pid            Int?
+  version        String?
+  intakeMode     String?
+  intakeAt       DateTime? @db.Timestamptz(6)
+  intakeProjects Int       @default(0)
+  intakeWaiting  Int       @default(0)
+  intakeCreated  Int       @default(0)
+  intakeSeen     Int       @default(0)
+  intakeError    String?
+  intakeSkipped  String?
+  /// Why the agent image is not usable (null when it is there or not checked yet); set by the worker's image check.
+  agentImageError String?
+}
+
+/// One choice between several legal moves (BUILD_PLAN v1 6.11). `fallbackUsed` is true when the answer was not a legal move or the call failed.
+model OrchestratorDecision {
+  id           String   @id @default(uuid())
+  ticketId     String
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  at           DateTime @default(now()) @db.Timestamptz(6)
+  point        String
+  legalMoves   Json
+  chosen       String
+  reason       String   @default("")
+  fallbackUsed Boolean  @default(false)
+  stageRunId   String?
+  model        String?
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  costUsd      Decimal  @default(0) @db.Decimal(12, 6)
+
+  @@index([ticketId, at])
+  @@index([at])
+}
