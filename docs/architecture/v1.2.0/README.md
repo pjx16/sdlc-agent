@@ -26,7 +26,7 @@ How sdlc-agent 1.2.0 is put together. This is a snapshot: later versions get the
 
 | Area | Before (1.1.0) | Now (1.2.0) |
 | --- | --- | --- |
-| Docker access | The worker mounted the Docker socket | The worker talks to a **docker-proxy** that refuses privileged containers, host/PID networking, added capabilities, devices, root users and bind mounts outside `DATA_DIR` (source-build compose; the release bundle still mounts the socket) |
+| Docker access | The worker mounted the Docker socket | The worker talks to a **docker-proxy** that refuses privileged containers, host/PID networking, added capabilities, devices, root users and bind mounts outside `DATA_DIR` |
 | Claude token | Passed to agent containers | **Never enters an agent container.** Agents call an **LLM gateway** inside the worker, which adds the token and forwards only `POST /v1/messages` and `count_tokens` |
 | npm | Agents reached the npm registry through the proxy | Agents install from a **read-only npm mirror** (Verdaccio, publishing refused); the proxy now allows only Prisma's binary host |
 | Agents | Stages with prompts | **16 agents**, one job each, `.claude/agents/sdlc-*.md` generated from `guidelines/stages/` (`npm run agents`). Stage keys: `solutionDesign`/`bugInvestigation` (was `plan`), `technicalDesign` (was `breakdown`), `prReview` (was `review`), new `featureMap`, `qualityReview`, `securityReview`, `ciTriage` |
@@ -56,7 +56,7 @@ Source: [`diagrams/system.svg`](./diagrams/system.svg). Amber boxes are people, 
 | Docker proxy | Sits between the worker and the Docker socket and allows only create, start, wait, attach, kill, delete, logs and image pulls, with a safe container policy | Allow privileged containers, host/PID networking, added capabilities, devices, root users or bind mounts outside `DATA_DIR` |
 | Token broker (optional) | Holds the GitHub App's private key; hands a connected system a one-hour token for one repository | Hold any repository content, or give a system a token for another system's installation |
 
-The API and the worker are separate Compose services built from one codebase (`apps/api`). Only the docker-proxy mounts the Docker socket; the worker reaches it over the internal network (`DOCKER_HOST`). The release bundle (`deploy/docker-compose.yml`) has not been moved to this layout yet. The broker is a separate small service (`apps/broker`) with its own image; see [`docs/BOT.md`](../../BOT.md).
+The API and the worker are separate Compose services built from one codebase (`apps/api`). Only the docker-proxy mounts the Docker socket; the worker reaches it over the internal network (`DOCKER_HOST`). The broker is a separate small service (`apps/broker`) with its own image; see [`docs/BOT.md`](../../BOT.md).
 
 ## Trust boundaries
 
