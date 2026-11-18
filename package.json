@@ -1,6 +1,13 @@
 {
-  "name": "sdlc-agent",
+  "name": "sdlc-agent-monorepo",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pjx16/sdlc-agent.git"
+  },
+  "homepage": "https://github.com/pjx16/sdlc-agent#readme",
+  "bugs": "https://github.com/pjx16/sdlc-agent/issues",
   "version": "0.0.1",
   "packageManager": "npm@12.0.2",
   "engines": {

@@ -1,6 +1,14 @@
 {
   "name": "@sdlc/e2e",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pjx16/sdlc-agent.git",
+    "directory": "apps/e2e"
+  },
+  "homepage": "https://github.com/pjx16/sdlc-agent#readme",
+  "bugs": "https://github.com/pjx16/sdlc-agent/issues",
   "version": "0.0.1",
   "type": "module",
   "scripts": {
