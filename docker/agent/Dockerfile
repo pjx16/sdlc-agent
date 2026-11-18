@@ -3,7 +3,7 @@ LABEL org.opencontainers.image.source="https://github.com/pjx16/sdlc-agent" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.description="SDLC agent sandbox that runs one pipeline stage"
 
-# Pinned from the milestone-0 spike (docs/SPIKE.md, task 0.1).
+# Pinned from the milestone-0 spike.
 ARG CLAUDE_CODE_VERSION=2.1.322
 
 RUN apt-get update \

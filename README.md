@@ -17,7 +17,7 @@ A self-hosted, Docker-based **shipping engine** for solo developers. It turns ti
 >
 > Feedback and bug reports are welcome, but expect breaking changes until `0.1.0`.
 
-**What has been tested.** The milestones in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md) are implemented and covered by unit, integration and browser tests (a stand-in plays Claude in those). One small real ticket has run end to end with live Claude, from a pasted ticket to a merged PR (see [Live end-to-end run](#live-end-to-end-run)). Larger tickets, review findings, CI failures and Jira have not been exercised live.
+**What has been tested.** The v0 [milestones](#roadmap) are implemented and covered by unit, integration and browser tests (a stand-in plays Claude in those). One small real ticket has run end to end with live Claude, from a pasted ticket to a merged PR (see [Live end-to-end run](#live-end-to-end-run)). Larger tickets, review findings, CI failures and Jira have not been exercised live.
 
 ## What it does
 
@@ -79,7 +79,7 @@ Key points:
 - **Dashboard:** single-user password login, a live pipeline diagram that shows which step is moving, per-ticket overview (tokens, cost, time, PR size), inbox with the plan and breakdown to read before approving, live logs, settings, guideline editing and charts. Dates and chart axes use your own time zone.
 - **Jira integration:** REST polling with a configurable JQL per project (default). Pasting tickets works with or without Jira. Ticket states can be mapped to Jira statuses.
 
-The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md). The Jira integration is described in [`docs/TRACKER.md`](./docs/TRACKER.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
+The Jira integration is described in [`docs/TRACKER.md`](./docs/TRACKER.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
 
 ## Design principles
 
@@ -318,11 +318,11 @@ The end-to-end suite starts its own Postgres container and the API and dashboard
 
 ## Roadmap
 
-The first build was split into 14 milestones, defined in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md):
+The first build was split into 14 milestones, were:
 
 | # | Milestone | State |
 | --- | --- | --- |
-| 0 | Spike: Claude Code CLI behaviour, usage events, proxy domains, Jira MCP and `gh` | done ([`SPIKE.md`](./docs/SPIKE.md)) |
+| 0 | Spike: Claude Code CLI behaviour, usage events, proxy domains, Jira MCP and `gh` | done |
 | 1 | Skeleton: monorepo, Compose, auth, dashboard shell | done |
 | 2 | Projects and settings | done |
 | 3 | Agent runner and egress proxy | done |
@@ -365,7 +365,7 @@ Out of scope for now: a QA agent or post-merge testing, concurrency above 1, Jir
 Known limitations:
 
 - Targeted tests must be runnable inside a plain Node container with no external services (no database, no network beyond the npm registry).
-- The usage gate reads the `rate_limit_event` that Claude Code prints (docs/SPIKE.md 0.2). If a future CLI stops printing it, the gate falls back to an estimate from tokens, which needs `calibratedWindowTokens` to be set on the Usage page.
+- The usage gate reads the `rate_limit_event` that Claude Code prints. If a future CLI stops printing it, the gate falls back to an estimate from tokens, which needs `calibratedWindowTokens` to be set on the Usage page.
 - Only one stage runs at a time, system-wide, and a ticket's whole run is sequential.
 - The first-pass rate on the Overview is approximate: a subtask has no completion time of its own, so it counts in the range where its last stage run ended.
 - Only one small ticket (one subtask, then two) has run with live Claude. Review fixes, CI fixes, support queries, Jira and larger tickets have only been tested against the stand-in.

@@ -51,4 +51,4 @@ The tracker integration connects the pipeline to Jira Cloud over REST v3. It pul
 
 ## Open questions
 
-- The ticket asks for a "tracker readme" at the root; the root `README.md` exists and no tracker-specific file was found (`rg -ni tracker` hits only `docs/build-plan`). Whether a separate file is wanted is not verified.
+- The ticket asks for a "tracker readme" at the root; the root `README.md` exists and no tracker-specific file was found (`rg -ni tracker` hits only the removed planning docs). Whether a separate file is wanted is not verified.
