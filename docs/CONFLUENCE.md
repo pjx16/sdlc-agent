@@ -19,4 +19,4 @@ A project with no space keeps the plan in Jira.
 
 Approval is still given in the dashboard or by moving the Jira ticket to the approval status; see [`TRACKER.md`](./TRACKER.md). Confluence failures never block the pipeline.
 
-The page format is `guidelines/formats/jira-plan-link.md` and `plan.md`; the Markdown is converted to Confluence storage format by `packages/shared/src/confluence-storage.ts`.
+The plan format is `guidelines/formats/plan.md` and the Jira link comment is `guidelines/formats/jira-plan-link.md`; the Markdown is converted to Confluence storage format by `packages/shared/src/confluence-storage.ts`.
