@@ -1,4 +1,5 @@
 # Release install: runs the published images. Set SDLC_VERSION in .env. The worker pulls the agent image on first start.
+# Only docker-proxy touches the Docker socket; agents reach the model through the worker's LLM gateway and npm through the read-only mirror.
 # The services and security properties match the root docker-compose.yml, which builds from source.
 name: sdlc-agent
 
@@ -31,6 +32,7 @@ services:
       SETUP_CODE: ${SETUP_CODE:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
@@ -59,6 +61,7 @@ services:
       start_period: 60s
     depends_on:
       api: { condition: service_healthy }
+      docker-proxy: { condition: service_started }
     environment:
       DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
@@ -70,19 +73,40 @@ services:
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
       DATA_DIR: ${DATA_DIR:?set DATA_DIR in .env}
+      # Not the Docker socket: a filtering proxy that refuses privileged containers, host mounts and anything but the calls the worker needs.
+      DOCKER_HOST: tcp://docker-proxy:2375
+      # Optional stronger sandbox for agent containers, once installed on the Docker host: runsc (gVisor) or sysbox-runc.
+      AGENT_RUNTIME: ${AGENT_RUNTIME:-}
       AGENT_IMAGE: ${AGENT_IMAGE:-${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-agent:${SDLC_VERSION}}
       AGENT_MEMORY: ${AGENT_MEMORY:-4g}
       AGENT_CPUS: ${AGENT_CPUS:-2}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
       - ${DATA_DIR}:${DATA_DIR}
       - ./guidelines:/app/guidelines:ro
-    networks: [internal, egress]
+    # On the agent network the worker answers as `llm-gateway` (port 8080): agents send their model calls there instead of holding the Claude token.
+    networks:
+      internal: {}
+      egress: {}
+      agent_net:
+        aliases: [llm-gateway]
+
+  docker-proxy:
+    image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-docker-proxy:${SDLC_VERSION:?set SDLC_VERSION in .env}
+    restart: unless-stopped
+    user: root
+    environment:
+      ALLOWED_BIND_ROOTS: ${DATA_DIR:?set DATA_DIR in .env}
+    volumes:
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
+    networks: [internal]
 
   dashboard:
     image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-dashboard:${SDLC_VERSION:?set SDLC_VERSION in .env}
     restart: unless-stopped
+    environment:
+      # Names the dashboard answers to besides localhost (a public name behind a TLS proxy). Other Host headers get 421.
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}
     ports:
       - "${DASHBOARD_BIND:-127.0.0.1}:3000:3000"
     networks: [internal]
@@ -92,9 +116,17 @@ services:
     restart: unless-stopped
     networks: [agent_net, egress]
 
+  # Read-only npm mirror (Verdaccio in proxy mode, publishing refused). Agents install from here and cannot reach registry.npmjs.org.
+  npm-mirror:
+    image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-npm-mirror:${SDLC_VERSION:?set SDLC_VERSION in .env}
+    restart: unless-stopped
+    volumes:
+      - npm_mirror:/verdaccio/storage
+    networks: [agent_net, egress]
+
 networks:
   internal: {}
-  # Agent containers attach only to this network, so they can reach nothing except the proxy.
+  # Agent containers attach only to this network, so they can reach nothing except the LLM gateway, the npm mirror and the proxy.
   agent_net:
     name: sdlc_agent_net
     internal: true
@@ -102,6 +134,8 @@ networks:
 
 volumes:
   pgdata: {}
+  npm_mirror:
+    name: sdlc_npm_mirror
   # Shared npm cache for agent containers (mounted at /npm-cache); created now, used from milestone 3.
   npm_cache:
     name: sdlc_npm_cache

@@ -100,6 +100,8 @@ jobs:
           - { name: dashboard, context: ., file: apps/dashboard/Dockerfile }
           - { name: broker, context: ., file: apps/broker/Dockerfile }
           - { name: proxy, context: docker/proxy, file: docker/proxy/Dockerfile }
+          - { name: docker-proxy, context: docker/socket-proxy, file: docker/socket-proxy/Dockerfile }
+          - { name: npm-mirror, context: docker/npm-mirror, file: docker/npm-mirror/Dockerfile }
           - { name: agent, context: docker/agent, file: docker/agent/Dockerfile }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

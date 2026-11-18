@@ -103,8 +103,6 @@ This tool runs AI-generated code and holds a GitHub token. The short version; th
 - Tokens entered in the dashboard are encrypted in Postgres with `ENCRYPTION_KEY`; back up `.env` separately from the database.
 - Ticket text and repository content are untrusted data. There is no auto-merge. Enable branch protection on every base branch.
 
-**Known gap:** the hardening above (docker-proxy, LLM gateway, npm mirror) is in the source-build Compose file. The release bundle's `deploy/docker-compose.yml` has not been moved to it yet, so use `npm run up:prod` from a checkout until it has.
-
 Never publish the dashboard beyond `127.0.0.1` without a TLS reverse proxy and `COOKIE_SECURE=true`.
 
 ## Tech stack
@@ -160,7 +158,7 @@ mkdir -p "$(grep ^DATA_DIR= .env | cut -d= -f2)"
 docker compose up -d
 ```
 
-`sdlc-agent up` pulls the agent image before starting the stack, so the first run takes a little longer (release installs only; a source checkout builds it with `npm run up:prod`). Note the [known gap](#security-model) in the release bundle. Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
+`sdlc-agent up` pulls the agent image before starting the stack, so the first run takes a little longer (release installs only; a source checkout builds it with `npm run up:prod`). Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
 
 The images are published to GHCR with provenance attestations. To verify one (needs the GitHub CLI):
 
@@ -288,7 +286,6 @@ Known limitations:
 - Only two small tickets have run with live Claude ([`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)). Review fixes, CI fixes, support queries, Jira, Confluence and larger tickets have only been tested against the stand-in.
 - A failed first dependency install leaves a half-installed `node_modules`, and Retry skips the reinstall. Delete the workspace's `node_modules` and reinstall, or delete the workspace (see [`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)).
 - Creating a ticket through the API requires the text in `body`; unknown fields are rejected.
-- The release bundle has not been moved to the hardened Compose layout yet (see the [security model](#security-model)).
 
 ## Releases and versioning
 
