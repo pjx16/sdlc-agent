@@ -98,6 +98,7 @@ jobs:
           - { name: api, context: ., file: apps/api/Dockerfile }
           - { name: worker, context: ., file: docker/worker/Dockerfile }
           - { name: dashboard, context: ., file: apps/dashboard/Dockerfile }
+          - { name: broker, context: ., file: apps/broker/Dockerfile }
           - { name: proxy, context: docker/proxy, file: docker/proxy/Dockerfile }
           - { name: agent, context: docker/agent, file: docker/agent/Dockerfile }
     steps:
