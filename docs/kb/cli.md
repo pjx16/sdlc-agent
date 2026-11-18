@@ -46,6 +46,6 @@
 - `commands.test.ts`, `doctor.test.ts`, `envfile.test.ts`, `init.test.ts`, `secrets.test.ts`, `upgrade.test.ts` in `packages/cli/src/`; run with `npm test` in `packages/cli`
 - Worker side: `apps/api/src/worker/agent-runner/ensure-image.test.ts`
 
-## Open questions
+## Notes
 
-- `docker-compose.yml` may also reference the agent image — not verified.
+- The source-build `docker-compose.yml` references the agent image only as the `agent-image` service behind the `build` profile (`docker compose --profile build build agent-image`); the worker starts agent containers from it. The release compose file passes the published reference to the worker as `AGENT_IMAGE`.

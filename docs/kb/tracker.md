@@ -2,7 +2,7 @@
 
 ## Overview
 
-The tracker integration connects the pipeline to Jira Cloud over REST v3. It pulls tickets in (intake), reads approval statuses, and writes comments, status moves and sub-tasks back. Jira problems never block the pipeline; only intake pauses. The repository's root `README.md` is the top-level project readme; it has no code behaviour of its own.
+The tracker integration connects the pipeline to Jira Cloud over REST v3. It pulls tickets in (intake), reads approval statuses, and writes comments, status moves and sub-tasks back. Jira problems never block the pipeline; only intake pauses. The user-facing description is [`docs/TRACKER.md`](../TRACKER.md).
 
 ## Entry points
 
@@ -49,6 +49,3 @@ The tracker integration connects the pipeline to Jira Cloud over REST v3. It pul
 - An invalid proposed breakdown cannot be approved from Jira — `approval-poller.ts:44`
 - One bad ticket in the approval poll does not stop the others — `approval-poller.ts:58`
 
-## Open questions
-
-- The ticket asks for a "tracker readme" at the root; the root `README.md` exists and no tracker-specific file was found (`rg -ni tracker` hits only the removed planning docs). Whether a separate file is wanted is not verified.
