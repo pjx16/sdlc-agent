@@ -1,4 +1,7 @@
 FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
+LABEL org.opencontainers.image.source="https://github.com/pjx16/sdlc-agent" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.description="SDLC agent sandbox that runs one pipeline stage"
 
 # Pinned from the milestone-0 spike (docs/SPIKE.md, task 0.1).
 ARG CLAUDE_CODE_VERSION=2.1.322

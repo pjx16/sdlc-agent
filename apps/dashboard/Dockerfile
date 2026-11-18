@@ -11,6 +11,9 @@ ENV NEXT_TELEMETRY_DISABLED=1 API_URL=http://api:4000
 RUN npm run build -w @sdlc/shared && npm run build -w @sdlc/dashboard
 
 FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
+LABEL org.opencontainers.image.source="https://github.com/pjx16/sdlc-agent" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.description="SDLC agent dashboard"
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000 API_URL=http://api:4000
 COPY --from=build /app/apps/dashboard/.next/standalone ./

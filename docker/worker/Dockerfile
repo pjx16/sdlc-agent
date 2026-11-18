@@ -18,6 +18,9 @@ COPY apps/dashboard/package.json apps/dashboard/
 RUN npm ci --omit=dev --ignore-scripts -w @sdlc/api
 
 FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
+LABEL org.opencontainers.image.source="https://github.com/pjx16/sdlc-agent" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.description="SDLC agent worker"
 # curl is only needed to fetch the (already dearmored) gh keyring, so it is purged in the same layer.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates curl \
