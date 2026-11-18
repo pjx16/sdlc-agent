@@ -226,8 +226,8 @@ erDiagram
 8. **Two ways to reach GitHub, chosen per project.** A personal token, or a GitHub App through a broker, so a user can work without a personal token and no secret that spans users is ever shipped.
 9. **Pushes are never forced, with one narrow exception:** replacing the pipeline's own superseded commits under a lease.
 10. **The KB lives in the target repository** and is indexed deterministically, so a stage reads one small doc instead of the codebase.
-12. **No credential in an agent container, and no route out except three narrow ones.** The Claude token stays with the gateway, npm goes through a read-only mirror, and Docker through a filtering proxy.
 11. **Strict input at the edge.** Request bodies are validated with Zod; ticket creation rejects unknown fields; the broker validates the shape of every key and state before it looks anything up.
+12. **No credential in an agent container, and no route out except three narrow ones.** The Claude token stays with the gateway, npm goes through a read-only mirror, and Docker through a filtering proxy.
 
 ## Changing this document
 
