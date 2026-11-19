@@ -111,7 +111,8 @@ describe('api Dockerfile', () => {
   it('uses COPY --chown=node:node and no recursive chown in the final stage', () => {
     expect(instructions(finalStage, 'RUN').some((line) => /chown\s+-R/.test(line))).toBe(false);
     expect(finalCopies.length).toBeGreaterThan(0);
-    for (const line of finalCopies) {
+    // The licence and notices under /usr/share/doc stay root-owned: the app only reads them.
+    for (const line of finalCopies.filter((l) => !l.includes('/usr/share/doc/'))) {
       expect(line).toContain('--chown=node:node');
     }
   });
