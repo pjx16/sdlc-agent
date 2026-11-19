@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Security
 
+- **docker-proxy filter bypass fixed.** A request that asked to upgrade was forwarded without `Connection: close`, and later requests on the same connection reached the Docker socket unchecked, including a privileged container create. The proxy now handles one request per connection and only the attach route may upgrade. It also requires the agent image (`ALLOWED_IMAGES`), the `sdlc.agent` label, `CapDrop: ALL`, `no-new-privileges`, a read-only root filesystem, memory and PID limits and a numeric non-root `uid:gid` on every create. It refuses `MaskedPaths`/`ReadonlyPaths` overrides and extra networks. It acts only on containers carrying the agent label, and it sits on its own network shared with the worker only.
 - **Breaking:** Postgres no longer publishes a port in production (`npm run up:prod`) or release installs. Connections from the host to `127.0.0.1:5432` (psql, backups, BI tools) stop working; use `docker compose exec postgres psql -U sdlc sdlc` or `docker compose exec postgres pg_dump -U sdlc sdlc`. Development mode keeps a loopback-only port (`127.0.0.1:5433`) through `docker-compose.dev.yml`.
 
 ### Changed
