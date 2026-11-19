@@ -36,7 +36,7 @@ const sorted = [...rows.values()].sort((a, b) => a.name.localeCompare(b.name) ||
 const counts = new Map();
 for (const r of sorted) counts.set(r.licence, (counts.get(r.licence) ?? 0) + 1);
 
-const cell = (s) => String(s).replace(/\|/g, '\\|');
+const cell = (s) => String(s).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 const text = `# Third-party notices
 
 sdlc-agent is MIT licensed (see \`LICENSE\`). Its container images and the \`sdlc-agent\` npm package include the third-party software
