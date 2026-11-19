@@ -90,6 +90,7 @@ services:
     networks:
       internal: {}
       egress: {}
+      docker_api: {}
       agent_net:
         aliases: [llm-gateway]
 
@@ -99,9 +100,12 @@ services:
     user: root
     environment:
       ALLOWED_BIND_ROOTS: ${DATA_DIR:?set DATA_DIR in .env}
+      # Only the agent image can be pulled, inspected or run.
+      ALLOWED_IMAGES: ${AGENT_IMAGE:-sdlc-agent/agent:latest}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    networks: [internal]
+    # Its own network, shared with the worker only: the api, dashboard and agents cannot reach it.
+    networks: [docker_api]
 
   dashboard:
     build:
@@ -143,6 +147,9 @@ services:
 
 networks:
   internal: {}
+  # The worker <-> docker-proxy link and nothing else.
+  docker_api:
+    internal: true
   # Agent containers attach only to this network, so they can reach nothing except the proxy.
   agent_net:
     name: sdlc_agent_net
