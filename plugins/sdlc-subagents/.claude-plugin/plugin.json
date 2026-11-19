@@ -1,0 +1,19 @@
+{
+  "name": "sdlc-subagents",
+  "version": "0.0.1",
+  "description": "Subagents from sdlc-agent for your own Claude Code sessions: design a feature, investigate a bug, split a plan, write failing tests, implement, fix, document, review a diff for correctness, quality and security, and triage a failed CI run.",
+  "author": {
+    "name": "sdlc-agent maintainers",
+    "url": "https://github.com/pjx16/sdlc-agent"
+  },
+  "homepage": "https://github.com/pjx16/sdlc-agent#readme",
+  "repository": "https://github.com/pjx16/sdlc-agent",
+  "license": "MIT",
+  "keywords": [
+    "sdlc",
+    "subagents",
+    "code-review",
+    "testing",
+    "planning"
+  ]
+}

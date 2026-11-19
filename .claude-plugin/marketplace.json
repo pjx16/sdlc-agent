@@ -1,0 +1,15 @@
+{
+  "name": "sdlc-agent",
+  "description": "Claude Code plugins from sdlc-agent.",
+  "owner": {
+    "name": "sdlc-agent maintainers",
+    "url": "https://github.com/pjx16/sdlc-agent"
+  },
+  "plugins": [
+    {
+      "name": "sdlc-subagents",
+      "source": "./plugins/sdlc-subagents",
+      "description": "Subagents from sdlc-agent for your own Claude Code sessions: design a feature, investigate a bug, split a plan, write failing tests, implement, fix, document, review a diff for correctness, quality and security, and triage a failed CI run."
+    }
+  ]
+}
