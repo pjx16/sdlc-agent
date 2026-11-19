@@ -64,7 +64,7 @@ These are known and documented. A report about them is not treated as a new vuln
 
 - `docker-proxy` and the worker run as root, and the proxy holds the Docker socket. Keep the host dedicated to this stack. A kernel exploit from repository code is not covered by runc; set `AGENT_RUNTIME=runsc` (gVisor) or `sysbox-runc` for a stronger sandbox.
 - A prompt-injected agent can send repository content to Anthropic in its model calls, and can fetch packages through the npm mirror. Only use repositories whose content you are comfortable sending to Anthropic.
-- Postgres publishes no port in prod or release installs; only the api and worker reach it on the private `internal` network. Development mode (`npm run up:dev`) publishes it on `127.0.0.1` only.
+- Postgres publishes no port in prod or release installs; only the api and worker reach it on the private `internal` network. Development mode (`npm run up:dev`) adds the `docker-compose.dev.yml` overlay, which publishes it on `127.0.0.1` only. For host access in prod use `docker compose exec postgres psql -U sdlc sdlc`.
 - The npm cache volume is per project, but the npm mirror's storage is shared between projects.
 - Never publish the dashboard beyond `127.0.0.1` without a TLS reverse proxy and `COOKIE_SECURE=true`.
 - The dashboard has no `script-src` Content-Security-Policy yet.
