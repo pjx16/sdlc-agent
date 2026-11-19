@@ -16,3 +16,7 @@ packages/cli/assets/
 packages/cli/LICENSE
 .claude/*
 !.claude/agents/
+
+# scripts/release.sh working files and the private signing key
+.release/
+cosign.key
