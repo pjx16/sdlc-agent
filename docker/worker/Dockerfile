@@ -38,6 +38,7 @@ RUN chmod +x /usr/local/bin/git-askpass-token
 # Hooks and fsmonitor are disabled on every git call, so a workspace's own config cannot run code here.
 ENV GIT_ASKPASS=/usr/local/bin/git-askpass-token GIT_TERMINAL_PROMPT=0
 
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/doc/sdlc-agent/
 WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
 COPY --from=build /app/packages/shared/package.json packages/shared/package.json

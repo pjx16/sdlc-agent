@@ -31,7 +31,8 @@
     "down": "docker compose -p sdlc-agent down",
     "down:dev": "docker compose -p sdlc-agent-dev down",
     "agents": "node scripts/generate-agents.mjs",
-    "formats": "node scripts/generate-formats.mjs"
+    "formats": "node scripts/generate-formats.mjs",
+    "notices": "node scripts/generate-notices.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
