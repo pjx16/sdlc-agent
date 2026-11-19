@@ -143,7 +143,7 @@ services:
   # so a prompt-injected agent cannot `npm publish` the repository with its own token.
   npm-mirror:
     <<: *nnp
-    image: verdaccio/verdaccio:6.1.6@sha256:44af8dec4b8bfb9b940263f56ee5f371484515e4397eea56ab9c942500ab9dfa
+    build: docker/npm-mirror
     restart: unless-stopped
     volumes:
       - ./docker/npm-mirror/config.yaml:/verdaccio/conf/config.yaml:ro

@@ -5,10 +5,14 @@ LABEL org.opencontainers.image.source="https://github.com/pjx16/sdlc-agent" \
 
 # The one place the Claude Code version is set (compose and the CLI build this Dockerfile without overriding it).
 ARG CLAUDE_CODE_VERSION=2.1.322
+# Agents run npm, so it stays, upgraded within the major Node.js ships (11): the bundled copy lags on security fixes in its own
+# dependencies, and npm 12 changes how dependency install scripts run (Claude Code's own postinstall among them).
+ARG NPM_VERSION=11.21.3
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates curl bash jq \
  && rm -rf /var/lib/apt/lists/* \
+ && npm install -g npm@${NPM_VERSION} \
  && npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 ENV DISABLE_AUTOUPDATER=1 \
