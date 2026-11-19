@@ -2,7 +2,7 @@
 
 ## Overview
 
-`packages/cli` is the npm package that installs and runs the stack from the Docker images published to GHCR, at the same version as the CLI. It is only a launcher: it writes the install folder (`~/.sdlc-agent` or `--dir`), generates infrastructure secrets, and drives `docker compose`. The agent image (`sdlc-agent-agent`) is not a compose service; the worker starts containers from it, so it is pulled separately.
+`packages/cli` is the npm package that installs and runs the stack from the Docker images published to GHCR, at the same version as the CLI. It is only a launcher: it writes the install folder (`~/.sdlc-agent` or `--dir`), generates infrastructure secrets, and drives `docker compose`. The agent image is not published (it contains Claude Code, which is Anthropic's software): `up` builds it locally from the shipped `docker/agent` folder as `sdlc-agent/agent:<version>`, through the `agent-image` service behind the `build` profile. The worker starts containers from it.
 
 ## Entry points
 
@@ -13,14 +13,15 @@
 - `down`, `status`, `logs` — `packages/cli/src/commands.ts:81`, `:102`, `:114`
 - `runDoctor()` — `packages/cli/src/doctor.ts` — Docker, port and disk checks, run first by `up`
 - `resetAdmin`, `uninstall` — `packages/cli/src/admin.ts`
-- `agentImage()` — `packages/cli/src/commands.ts:56` — resolves the agent image reference
-- `pullAgentImage()` — `packages/cli/src/commands.ts:61` — pulls the agent image, warns on failure
+- `agentImage()` — `packages/cli/src/commands.ts` — resolves the agent image reference (`AGENT_IMAGE`, else `sdlc-agent/agent:${SDLC_VERSION}`)
+- `prepareAgentImage()` — `packages/cli/src/commands.ts` — builds the agent image locally, or pulls `AGENT_IMAGE` when the operator set one; a failure stops `up`
+- `copyAgentBuild()` — `packages/cli/src/init.ts` — replaces `docker/agent` in the install folder on `init` and `upgrade`
 
 ## Flow (`up`, also reached from `init` and `upgrade`)
 
 1. Run the doctor checks; stop with `CliError` if any required check fails — `commands.ts:70`
 2. `docker compose pull` for the compose services; failure is fatal — `commands.ts:73`
-3. `pullAgentImage`: resolve the reference (`AGENT_IMAGE`, else `${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-agent:${SDLC_VERSION}`, mirroring the worker default in `deploy/docker-compose.yml:75`) — `commands.ts:56`; `docker pull` with inherited output; a failure only prints a warning because the worker retries — `commands.ts:61-65`, called at `:74`
+3. `prepareAgentImage`: with `AGENT_IMAGE` set, `docker pull` it; otherwise `docker compose --profile build build agent-image`, which builds `./docker/agent` as `sdlc-agent/agent:${SDLC_VERSION}` (the worker default in `deploy/docker-compose.yml`). Either failure stops `up` with an error, because the worker cannot pull a locally built tag.
 4. `docker compose up -d --wait` (300 s timeout), after the agent pull — `commands.ts:76`
 5. Print the dashboard URL and setup code if the admin does not exist yet — `commands.ts:78-83`
 
@@ -48,4 +49,4 @@
 
 ## Notes
 
-- The source-build `docker-compose.yml` references the agent image only as the `agent-image` service behind the `build` profile (`docker compose --profile build build agent-image`); the worker starts agent containers from it. The release compose file passes the published reference to the worker as `AGENT_IMAGE`.
+- The source-build `docker-compose.yml` references the agent image only as the `agent-image` service behind the `build` profile (`docker compose --profile build build agent-image`); the worker starts agent containers from it. The release compose file has the same `agent-image` build service (context `./docker/agent`) and passes `sdlc-agent/agent:${SDLC_VERSION}` to the worker and docker-proxy.

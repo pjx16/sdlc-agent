@@ -1,4 +1,4 @@
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { runDoctor } from './doctor';
 import { setEnv, writeEnvFile } from './envfile';
@@ -27,6 +27,15 @@ function copyMissing(assets: string, dir: string): void {
     cpSync(path.join(assets, rel), target);
   }
   cpSync(path.join(assets, 'guidelines'), path.join(dir, 'guidelines'), { recursive: true, force: false, errorOnExist: false });
+  copyAgentBuild(assets, dir);
+}
+
+/** The agent image's build folder belongs to the installed version, so it is always replaced, never merged. */
+export function copyAgentBuild(assets: string, dir: string): void {
+  const target = path.join(dir, 'docker', 'agent');
+  rmSync(target, { recursive: true, force: true });
+  mkdirSync(path.dirname(target), { recursive: true });
+  cpSync(path.join(assets, 'docker', 'agent'), target, { recursive: true });
 }
 
 export async function init(opts: InitOptions): Promise<void> {
