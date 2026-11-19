@@ -1,10 +1,20 @@
-# Release install: runs the published images. Set SDLC_VERSION in .env. The worker pulls the agent image on first start.
+# Release install: runs the published images. Set SDLC_VERSION in .env.
+# The agent image is not published (it bundles Claude Code, which is not ours to redistribute): `sdlc-agent up` builds it from ./docker/agent,
+# or run `docker compose --profile build build agent-image` yourself.
 # Only docker-proxy touches the Docker socket; agents reach the model through the worker's LLM gateway and npm through the read-only mirror.
 # The services and security properties match the root docker-compose.yml, which builds from source.
 name: sdlc-agent
 
+# Every service gets no-new-privileges. Services that run as an unprivileged user (or need no capability) also drop all capabilities.
+x-no-new-privileges: &nnp
+  security_opt: ["no-new-privileges:true"]
+x-unprivileged: &unprivileged
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+
 services:
   postgres:
+    <<: *nnp
     image: postgres:17.12@sha256:0d938e975177bef9f1f61f3f9dbcf2e0aa0a139568f66d3415ed8892eb97f6ac
     restart: unless-stopped
     environment:
@@ -22,6 +32,7 @@ services:
       retries: 20
 
   api:
+    <<: *unprivileged
     image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-api:${SDLC_VERSION:?set SDLC_VERSION in .env}
     restart: unless-stopped
     depends_on:
@@ -49,6 +60,7 @@ services:
       retries: 20
 
   worker:
+    <<: *nnp
     image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-worker:${SDLC_VERSION:?set SDLC_VERSION in .env}
     restart: unless-stopped
     user: root
@@ -77,7 +89,8 @@ services:
       DOCKER_HOST: tcp://docker-proxy:2375
       # Optional stronger sandbox for agent containers, once installed on the Docker host: runsc (gVisor) or sysbox-runc.
       AGENT_RUNTIME: ${AGENT_RUNTIME:-}
-      AGENT_IMAGE: ${AGENT_IMAGE:-${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-agent:${SDLC_VERSION}}
+      # Built locally by `sdlc-agent up` (the agent-image service below); set AGENT_IMAGE to use an image you build and host yourself.
+      AGENT_IMAGE: ${AGENT_IMAGE:-sdlc-agent/agent:${SDLC_VERSION}}
       AGENT_MEMORY: ${AGENT_MEMORY:-4g}
       AGENT_CPUS: ${AGENT_CPUS:-2}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -88,20 +101,28 @@ services:
     networks:
       internal: {}
       egress: {}
+      docker_api: {}
       agent_net:
         aliases: [llm-gateway]
 
   docker-proxy:
+    <<: *unprivileged
+    # It only forwards checked requests to the socket: nothing in the container is written.
+    read_only: true
     image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-docker-proxy:${SDLC_VERSION:?set SDLC_VERSION in .env}
     restart: unless-stopped
     user: root
     environment:
       ALLOWED_BIND_ROOTS: ${DATA_DIR:?set DATA_DIR in .env}
+      # Only the agent image can be pulled, inspected or run.
+      ALLOWED_IMAGES: ${AGENT_IMAGE:-sdlc-agent/agent:${SDLC_VERSION}}
     volumes:
       - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
-    networks: [internal]
+    # Its own network, shared with the worker only: the api, dashboard and agents cannot reach it.
+    networks: [docker_api]
 
   dashboard:
+    <<: *unprivileged
     image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-dashboard:${SDLC_VERSION:?set SDLC_VERSION in .env}
     restart: unless-stopped
     environment:
@@ -112,20 +133,34 @@ services:
     networks: [internal]
 
   proxy:
+    <<: *nnp
     image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-proxy:${SDLC_VERSION:?set SDLC_VERSION in .env}
     restart: unless-stopped
     networks: [agent_net, egress]
 
   # Read-only npm mirror (Verdaccio in proxy mode, publishing refused). Agents install from here and cannot reach registry.npmjs.org.
   npm-mirror:
+    <<: *nnp
     image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-npm-mirror:${SDLC_VERSION:?set SDLC_VERSION in .env}
     restart: unless-stopped
     volumes:
       - npm_mirror:/verdaccio/storage
     networks: [agent_net, egress]
 
+  # Build only: `docker compose --profile build build agent-image` produces sdlc-agent/agent:${SDLC_VERSION}.
+  agent-image:
+    profiles: [build]
+    build:
+      context: ./docker/agent
+    image: ${AGENT_IMAGE:-sdlc-agent/agent:${SDLC_VERSION:?set SDLC_VERSION in .env}}
+    network_mode: none
+    command: ["true"]
+
 networks:
   internal: {}
+  # The worker <-> docker-proxy link and nothing else.
+  docker_api:
+    internal: true
   # Agent containers attach only to this network, so they can reach nothing except the LLM gateway, the npm mirror and the proxy.
   agent_net:
     name: sdlc_agent_net
