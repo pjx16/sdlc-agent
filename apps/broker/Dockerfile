@@ -11,6 +11,8 @@ FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00
 LABEL org.opencontainers.image.source="https://github.com/pjx16/sdlc-agent" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.description="SDLC agent GitHub broker"
+# npm, npx and corepack are never used at runtime. Removing them drops the npm CLI and its bundled dependencies (and their CVEs).
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/doc/sdlc-agent/
 WORKDIR /app/apps/broker
 COPY --from=build /app/apps/broker/package.json package.json
