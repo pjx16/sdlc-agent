@@ -8,7 +8,7 @@ The `api` and `worker` services are built from two Dockerfiles that share the sa
 
 - API image — `apps/api/Dockerfile:20` (runtime stage) — runs `docker-entrypoint.sh` as user `node`, port 4000
 - Worker image — `docker/worker/Dockerfile:20` (runtime stage) — runs `node dist/worker.js` as root
-- API entrypoint — `apps/api/docker-entrypoint.sh:5` — runs `npx prisma migrate deploy`, then `node dist/main.js`
+- API entrypoint — `apps/api/docker-entrypoint.sh:5` — runs the Prisma CLI (`node /app/node_modules/prisma/build/index.js migrate deploy`; the runtime images have no npm/npx), then `node dist/main.js`
 - Build context filter — `.dockerignore:1` — excludes `node_modules`, `dist`, `.next`, `.turbo`, `.git`, `.env`, `data`, `*.md` (except `README.md`)
 - Source-build compose — `docker-compose.yml:25` (api), `:53` (worker)
 - Release compose — `deploy/docker-compose.yml:26` (api), `:52` (worker): images `sdlc-agent-api` / `sdlc-agent-worker` from `${SDLC_REGISTRY:-ghcr.io/pjx16}` at `${SDLC_VERSION}`
