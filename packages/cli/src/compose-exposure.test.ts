@@ -100,8 +100,25 @@ describe('docker access and agent network hardening', () => {
     expect(serviceBlock(yaml, 'worker')).not.toContain('docker.sock');
     expect(serviceBlock(yaml, 'worker')).toContain('DOCKER_HOST: tcp://docker-proxy:2375');
     expect(serviceBlock(yaml, 'docker-proxy')).toContain('/var/run/docker.sock');
-    expect(serviceBlock(yaml, 'docker-proxy')).toMatch(/networks:\s*\[internal\]/);
+    // Its own network, shared with the worker only: the api and dashboard (on internal) cannot reach it.
+    expect(serviceBlock(yaml, 'docker-proxy')).toMatch(/networks:\s*\[docker_api\]/);
+    expect(serviceBlock(yaml, 'worker')).toMatch(/docker_api:/);
+    for (const other of ['api', 'dashboard', 'postgres', 'proxy', 'npm-mirror']) expect(serviceBlock(yaml, other), other).not.toContain('docker_api');
+    expect(yaml).toMatch(/\n {2}docker_api:\s*\n\s*internal: true/);
     expect(serviceBlock(yaml, 'docker-proxy')).toContain('ALLOWED_BIND_ROOTS');
+    expect(serviceBlock(yaml, 'docker-proxy')).toContain('ALLOWED_IMAGES');
+  });
+
+  it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('runs every service with no-new-privileges in %s', (file) => {
+    const yaml = readWithoutComments(file);
+    for (const svc of ['postgres', 'api', 'worker', 'docker-proxy', 'dashboard', 'proxy', 'npm-mirror']) expect(serviceBlock(yaml, svc), svc).toMatch(/<<: \*(nnp|unprivileged)/);
+  });
+
+  it('builds the agent image locally in a release install instead of pulling a published one', () => {
+    const yaml = readWithoutComments('deploy/docker-compose.yml');
+    expect(yaml).not.toContain('sdlc-agent-agent');
+    expect(serviceBlock(yaml, 'agent-image')).toContain('context: ./docker/agent');
+    expect(serviceBlock(yaml, 'worker')).toContain('AGENT_IMAGE: ${AGENT_IMAGE:-sdlc-agent/agent:${SDLC_VERSION}}');
   });
 
   it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('answers agents as llm-gateway on the agent network, and offers the npm mirror there, in %s', (file) => {

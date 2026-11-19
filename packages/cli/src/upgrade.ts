@@ -5,6 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
 import { composeArgs, isRunning } from './compose';
 import { up } from './commands';
+import { copyAgentBuild } from './init';
 import { envFor, runDoctor } from './doctor';
 import { getEnv, setEnv, writeEnvFile } from './envfile';
 import { type Manifest, readManifest, sha256, shippedGuidelineHashes, writeManifest } from './manifest';
@@ -199,6 +200,7 @@ export async function upgrade(opts: UpgradeOptions): Promise<void> {
 
   const composeText = readFileSync(path.join(assets, 'docker-compose.yml'), 'utf8');
   copyFileSync(path.join(assets, 'docker-compose.yml'), path.join(dir, 'docker-compose.yml'));
+  copyAgentBuild(assets, dir);
   const merged = mergeGuidelines(assets, dir, manifest.guidelineHashes);
 
   let env = setEnv(readFileSync(envFile, 'utf8'), 'SDLC_VERSION', to);

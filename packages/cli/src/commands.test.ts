@@ -37,9 +37,9 @@ describe('dashboardHost', () => {
 });
 
 describe('agentImage', () => {
-  it('follows the compose default: registry, name and the installed version', () => {
-    expect(agentImage('SDLC_VERSION=0.0.3\n')).toBe('ghcr.io/pjx16/sdlc-agent-agent:0.0.3');
-    expect(agentImage('SDLC_VERSION=0.0.3\nSDLC_REGISTRY=ghcr.io/me\n')).toBe('ghcr.io/me/sdlc-agent-agent:0.0.3');
+  it('follows the compose default: the locally built image for the installed version, or AGENT_IMAGE', () => {
+    expect(agentImage('SDLC_VERSION=0.0.3\n')).toBe('sdlc-agent/agent:0.0.3');
+    expect(agentImage('SDLC_VERSION=0.0.3\nSDLC_REGISTRY=ghcr.io/me\n')).toBe('sdlc-agent/agent:0.0.3');
     expect(agentImage('SDLC_VERSION=0.0.3\nAGENT_IMAGE=my/agent:1\n')).toBe('my/agent:1');
   });
 });
@@ -49,13 +49,14 @@ describe('up', () => {
   let output = '';
   const ok = { code: 0, stdout: '', stderr: '' };
   const fail = { code: 1, stdout: '', stderr: 'boom' };
-  const agent = 'docker pull ghcr.io/pjx16/sdlc-agent-agent:0.0.3';
+  const agent = 'compose --profile build build agent-image';
   const start = 'compose up -d --wait --wait-timeout 300';
 
-  function mockResults(results: { composePull?: typeof ok; dockerPull?: typeof ok }): void {
+  function mockResults(results: { composePull?: typeof ok; agentBuild?: typeof ok; dockerPull?: typeof ok }): void {
     vi.mocked(compose).mockImplementation(async (_dir, args) => {
       calls.push(`compose ${args.join(' ')}`);
-      return args[0] === 'pull' ? (results.composePull ?? ok) : ok;
+      if (args[0] === 'pull') return results.composePull ?? ok;
+      return args.includes('agent-image') ? (results.agentBuild ?? ok) : ok;
     });
     vi.mocked(run).mockImplementation(async (cmd, args) => {
       calls.push(`${cmd} ${args.join(' ')}`);
@@ -78,17 +79,18 @@ describe('up', () => {
     vi.unstubAllGlobals();
   });
 
-  it('pulls the compose images, then the agent image, then starts the stack', async () => {
+  it('pulls the compose images, then builds the agent image locally, then starts the stack', async () => {
     mockResults({});
     await up({ dir: '/x', quiet: true });
     expect(calls).toEqual(['compose pull', agent, start]);
+    expect(calls.some((c) => c.startsWith('docker pull'))).toBe(false);
+    expect(output).toContain('Building the agent image');
   });
 
-  it('warns and still starts the stack when the agent image pull fails', async () => {
-    mockResults({ dockerPull: fail });
-    await expect(up({ dir: '/x', quiet: true })).resolves.toBeUndefined();
-    expect(calls).toEqual(['compose pull', agent, start]);
-    expect(output).toContain('worker will pull the image when it starts');
+  it('does not start the stack when the agent image cannot be built', async () => {
+    mockResults({ agentBuild: fail });
+    await expect(up({ dir: '/x', quiet: true })).rejects.toThrow('Could not build the agent image');
+    expect(calls).toEqual(['compose pull', agent]);
   });
 
   it('throws and never pulls the agent image when compose pull fails', async () => {

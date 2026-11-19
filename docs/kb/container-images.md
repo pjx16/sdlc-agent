@@ -43,7 +43,7 @@ The `api` and `worker` services are built from two Dockerfiles that share the sa
 - Images use `npm ci --ignore-scripts`, so the `postinstall` `prisma generate` does not run; the build script runs it — `apps/api/Dockerfile:7`, `apps/api/package.json:6`
 - The base image digest is pinned in every `FROM`; changing it is a supply-chain decision — `apps/api/Dockerfile:1`
 - `.dockerignore` excludes `*.md`, so any file the build needs must not be a markdown file — `.dockerignore:8`
-- `docker-compose.yml:1` documents that the agent image is built separately with `docker compose --profile build build`; the release compose says the worker pulls the agent image on first start — `deploy/docker-compose.yml:1`
+- `docker-compose.yml:1` documents that the agent image is built separately with `docker compose --profile build build`; the release compose builds it the same way from the shipped `docker/agent` folder (never published, because it contains Claude Code) — `deploy/docker-compose.yml:1`
 - The pull size of published images is set by the release workflow, which builds these Dockerfiles (`.github/workflows/release.yml`, content not verified)
 
 ## Tests

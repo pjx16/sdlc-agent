@@ -158,7 +158,7 @@ mkdir -p "$(grep ^DATA_DIR= .env | cut -d= -f2)"
 docker compose up -d
 ```
 
-`sdlc-agent up` pulls the agent image before starting the stack, so the first run takes a little longer (release installs only; a source checkout builds it with `npm run up:prod`). Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
+`sdlc-agent up` builds the agent image on your machine before starting the stack, so the first run takes a few minutes longer. The agent image is never published because it contains Claude Code, which is Anthropic's software (release installs build it from `docker/agent`; a source checkout builds it with `npm run up:prod`). Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
 
 The images are published to GHCR with provenance attestations. To verify one (needs the GitHub CLI):
 
