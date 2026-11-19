@@ -4,7 +4,7 @@ import type { PrismaService } from '../../prisma/prisma.service';
 
 const ID = 'worker';
 
-/** How often the heartbeat timer writes (BUILD_PLAN v1 6.1). The dashboard calls the worker offline after 30 s. */
+/** How often the heartbeat timer writes. The dashboard calls the worker offline after 30 s. */
 export const HEARTBEAT_INTERVAL_MS = 5000;
 
 /** The worker's heartbeat: a bare timestamp, written by a timer that does not depend on the loop. */
@@ -41,7 +41,7 @@ export const RESTART_LIMIT = 3;
 
 /**
  * Called once when the worker starts: records process facts and a "Worker started" event. Three starts within
- * 10 minutes also write an error event, so a crash loop is visible (BUILD_PLAN v1 6.1).
+ * 10 minutes also write an error event, so a crash loop is visible.
  */
 export async function recordStart(prisma: Pick<PrismaService, 'workerStatus' | 'event'>, version: string, pid: number = process.pid): Promise<void> {
   try {

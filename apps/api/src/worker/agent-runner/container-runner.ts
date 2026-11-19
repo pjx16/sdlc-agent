@@ -22,7 +22,7 @@ export interface ContainerResult {
   durationMs: number;
 }
 
-/** Creates, runs, watches and always removes one container (BUILD_PLAN 6.4). */
+/** Creates, runs, watches and always removes one container. */
 @Injectable()
 export class ContainerRunner {
   private readonly logger = new Logger(ContainerRunner.name);

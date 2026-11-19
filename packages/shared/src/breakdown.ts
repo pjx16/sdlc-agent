@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** One proposed subtask (BUILD_PLAN 6.5, F8). */
+/** One proposed subtask. */
 export const SubtaskDraftSchema = z.object({
   seq: z.number({ error: 'must be a number' }).int('must be a whole number').min(1, 'must be at least 1'),
   title: z.string({ error: 'required' }).trim().min(1, 'required').max(200, 'must be at most 200 characters'),
@@ -88,7 +88,7 @@ export function validateBreakdown(input: unknown, opts: { maxSubtasks?: number }
   return issues.length > 0 ? { ok: false, issues } : { ok: true, subtasks: sorted };
 }
 
-/** The message for a failed attempt (BUILD_PLAN 6.8). */
+/** The message for a failed attempt. */
 export const describeIssues = (issues: readonly BreakdownIssue[]): string => issues.map((i) => `${i.field}: ${i.message}`).join('; ');
 
 export const DEFAULT_CRITERION = 'The change described in the ticket is implemented and tested';

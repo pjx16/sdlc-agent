@@ -23,7 +23,7 @@ export interface OperationsDto {
   load: StageLoad[];
   integrations: IntegrationRate[];
   recentErrors: { id: string; at: string; source: string; message: string; errorCode: string | null; ticketId: string | null; ticketKey: string | null }[];
-  /** The orchestrator's decisions in the last 7 days (BUILD_PLAN v1 6.11). */
+  /** The orchestrator's decisions in the last 7 days. */
   orchestrator: { decisions: number; fallbacks: number; fallbackRate: number; costUsd: number; inputTokens: number; outputTokens: number };
 }
 
@@ -31,7 +31,7 @@ export interface OperationsDto {
 export class OperationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** GET /operations (BUILD_PLAN v1 6.4). `now` is a parameter so tests can fix the clock. */
+  /** GET /operations. `now` is a parameter so tests can fix the clock. */
   async overview(now: Date = new Date(), thresholds = DEFAULT_STUCK): Promise<OperationsDto> {
     const since24h = new Date(now.getTime() - 24 * HOUR);
     const since7d = new Date(now.getTime() - 7 * 24 * HOUR);

@@ -93,3 +93,45 @@ describe('postgres network posture documentation', () => {
     expect(/breaking/i.test(unreleased)).toBe(true);
   });
 });
+
+describe('docker access and agent network hardening', () => {
+  it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('gives the worker no Docker socket, only docker-proxy, in %s', (file) => {
+    const yaml = readWithoutComments(file);
+    expect(serviceBlock(yaml, 'worker')).not.toContain('docker.sock');
+    expect(serviceBlock(yaml, 'worker')).toContain('DOCKER_HOST: tcp://docker-proxy:2375');
+    expect(serviceBlock(yaml, 'docker-proxy')).toContain('/var/run/docker.sock');
+    // Its own network, shared with the worker only: the api and dashboard (on internal) cannot reach it.
+    expect(serviceBlock(yaml, 'docker-proxy')).toMatch(/networks:\s*\[docker_api\]/);
+    expect(serviceBlock(yaml, 'worker')).toMatch(/docker_api:/);
+    for (const other of ['api', 'dashboard', 'postgres', 'proxy', 'npm-mirror']) expect(serviceBlock(yaml, other), other).not.toContain('docker_api');
+    expect(yaml).toMatch(/\n {2}docker_api:\s*\n\s*internal: true/);
+    expect(serviceBlock(yaml, 'docker-proxy')).toContain('ALLOWED_BIND_ROOTS');
+    expect(serviceBlock(yaml, 'docker-proxy')).toContain('ALLOWED_IMAGES');
+  });
+
+  it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('runs every service with no-new-privileges in %s', (file) => {
+    const yaml = readWithoutComments(file);
+    for (const svc of ['postgres', 'api', 'worker', 'docker-proxy', 'dashboard', 'proxy', 'npm-mirror']) expect(serviceBlock(yaml, svc), svc).toMatch(/<<: \*(nnp|unprivileged)/);
+  });
+
+  it('builds the agent image locally in a release install instead of pulling a published one', () => {
+    const yaml = readWithoutComments('deploy/docker-compose.yml');
+    expect(yaml).not.toContain('sdlc-agent-agent');
+    expect(serviceBlock(yaml, 'agent-image')).toContain('context: ./docker/agent');
+    expect(serviceBlock(yaml, 'worker')).toContain('AGENT_IMAGE: ${AGENT_IMAGE:-sdlc-agent/agent:${SDLC_VERSION}}');
+  });
+
+  it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('answers agents as llm-gateway on the agent network, and offers the npm mirror there, in %s', (file) => {
+    const yaml = readWithoutComments(file);
+    expect(serviceBlock(yaml, 'worker')).toMatch(/agent_net:\s*\n\s*aliases:\s*\[llm-gateway\]/);
+    expect(serviceBlock(yaml, 'npm-mirror')).toMatch(/networks:\s*\[agent_net, egress\]/);
+  });
+
+  it('ships the docker-proxy and npm-mirror images with every release', () => {
+    const release = readFileSync(repoFile('.github/workflows/release.yml'), 'utf8');
+    for (const name of ['docker-proxy', 'npm-mirror']) {
+      expect(release).toContain(`name: ${name},`);
+      expect(readFileSync(repoFile('deploy/docker-compose.yml'), 'utf8')).toContain(`sdlc-agent-${name}:`);
+    }
+  });
+});

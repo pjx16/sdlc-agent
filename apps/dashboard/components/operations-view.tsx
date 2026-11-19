@@ -54,7 +54,7 @@ function Failures({ data }: { data: OperationsView['failures']['last24h'] }) {
   );
 }
 
-/** The operations page (BUILD_PLAN v1 6.4): worker, stuck tickets, failures, load, outside systems and recent errors. */
+/** The operations page: worker, stuck tickets, failures, load, outside systems and recent errors. */
 export function OperationsPage({ data }: { data: OperationsView }) {
   const w = data.worker;
   const state = STATE_TEXT[w.state];

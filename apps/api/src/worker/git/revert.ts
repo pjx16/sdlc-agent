@@ -10,7 +10,7 @@ export type RevertResult =
   | { status: 'conflict'; files: string[] };
 
 /**
- * Removes stale work with a revert commit, never a reset or a force-push (BUILD_PLAN v1 D1): history is append-only.
+ * Removes stale work with a revert commit, never a reset or a force-push: history is append-only.
  * `range` is a git revision range such as `<sha>..HEAD`. The orchestrator is the only author of the commits it may revert:
  * if anyone else committed in the range, nothing is touched. A conflict aborts cleanly and names the files.
  */

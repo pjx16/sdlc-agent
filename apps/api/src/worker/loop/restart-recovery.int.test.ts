@@ -6,7 +6,7 @@ import { FakeEngine } from '../agent-runner/fake-engine';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import { RestartRecovery } from './restart-recovery';
 
-describe('restart recovery (F4, BUILD_PLAN 6.8)', () => {
+describe('restart recovery (F4)', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let recovery: RestartRecovery;

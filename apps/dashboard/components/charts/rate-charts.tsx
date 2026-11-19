@@ -12,7 +12,7 @@ type Row = Record<string, number | string | null>;
 
 /**
  * One line per segment, so a reset never shows as a fall and a gap with no data is a break in the line, not a line drawn
- * across it (BUILD_PLAN v1 6.4). Rows are keyed by time; each segment only has values in its own rows.
+ * across it. Rows are keyed by time; each segment only has values in its own rows.
  */
 export function segmentRows(series: RateSeriesView, label: (iso: string) => string = formatUtcShort, prefix = 's'): { rows: Row[]; keys: string[] } {
   const rows = new Map<string, Row>();

@@ -14,6 +14,7 @@ import { LOG_SINK, type LogSink } from './log-sink';
 import { isRateLimited, parseStream, type ParsedStream, type RateLimit } from './result-parser';
 import { STAGE_WORKSPACE } from './stage-config';
 import { STAGE_RUN_STORE, type StageRunStore } from './stage-run-store';
+import { GatewayTokens } from '../llm-gateway/gateway-tokens';
 
 export interface StageRequest {
   projectId: string;
@@ -45,7 +46,7 @@ export interface StageRequest {
 export type StageResult =
   | { kind: 'done'; envelope: StageEnvelope; stageRunId: string; attempts: number }
   | { kind: 'needs_input'; question: string; stageRunId: string; attempts: number }
-  /** The recovery policy for `errorCode` is used up (BUILD_PLAN v1 6.3): the ticket is held, or failed when the policy says so. */
+  /** The recovery policy for `errorCode` is used up: the ticket is held, or failed when the policy says so. */
   | { kind: 'failed'; reason: string; errorCode?: ErrorCode; stageRunId: string; attempts: number }
   /** Reached the turn limit, also after the retry with more turns. */
   | { kind: 'turn_limit'; errorCode?: 'TURN_LIMIT'; stageRunId: string; attempts: number }
@@ -68,7 +69,7 @@ type AttemptResult =
 /** Hard stop on automatic attempts, whatever the policies say. */
 const MAX_TOTAL_ATTEMPTS = 8;
 
-/** Runs one AI stage end to end (BUILD_PLAN 6.4 and 6.8). */
+/** Runs one AI stage end to end. */
 @Injectable()
 export class AgentRunner {
   private readonly logger = new Logger(AgentRunner.name);
@@ -80,6 +81,8 @@ export class AgentRunner {
     @Inject(STAGE_RUN_STORE) private readonly store: StageRunStore,
     @Inject(LOG_SINK) private readonly logs: LogSink,
     @Optional() @Inject(USAGE_GATE) private readonly gate?: UsageGatePort,
+    // Shared with the LLM gateway in the worker module. Tests that build the runner by hand get their own (no gateway runs there).
+    @Optional() private readonly gatewayTokens: GatewayTokens = new GatewayTokens(),
   ) {}
 
   /** Waits between automatic retries. Tests replace it; `backoffScale` shrinks the minutes of the policy table. */
@@ -87,7 +90,7 @@ export class AgentRunner {
   backoffScale = 1;
 
   /**
-   * Runs the stage, and recovers from failures by the policy table (BUILD_PLAN v1 6.3): each error code has its own
+   * Runs the stage, and recovers from failures by the policy table: each error code has its own
    * number of retries and waits. When the policy is used up the failure is returned for the caller to hold or fail.
    */
   async run(req: StageRequest): Promise<StageResult> {
@@ -145,14 +148,15 @@ export class AgentRunner {
     });
 
     const proxy = `http://proxy:3128`;
+    const gatewayKey = this.gatewayTokens.issue();
     const spec: ContainerSpec = {
       name: `sdlc-run-${stageRunId}`,
       image: this.config.agentImage,
       cmd: ['run-stage'],
       env: {
-        // No Claude token in the container: the LLM gateway adds it. Claude Code only needs some key to start, and the gateway drops it.
+        // No Claude token in the container: the LLM gateway adds it. This key only opens the gateway, only while this run's container lives.
         ANTHROPIC_BASE_URL: this.config.llmGatewayUrl,
-        ANTHROPIC_API_KEY: 'sdlc-gateway-placeholder',
+        ANTHROPIC_API_KEY: gatewayKey,
         HTTPS_PROXY: proxy,
         HTTP_PROXY: proxy,
         NO_PROXY: `localhost,127.0.0.1,${new URL(this.config.llmGatewayUrl).hostname},npm-mirror`,
@@ -200,6 +204,8 @@ export class AgentRunner {
       // A container error is still a run that ended: it leaves a snapshot too.
       await this.gate?.afterStage({ limit: null, stageRunId, ownTokens: 0 }).catch((e: unknown) => this.logger.warn(`Usage gate failed: ${String(e)}`));
       return { kind: 'failed', reason, errorCode: 'CONTAINER_ERROR', stageRunId };
+    } finally {
+      this.gatewayTokens.revoke(gatewayKey);
     }
     const logPath = await log.close();
 
@@ -254,7 +260,7 @@ export class AgentRunner {
     return { kind: 'done', envelope, stageRunId };
   }
 
-  /** Why an attempt failed, with its error code (BUILD_PLAN v1 6.3), or null if it succeeded. */
+  /** Why an attempt failed, with its error code, or null if it succeeded. */
   private failureReason(container: { exitCode: number; timedOut: boolean }, parsed: ParsedStream, req: StageRequest, claudeCode: ErrorCode | null): { reason: string; code: ErrorCode } | null {
     if (container.timedOut) return { reason: describeError('TIMEOUT', { stage: req.stage, limit: `${req.stageTimeoutMin} minutes` }), code: 'TIMEOUT' };
     if (claudeCode === 'CLAUDE_CONTEXT_TOO_LONG') return { reason: describeError('CLAUDE_CONTEXT_TOO_LONG', { stage: req.stage, sizes: parsed.error ?? 'see the run log' }), code: claudeCode };

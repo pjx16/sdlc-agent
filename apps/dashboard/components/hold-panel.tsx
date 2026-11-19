@@ -20,7 +20,7 @@ export function HoldPanel({ ticketId, info }: { ticketId: string; info: HoldInfo
     setBusy(action);
     setError(null);
     try {
-      // "Redo tests" is the rerun of one subtask's tests (BUILD_PLAN v1 6.8); resume and retry are plain actions.
+      // "Redo tests" is the rerun of one subtask's tests; resume and retry are plain actions.
       const url = action === 'redo-tests' ? `/api/tickets/${encodeURIComponent(ticketId)}/subtasks/${info.subtask?.seq ?? 1}/rerun` : `/api/tickets/${encodeURIComponent(ticketId)}/${action}`;
       const res = await fetch(url, {
         method: 'POST',

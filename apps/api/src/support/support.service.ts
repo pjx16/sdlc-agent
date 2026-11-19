@@ -111,7 +111,7 @@ export class SupportService {
     return found;
   }
 
-  /** POST /support-tickets/:id/action: one endpoint for every action in the plan's table (BUILD_PLAN v1 6.5). */
+  /** POST /support-tickets/:id/action: one endpoint for every action in the plan's table. */
   async act(id: string, body: unknown): Promise<SupportTicketDto> {
     const { action, note, answer, planMarkdown } = parseBody(ActionBody, body);
     const q = await this.find(id);

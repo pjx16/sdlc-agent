@@ -66,7 +66,7 @@ export class PlanHandler implements StepHandler {
       return { kind: 'transition', to: 'BREAKDOWN', reason: 'The plan stage is off: the ticket body is the plan' };
     }
 
-    // A chore with the plan gate off may skip planning, but only when the orchestrator says so (BUILD_PLAN v1 6.11).
+    // A chore with the plan gate off may skip planning, but only when the orchestrator says so.
     if (ticket.kind === 'chore' && !settings.gates.plan && this.orchestrator && (await this.prisma.stageArtifact.count({ where: { ticketId: ticket.id, stage: 'plan' } })) === 0) {
       const pick = await this.orchestrator.choose(ticket, 'chore_plan', [{ kind: 'plan', to: 'plan', label: 'Write a plan' }, { kind: 'skip_plan', to: 'skip_plan', label: 'Skip planning: the ticket body is the plan' }], 'plan', `Title: ${ticket.title}. Description length: ${(ticket.body ?? '').length} characters.`);
       if (pick.option.kind === 'skip_plan') {
@@ -107,7 +107,7 @@ export class PlanHandler implements StepHandler {
   }
 
   /**
-   * Each open question of the plan becomes a support ticket that does not block: the plan went ahead with its own default (BUILD_PLAN v1 6.5).
+   * Each open question of the plan becomes a support ticket that does not block: the plan went ahead with its own default.
    * A new plan replaces the questions of the old one.
    */
   private async raiseOpenQuestions(ticket: Ticket, plan: PlanData, stageRunId: string): Promise<void> {

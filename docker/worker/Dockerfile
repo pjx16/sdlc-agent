@@ -38,6 +38,9 @@ RUN chmod +x /usr/local/bin/git-askpass-token
 # Hooks and fsmonitor are disabled on every git call, so a workspace's own config cannot run code here.
 ENV GIT_ASKPASS=/usr/local/bin/git-askpass-token GIT_TERMINAL_PROMPT=0
 
+# npm, npx and corepack are never used at runtime. Removing them drops the npm CLI and its bundled dependencies (and their CVEs).
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+COPY LICENSE THIRD_PARTY_NOTICES.md /usr/share/doc/sdlc-agent/
 WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
 COPY --from=build /app/packages/shared/package.json packages/shared/package.json
@@ -46,5 +49,5 @@ COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/dist apps/api/dist
 WORKDIR /app/apps/api
 ENV NODE_ENV=production
-# Runs as root: the worker uses the Docker socket (BUILD_PLAN 6.1).
+# Runs as root: it hands workspaces to the agent user (uid 1000) with chown. It has no Docker socket; it talks to docker-proxy.
 CMD ["node", "dist/worker.js"]

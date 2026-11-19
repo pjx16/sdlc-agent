@@ -33,7 +33,7 @@ export function toSubtaskInfo(s: Subtask): SubtaskInfo {
   return { seq: s.seq, title: s.title, description: s.description, acceptanceCriteria: asStrings(s.acceptanceCriteria), files: asStrings(s.files), dependsOn: asNumbers(s.dependsOn) };
 }
 
-/** The per-step logic of the subtask loop (BUILD_PLAN F9). One method per step; each runs at most one AI stage. */
+/** The per-step logic of the subtask loop. One method per step; each runs at most one AI stage. */
 @Injectable()
 export class SubtaskStepsService implements SubtaskSteps {
   constructor(
@@ -57,7 +57,7 @@ export class SubtaskStepsService implements SubtaskSteps {
     return { project, settings: ProjectSettingsSchema.parse(project.settings) };
   }
 
-  /** The commit guard as part of a stage's output validation: a violation fails the attempt (F9, BUILD_PLAN 6.8). */
+  /** The commit guard as part of a stage's output validation: a violation fails the attempt (F9). */
   protected guardMessage(ws: string): string | null {
     const violations = workspaceViolationsSync(ws);
     return violations.length > 0 ? describeViolations(violations) : null;
@@ -259,7 +259,7 @@ export class SubtaskStepsService implements SubtaskSteps {
     // Tests: back to before the tests were committed (the implementation goes with them). Implementation: back to just after the tests.
     const from = part === 'tests' ? subtask.testCommit : subtask.featCommit;
     if (from) {
-      // A revert commit, never a reset: history is append-only (BUILD_PLAN v1 D1). A commit by anyone else, or a conflict, leaves the work as it is.
+      // A revert commit, never a reset: history is append-only. A commit by anyone else, or a conflict, leaves the work as it is.
       const r = await this.workspaces.revertRange(ticket.id, `${from}^..HEAD`, `revert(${ticket.key}): drop the ${part} of subtask ${subtask.seq} for a rerun`);
       if (r.status === 'reverted') await this.warn(ticket, `Rerun: reverted the ${part} of subtask ${subtask.seq}; it runs again`);
       else if (r.status === 'human') await this.warn(ticket, `Warning: the branch has commits not made by sdlc-agent (${r.shas.join(', ')}), so the ${part} of subtask ${subtask.seq} were not discarded`);
@@ -325,7 +325,7 @@ export class SubtaskStepsService implements SubtaskSteps {
     const tail = output.split('\n').slice(-60).join('\n');
     if (subtask.fixRounds >= maxRounds) {
       await this.prisma.subtask.update({ where: { id: subtask.id }, data: { lastFailure: tail } });
-      // The fix loop went round as often as allowed: a loop_limit hold (BUILD_PLAN v1 6.8) with the last lines of the failure.
+      // The fix loop went round as often as allowed: a loop_limit hold with the last lines of the failure.
       return { kind: 'hold', reason: 'loop_limit', note: `${loopLimitMessage('testFix', maxRounds, `subtask ${subtask.seq}`)} Subtask ${subtask.seq} still fails after ${subtask.fixRounds} fix round(s):\n${tail.split('\n').slice(-5).join('\n')}`.slice(0, 500) };
     }
     await this.setStatus(subtask.id, 'FIXING', { lastFailure: tail });
@@ -389,7 +389,7 @@ export class SubtaskStepsService implements SubtaskSteps {
     await this.pr.ensureDraftPr(ticket.id); // idempotent: nothing happens if the early draft already exists
   }
 
-  /** Orchestrator validation of the `tests` output. A message fails the attempt (BUILD_PLAN 6.8). */
+  /** Orchestrator validation of the `tests` output. A message fails the attempt. */
   private validateTests(envelope: StageEnvelope, ws: string): string | null {
     if (envelope.status !== 'done') return null;
     const listed = (envelope.data as { testFiles?: string[] } | undefined)?.testFiles ?? [];

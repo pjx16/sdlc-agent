@@ -57,7 +57,7 @@ export class StageLauncher {
     const qa = answered.map((q) => ({ question: q.body, answer: q.response ?? '' }));
     const rerun = await this.rerunInput(ticket, stage, inputs);
     const workspacePath = opts.workspacePath ?? this.workspaceOf(ticket);
-    // A stage that writes code starts from the current branch head: the range from here to the head after its commit is what a rerun reverts (BUILD_PLAN v1 6.8).
+    // A stage that writes code starts from the current branch head: the range from here to the head after its commit is what a rerun reverts.
     const startSha = STAGE_WORKSPACE[stage] === 'rw' ? await headOf(workspacePath) : null;
     const result = await this.runner.run({
       projectId: project.id,
@@ -85,7 +85,7 @@ export class StageLauncher {
     return result;
   }
 
-  /** The note of a rerun that sent the ticket back to this stage's state, until the ticket moves on (BUILD_PLAN v1 6.8). Plan and breakdown carry their own. */
+  /** The note of a rerun that sent the ticket back to this stage's state, until the ticket moves on. Plan and breakdown carry their own. */
   private async rerunInput(ticket: Ticket, stage: StageName, inputs: StageInputs): Promise<StageInputs['rerun'] | undefined> {
     const state = STATE_OF_STAGE[stage];
     if (!state || inputs.rejectionNote || inputs.rerun || stage === 'solutionDesign' || stage === 'bugInvestigation' || stage === 'technicalDesign') return undefined;

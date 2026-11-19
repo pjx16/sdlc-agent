@@ -6,7 +6,7 @@ import { TicketsModule } from './tickets.module';
 const st = (seq: number, over: Record<string, unknown> = {}) => ({ seq, title: `Subtask ${seq}`, description: `do ${seq}`, acceptanceCriteria: [`criterion ${seq}`], files: [`src/f${seq}.ts`], dependsOn: [] as number[], ...over });
 const draft = [st(1), st(2, { dependsOn: [1] }), st(3, { dependsOn: [1, 2] })];
 
-describe('Breakdown gate API (F8, BUILD_PLAN 8)', () => {
+describe('Breakdown gate API (F8)', () => {
   let db: TestDatabase;
   let t: TestApp;
   let projectId: string;

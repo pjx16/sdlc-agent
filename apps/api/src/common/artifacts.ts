@@ -1,6 +1,6 @@
 import type { Prisma, StageArtifact } from '../generated/prisma/client';
 
-/** Every version of each stage's output (BUILD_PLAN v1 6.8). Outputs are versioned, never overwritten. */
+/** Every version of each stage's output. Outputs are versioned, never overwritten. */
 export const ARTIFACT_STAGES = ['plan', 'breakdown', 'review', 'kb'] as const;
 export type ArtifactStage = (typeof ARTIFACT_STAGES)[number];
 

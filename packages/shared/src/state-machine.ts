@@ -7,7 +7,7 @@ export const ACTORS = ['system', 'user', 'jira'] as const;
 export type Actor = (typeof ACTORS)[number];
 
 /**
- * The fixed transitions of BUILD_PLAN 6.6 (rows 1 to 15). Anything not listed here, and not one of the
+ * The fixed transitions of the ticket state machine. Anything not listed here, and not one of the
  * hold/resume/fail rules below, is rejected.
  */
 export const TRANSITIONS: Readonly<Record<TicketStatus, readonly TicketStatus[]>> = {
@@ -39,7 +39,7 @@ export interface TransitionContext {
 
 export type TransitionVerdict = { ok: true } | { ok: false; reason: string };
 
-/** Is `from -> to` allowed by BUILD_PLAN 6.6? Pure; used by the worker, the API and the dashboard. */
+/** Is `from -> to` allowed by the state machine? Pure; used by the worker, the API and the dashboard. */
 export function checkTransition(from: TicketStatus, to: TicketStatus, ctx: TransitionContext = {}): TransitionVerdict {
   if (from === to) return { ok: false, reason: `A ticket cannot move from ${from} to itself` };
   if (to === 'ON_HOLD') {
@@ -55,7 +55,7 @@ export function checkTransition(from: TicketStatus, to: TicketStatus, ctx: Trans
   return TRANSITIONS[from].includes(to) ? { ok: true } : { ok: false, reason: `Transition ${from} -> ${to} is not allowed` };
 }
 
-/** States the worker can pick up (BUILD_PLAN 6.6 step 3). AWAITING_CI only with a pending CI fix. */
+/** States the worker can pick up. AWAITING_CI only with a pending CI fix. */
 export const ACTIONABLE_STATUSES: readonly TicketStatus[] = ['NEW', 'KB', 'PLANNING', 'BREAKDOWN', 'IN_PROGRESS', 'REVIEW', 'KB_UPDATE'];
 
 /**

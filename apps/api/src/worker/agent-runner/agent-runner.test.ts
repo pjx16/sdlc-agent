@@ -10,6 +10,7 @@ import { ContainerRunner } from './container-runner';
 import { FakeEngine, type FakeBehaviour } from './fake-engine';
 import { NullLogSink } from './log-sink';
 import { MemoryStore } from '../../testing/memory-stage-run-store';
+import { GatewayTokens } from '../llm-gateway/gateway-tokens';
 
 const planData = { planMarkdown: '# Plan', risks: [], openQuestions: [] };
 const stream = (structured: unknown, extra: Record<string, unknown> = {}, rate?: unknown): string[] =>
@@ -42,7 +43,20 @@ const setup = (behaviour: FakeBehaviour | FakeBehaviour[]) => {
   return { engine, store, runner: new AgentRunner(new ContainerRunner(engine), config, staticCredentials({ claude_token: 'tok' }), store, new NullLogSink()) };
 };
 
-describe('AgentRunner (BUILD_PLAN 6.4, 6.8)', () => {
+describe('AgentRunner', () => {
+  it('gives each container its own gateway key, live only while the container runs', async () => {
+    const engine = new FakeEngine([good, good]);
+    const tokens = new GatewayTokens();
+    const runner = new AgentRunner(new ContainerRunner(engine), config, staticCredentials({ claude_token: 'tok' }), new MemoryStore(), new NullLogSink(), undefined, tokens);
+    await runner.run(request());
+    await runner.run(request());
+    const keys = engine.created.map((c) => c.Env?.find((e) => e.startsWith('ANTHROPIC_API_KEY='))?.split('=')[1]);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatch(/^sdlc-gw-[A-Za-z0-9_-]{43}$/);
+    expect(keys[0]).not.toBe(keys[1]);
+    for (const k of keys) expect(tokens.isLive(k)).toBe(false);
+  });
+
   it('runs a stage and records tokens, cost, turns, session and CLI version', async () => {
     const { runner, store, engine } = setup(good);
     const res = await runner.run(request());
@@ -111,7 +125,7 @@ describe('AgentRunner (BUILD_PLAN 6.4, 6.8)', () => {
     expect(store.runs.get('run-1')?.finished).toMatchObject({ error: 'Reached the turn limit', errorCode: 'TURN_LIMIT' });
   });
 
-  describe('Claude-side errors (BUILD_PLAN v1 6.3)', () => {
+  describe('Claude-side errors', () => {
     const errorLines = (text: string, extra: Record<string, unknown> = {}) => [JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: [text], ...extra })];
 
     it('CLAUDE_AUTH: no retry, no failure of the ticket; the run is marked with the code', async () => {

@@ -22,7 +22,7 @@ export interface EgressFixture {
 }
 
 /**
- * The real egress setup from BUILD_PLAN 6.1 for tests: the internal agent network, an egress network, and the
+ * The real egress setup for tests: the internal agent network, an egress network, and the
  * Squid proxy image attached to both (alias `proxy`).
  */
 export async function startEgress(): Promise<EgressFixture> {

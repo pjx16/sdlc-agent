@@ -1,4 +1,4 @@
-/** Support tickets: everything that needs a person (BUILD_PLAN v1 6.5). */
+/** Support tickets: everything that needs a person. */
 
 export const SUPPORT_KINDS = ['approval', 'question', 'open_question', 'hold', 'ci_infra', 'onboarding', 'credential', 'pr_ready'] as const;
 export type SupportKind = (typeof SUPPORT_KINDS)[number];
@@ -31,7 +31,7 @@ export const INBOX_GROUPS: readonly InboxGroup[] = ['blocking', 'approvals', 'qu
 export const countsForBadge = (t: { kind: SupportKind; priority: SupportPriority; status: SupportStatus }): boolean =>
   t.status === 'open' && (t.kind === 'approval' || t.priority === 'blocking');
 
-/** The actions a person can take on a ticket of this kind (BUILD_PLAN v1 6.5 table). */
+/** The actions a person can take on a ticket of this kind. */
 export type SupportAction = 'approve' | 'reject' | 'answer' | 'rerun_with_answers' | 'resume' | 'retry' | 'fail' | 'fixed' | 'hold' | 'dismiss';
 
 export const SUPPORT_ACTIONS: Record<SupportKind, readonly SupportAction[]> = {

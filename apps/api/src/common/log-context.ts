@@ -6,7 +6,7 @@ export interface LogContext {
 }
 
 /**
- * One readable line with the context that is known (BUILD_PLAN v1 6.4):
+ * One readable line with the context that is known:
  * `[ticket=SDA-12 stage=implement run=3fa9c2d1 subtask=2] message`. Missing parts are left out, and a run id is
  * shortened to its first 8 characters, which is enough to find the raw log on disk.
  */

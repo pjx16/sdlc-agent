@@ -32,7 +32,7 @@ export interface OpenedPr {
   url: string;
 }
 
-/** What the pipeline needs from GitHub (BUILD_PLAN 8 Worker interfaces). `repo` is `owner/name`. */
+/** What the pipeline needs from GitHub. `repo` is `owner/name`. */
 export interface GitHubClient {
   openDraftPr(args: { repo: string; base: string; head: string; title: string; body: string }): Promise<OpenedPr>;
   markReady(repo: string, number: number): Promise<void>;
@@ -86,7 +86,7 @@ export interface GhCliOptions {
   extraEnv?: () => Record<string, string>;
 }
 
-/** GitHub through the `gh` CLI with `GH_TOKEN` (BUILD_PLAN 6.3). Bodies are passed as files, never on the command line. */
+/** GitHub through the `gh` CLI with `GH_TOKEN`. Bodies are passed as files, never on the command line. */
 export class GhCliClient implements GitHubClient {
   private readonly binary: string;
 

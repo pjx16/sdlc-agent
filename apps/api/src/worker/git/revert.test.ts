@@ -33,7 +33,7 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-describe('revertRange (BUILD_PLAN v1 6.8, D1)', () => {
+describe('revertRange', () => {
   it('removes the work of several commits with one revert commit and keeps history', async () => {
     const dir = repo();
     const start = raw(dir, 'rev-parse', 'HEAD');

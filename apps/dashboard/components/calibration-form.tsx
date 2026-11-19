@@ -8,7 +8,7 @@ interface Props {
   suggested: number | null;
 }
 
-/** The calibration field (BUILD_PLAN 6.7): `calibratedWindowTokens` is only used when the CLI gives no utilization. */
+/** The calibration field: `calibratedWindowTokens` is only used when the CLI gives no utilization. */
 export function CalibrationForm({ current, suggested }: Props) {
   const router = useRouter();
   const [value, setValue] = useState(current === null ? '' : String(current));

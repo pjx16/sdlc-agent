@@ -23,7 +23,7 @@ const spec = (over: Partial<ContainerSpec> = {}): ContainerSpec => ({
   ...over,
 });
 
-describe('buildCreateOptions (BUILD_PLAN 6.4, F5)', () => {
+describe('buildCreateOptions', () => {
   it('applies the container hardening and limits', () => {
     const o = buildCreateOptions(spec());
     expect(o).toMatchObject({ name: 'sdlc-run-abc', Image: 'sdlc-agent/agent:latest', Cmd: ['run-stage'], User: '1000:1000', Labels: { 'sdlc.agent': 'true' } });

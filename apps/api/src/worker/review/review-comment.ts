@@ -17,7 +17,7 @@ export interface ReviewCommentInput {
   previous?: { fixed: number; stillOpen: number };
 }
 
-/** The review comment posted on the PR (BUILD_PLAN 6.9): one table per severity that has findings. */
+/** The review comment posted on the PR: one table per severity that has findings. */
 export function renderReviewComment(input: ReviewCommentInput, template: string = defaultFormat('review-comment')): string {
   const bySeverity = new Map<string, ReviewCommentInput['findings'][number][]>();
   for (const f of input.findings) bySeverity.set(f.severity, [...(bySeverity.get(f.severity) ?? []), f]);

@@ -47,6 +47,7 @@ import { SupportNotifier } from './support-notifier';
 import { RerunPrep } from './pipeline/rerun-prep';
 import { AssistantRunner } from './assistant/assistant-runner';
 import { LlmGateway } from './llm-gateway/llm-gateway';
+import { GatewayTokens } from './llm-gateway/gateway-tokens';
 import { OnboardingWorker } from './onboarding/onboarding-worker';
 import { RepoAccessService } from './github/repo-access.service';
 import { GitHubAuth } from './github/github-auth.service';
@@ -107,6 +108,7 @@ import { WorkerRunner } from './worker-runner';
     RerunPrep,
     AssistantRunner,
     LlmGateway,
+    GatewayTokens,
     RepoAccessService,
     BrokerClient,
     GitHubAuth,

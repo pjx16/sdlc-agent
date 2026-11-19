@@ -14,7 +14,7 @@ import { RerunPrep } from './rerun-prep';
 
 const done = (files: string[]): StageEnvelope => ({ status: 'done', summary: 'ok', data: { filesChanged: files } } as StageEnvelope);
 
-describe('commit ranges and the revert before a rerun (BUILD_PLAN v1 6.4 and 6.8)', () => {
+describe('commit ranges and the revert before a rerun', () => {
   let h: StepsHarness;
   let prep: RerunPrep;
   let reruns: RerunService;

@@ -11,7 +11,7 @@ import { StateMachine } from '../state/state-machine.service';
 import { SupportRaiser } from './support-raiser';
 import { SupportModule } from './support.module';
 
-describe('Support tickets (BUILD_PLAN v1 6.5)', () => {
+describe('Support tickets', () => {
   let db: TestDatabase;
   let t: TestApp;
   let projectId: string;

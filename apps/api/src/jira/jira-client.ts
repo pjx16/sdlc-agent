@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { JiraFacts } from '@sdlc/shared';
 
-/** What the pipeline needs from Jira (BUILD_PLAN 8 Worker interfaces). Two implementations: REST (default) and MCP. */
+/** What the pipeline needs from Jira. Two implementations: REST (default) and MCP. */
 
 export interface JiraTicket {
   key: string;
@@ -50,12 +50,12 @@ export interface JiraClient {
   transition(key: string, statusName: string): Promise<void>;
   createSubtask(parentKey: string, subtask: JiraSubtaskInput): Promise<{ key: string }>;
   listStatuses(projectKey: string): Promise<string[]>;
-  /** What onboarding needs to know about a Jira project (BUILD_PLAN v1 6.7). */
+  /** What onboarding needs to know about a Jira project. */
   projectFacts(projectKey: string): Promise<JiraFacts>;
 }
 
 /**
- * The hidden marker that makes a Jira write safe to repeat (BUILD_PLAN v1 6.3): `[sdlc-agent:{ticket}:{purpose}:{version}]`.
+ * The hidden marker that makes a Jira write safe to repeat: `[sdlc-agent:{ticket}:{purpose}:{version}]`.
  * The version is a short hash of the content, so changed content is posted again and identical content is not.
  */
 export function jiraMarker(ticketKey: string, purpose: string, content = ''): string {
@@ -77,7 +77,7 @@ export class JiraHttpError extends Error {
   }
 }
 
-/** Retries ran out (network errors, 429, 5xx). Intake pauses for 10 minutes; the pipeline does not (BUILD_PLAN 6.3). */
+/** Retries ran out (network errors, 429, 5xx). Intake pauses for 10 minutes; the pipeline does not. */
 export class JiraUnavailableError extends Error {
   constructor(
     message: string,

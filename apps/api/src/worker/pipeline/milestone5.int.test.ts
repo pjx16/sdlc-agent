@@ -40,7 +40,7 @@ const sh = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.
  * Milestone 5, "done when": with fake-claude, a ticket goes from NEW to AWAITING_PLAN_APPROVAL, can be edited, approved and
  * rejected, and the docs commit appears on the ticket branch. Real worker loop, real git, real containers; only the model is a stub.
  */
-describe('milestone 5 end to end (real containers, fake-claude)', () => {
+describe('pipeline end to end (real containers, fake-claude)', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let app: TestApp;
@@ -159,7 +159,7 @@ describe('milestone 5 end to end (real containers, fake-claude)', () => {
     await app.agent.post(`/tickets/${t.id}/plan/approve`).send({ planMarkdown: '# Plan (edited by the developer)' }).expect(200);
     const row = await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } });
     expect(row).toMatchObject({ status: 'BREAKDOWN', planMarkdown: '# Plan (edited by the developer)' });
-    expect(await loop.tick()).toBe('idle'); // breakdown is milestone 6
+    expect(await loop.tick()).toBe('idle'); // the breakdown runs on a later tick
   }, 240_000);
 
   it('a rejected plan is planned again with the previous plan and the note', async () => {

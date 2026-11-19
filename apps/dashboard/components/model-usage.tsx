@@ -17,7 +17,7 @@ function Share({ value, label }: { value: number; label: string }) {
   );
 }
 
-/** Usage by model: exact tokens and cost, and an estimated share of the usage windows (BUILD_PLAN v1 6.4). */
+/** Usage by model: exact tokens and cost, and an estimated share of the usage windows. */
 export function ModelUsage({ data }: { data: ModelUsageView }) {
   if (data.models.length === 0) return <p className="text-sm text-muted">No stage ran in this period.</p>;
   return (

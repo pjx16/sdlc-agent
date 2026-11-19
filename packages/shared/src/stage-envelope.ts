@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { StageName } from './enums';
 import { OnboardAdviseData, RepoProfileData } from './onboarding';
 
-/** BUILD_PLAN 6.5: every stage returns this envelope. */
+/** Every stage returns this envelope. */
 export const ENVELOPE_STATUSES = ['done', 'needs_input', 'blocked'] as const;
 export type EnvelopeStatus = (typeof ENVELOPE_STATUSES)[number];
 
@@ -62,14 +62,14 @@ export const CiTriageData = z.object({ kind: z.enum(CI_TRIAGE_KINDS), failingCom
 export const KbBuildData = z.object({ featureKey: text, isNew: z.boolean(), docPath: text, globs: textList });
 export const KbUpdateData = z.object({ featureKey: text, docPath: text, changed: z.boolean() });
 
-/** What the assistant may hand back next to its reply: something the person applies with one click (BUILD_PLAN v1 6.6). */
+/** What the assistant may hand back next to its reply: something the person applies with one click. */
 export const ASSIST_DRAFT_KINDS = ['answer', 'plan_edit', 'rerun_note'] as const;
 export const AssistData = z.object({
   reply: text,
   draft: z.object({ kind: z.enum(ASSIST_DRAFT_KINDS), text }).nullable().default(null),
 });
 
-/** The orchestrator's answer: one of the legal moves, and why (BUILD_PLAN v1 6.11). */
+/** The orchestrator's answer: one of the legal moves, and why. */
 export const OrchestrateData = z.object({
   move: z.object({ kind: z.string().min(1), to: z.string().min(1) }),
   reason: z.string().min(1).max(400),

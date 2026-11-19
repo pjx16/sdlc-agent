@@ -2,13 +2,13 @@ import type { ClaudeMdMode, ModelAlias, StageName } from '@sdlc/shared';
 
 export type WorkspaceAccess = 'rw' | 'ro' | 'none';
 
-/** Workspace mounting per stage (BUILD_PLAN 6.4 table). kbBuild and kbUpdate may only change `kbDir`. */
+/** Workspace mounting per stage. kbBuild and kbUpdate may only change `kbDir`. */
 export const STAGE_WORKSPACE: Record<StageName, WorkspaceAccess> = {
   orchestrate: 'none', featureMap: 'ro', kbBuild: 'rw', solutionDesign: 'ro', bugInvestigation: 'ro', technicalDesign: 'ro', tests: 'rw', implement: 'rw', fix: 'rw',
   prReview: 'ro', qualityReview: 'ro', securityReview: 'ro', kbUpdate: 'rw', ciTriage: 'none', assist: 'ro', repoProfile: 'ro', onboardAdvise: 'none',
 };
 
-/** `stage.json`, read by run-stage (BUILD_PLAN 6.4). `attempt` and `round` are extra, for the test stub and diagnostics. */
+/** `stage.json`, read by run-stage. `attempt` and `round` are extra, for the test stub and diagnostics. */
 export interface StageJson {
   model: string;
   maxTurns: number;

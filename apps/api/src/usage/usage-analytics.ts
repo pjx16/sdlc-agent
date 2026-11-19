@@ -1,4 +1,4 @@
-/** Pure calculations behind the usage page (BUILD_PLAN v1 6.4). No database here, so they are unit-tested directly. */
+/** Pure calculations behind the usage page. No database here, so they are unit-tested directly. */
 
 export interface RunUsage {
   id: string;

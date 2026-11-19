@@ -41,7 +41,7 @@ export function wildcardToPath(param: string | string[] | undefined): string {
   return Array.isArray(param) ? param.join('/') : (param ?? '');
 }
 
-/** Reads and edits the markdown files under `guidelines/` (BUILD_PLAN 8, 3.8). Changes apply from the next stage run. */
+/** Reads and edits the markdown files under `guidelines/`. Changes apply from the next stage run. */
 @Injectable()
 export class GuidelinesService {
   readonly root = path.resolve(process.env.GUIDELINES_DIR || path.join(__dirname, '../../../../guidelines'));

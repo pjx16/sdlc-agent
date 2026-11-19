@@ -66,7 +66,7 @@ describe('checkTestFiles (F9)', () => {
   });
 });
 
-describe('pickExampleTestFile (BUILD_PLAN 6.4)', () => {
+describe('pickExampleTestFile', () => {
   const tracked = ['package.json', 'src/app.ts', 'src/util.test.ts', 'src/billing/export.ts', 'src/billing/export.test.ts', 'tests/e2e.ts'];
   it('prefers a test file in the directory of the first listed file', () => {
     expect(pickExampleTestFile(tracked, 'src/billing/other.ts')).toBe('src/billing/export.test.ts');

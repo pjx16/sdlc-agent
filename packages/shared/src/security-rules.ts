@@ -1,5 +1,5 @@
 /**
- * When the security reviewer runs (BUILD_PLAN v1 4.3): a changed path or an added diff line matches the project's risk patterns. Pure
+ * When the security reviewer runs: a changed path or an added diff line matches the project's risk patterns. Pure
  * code, no AI: auth, sessions, crypto, SQL or raw queries, request parsing, the file system, shell, secrets and dependency manifests.
  * The orchestrator may also add the security review (phase 9); this is only the rule.
  */
@@ -20,7 +20,7 @@ export const DEFAULT_SECURITY_PATTERNS: readonly string[] = [
 ];
 
 /**
- * Always checked, even when a project sets its own patterns (scan finding 2): a changed package.json, or an added line that defines an
+ * Always checked, even when a project sets its own patterns: a changed package.json, or an added line that defines an
  * install-time script, runs code on every machine that installs the project.
  */
 const ALWAYS_PATHS = /(^|\/)package\.json$/i;

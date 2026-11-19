@@ -26,7 +26,7 @@ export interface AssistantDto {
   pending: boolean;
   tokens: number;
   tokenCap: number;
-  /** The conversation used its token budget (BUILD_PLAN v1 6.6). */
+  /** The conversation used its token budget. */
   capReached: boolean;
   messages: AssistantMessageDto[];
 }

@@ -29,7 +29,7 @@ export interface FindingInfo {
   fix: string;
 }
 
-/** Everything a stage may need. Each stage uses the subset listed in BUILD_PLAN 6.4. */
+/** Everything a stage may need. Each stage uses only the part it needs. */
 export interface StageInputs {
   ticket?: TicketInfo;
   kbDoc?: string;
@@ -76,7 +76,7 @@ export interface StageInputs {
   existingDoc?: string;
   docTemplate?: string;
   /** The assistant: the context pack of one support ticket, what was said before, and the new message. */
-  /** The stage is running again because a person sent the ticket back: their note, and what the stale attempt produced (BUILD_PLAN v1 6.8). */
+  /** The stage is running again because a person sent the ticket back: their note, and what the stale attempt produced. */
   rerun?: { note: string; previous?: string };
   /** Onboarding: the facts code collected, as plain text. */
   onboard?: { facts: string };
@@ -109,7 +109,7 @@ export interface BuiltContext {
 
 const STACK_FILE: Record<ProjectStack, string> = { ts_node: 'ts-node.md', nestjs: 'nestjs.md', nextjs: 'nextjs.md' };
 
-/** What each stage's `data` object must contain (BUILD_PLAN 6.5), as plain text for the prompt. */
+/** What each stage's `data` object must contain, as plain text for the prompt. */
 const DATA_SHAPES: Record<StageName, string> = {
   kbBuild: '{ featureKey, isNew (true), docPath, globs[] }',
   orchestrate: '{ move: { kind, to }, reason, note? }. `move` must be exactly one of the legal moves; `note` only for a recovery.',
@@ -171,7 +171,7 @@ interface Plan {
 
 const NO_KB = '_No knowledge-base document exists for this feature yet._';
 
-/** The sections of one stage's prompt, in the order of the BUILD_PLAN 6.4 table. */
+/** The sections of one stage's prompt, in a fixed order. */
 function planSections(stage: StageName, i: StageInputs): Plan {
   const files: ContextFile[] = [];
   const sections: Section[] = [];
@@ -307,7 +307,7 @@ async function readIfExists(file: string): Promise<string | null> {
   return existsSync(file) ? (await readFile(file, 'utf8')).trim() : null;
 }
 
-/** `system.md`: the stack guideline, plus our default CLAUDE.md in modes ours and both (BUILD_PLAN 6.4). */
+/** `system.md`: the stack guideline, plus our default CLAUDE.md in modes ours and both. */
 export async function buildSystemMd(guidelinesDir: string, stack: ProjectStack, mode: ClaudeMdMode): Promise<string> {
   const parts: string[] = [];
   const stackGuideline = await readIfExists(path.join(guidelinesDir, 'stacks', STACK_FILE[stack]));
@@ -339,7 +339,7 @@ export function buildPromptMd(args: { stage: StageName; sections: Section[]; ins
   return `${out.join('\n\n')}\n`;
 }
 
-/** Writes DATA_DIR/runs/<stageRunId>/ and returns the hide-mount decision (BUILD_PLAN 6.4). */
+/** Writes DATA_DIR/runs/<stageRunId>/ and returns the hide-mount decision. */
 export async function buildStageContext(input: BuildContextInput): Promise<BuiltContext> {
   const runDir = path.join(input.runsDir, input.stageRunId);
   await mkdir(runDir, { recursive: true });

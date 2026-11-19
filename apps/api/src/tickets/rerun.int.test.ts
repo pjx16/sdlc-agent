@@ -7,7 +7,7 @@ import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { TicketsModule } from './tickets.module';
 
-describe('Rerun engine (BUILD_PLAN v1 6.8)', () => {
+describe('Rerun engine', () => {
   let db: TestDatabase;
   let t: TestApp;
   let states: StateMachine;

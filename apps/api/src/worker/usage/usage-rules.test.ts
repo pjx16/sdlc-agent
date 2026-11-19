@@ -8,7 +8,7 @@ const base = (over: Partial<UsageInput> = {}): UsageInput => ({
   thresholdPct: 50, thresholdWeeklyPct: 80, ignoredUntil: null, now: NOW, ...over,
 });
 
-describe('evaluateUsage (BUILD_PLAN 6.7)', () => {
+describe('evaluateUsage', () => {
   it('does not pause below both thresholds', () => {
     expect(evaluateUsage(base())).toMatchObject({ pause: false, reason: '' });
   });

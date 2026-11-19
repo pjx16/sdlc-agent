@@ -86,7 +86,7 @@ export class CiFixHandler implements StepHandler {
   }
 
   /**
-   * The CI triager says what kind of failure this is (BUILD_PLAN v1 4.1). `code` goes on to the fixer (returns null). `flaky` runs the
+   * The CI triager says what kind of failure this is. `code` goes on to the fixer (returns null). `flaky` runs the
    * checks again once; a second flaky, or `infra`, becomes a CI problem for a person.
    */
   private async triage(ticket: Ticket, ws: string, log: string): Promise<StepOutcome | null> {
@@ -99,7 +99,7 @@ export class CiFixHandler implements StepHandler {
     const data = result.envelope.data as { kind: 'code' | 'flaky' | 'infra'; summary: string };
     await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'git', message: `CI failure triaged as ${data.kind}: ${data.summary}`.slice(0, 500) } });
     if (data.kind === 'code') return null;
-    // A second flaky failure in a row: the orchestrator may allow one more run of the checks (BUILD_PLAN v1 6.11); the default is a support ticket.
+    // A second flaky failure in a row: the orchestrator may allow one more run of the checks; the default is a support ticket.
     let again = false;
     if (data.kind === 'flaky' && ticket.ciRerunDone && ticket.branch && this.orchestrator && (await this.prisma.orchestratorDecision.count({ where: { ticketId: ticket.id, point: 'ci_flaky' } })) === 0) {
       const pick = await this.orchestrator.choose(ticket, 'ci_flaky', [{ kind: 'support', to: 'support', label: 'Raise a support ticket' }, { kind: 'rerun', to: 'rerun', label: 'Run the checks once more' }], 'support', `Triage summary: ${data.summary}`);

@@ -6,7 +6,7 @@ import { WorkspaceService } from '../git/workspace.service';
 import type { StepOutcome } from './step-handler';
 
 /**
- * What the worker does before a stage runs again after a rerun (BUILD_PLAN v1 6.8, steps 3 and 4): remove the stale code with one
+ * What the worker does before a stage runs again after a rerun: remove the stale code with one
  * revert commit and push it normally. The API cannot touch the workspace, so the rerun only recorded where the stale work starts
  * (`Ticket.revertFromSha`); this does the rest.
  *

@@ -1,8 +1,16 @@
 # Run `docker compose --profile build build` once to build the agent image.
 name: sdlc-agent
 
+# Every service gets no-new-privileges. Services that run as an unprivileged user (or need no capability) also drop all capabilities.
+x-no-new-privileges: &nnp
+  security_opt: ["no-new-privileges:true"]
+x-unprivileged: &unprivileged
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+
 services:
   postgres:
+    <<: *nnp
     image: postgres:17.12@sha256:0d938e975177bef9f1f61f3f9dbcf2e0aa0a139568f66d3415ed8892eb97f6ac
     restart: unless-stopped
     environment:
@@ -20,6 +28,7 @@ services:
       retries: 20
 
   api:
+    <<: *unprivileged
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -49,6 +58,7 @@ services:
       retries: 20
 
   worker:
+    <<: *nnp
     build:
       context: .
       dockerfile: docker/worker/Dockerfile
@@ -95,6 +105,9 @@ services:
         aliases: [llm-gateway]
 
   docker-proxy:
+    <<: *unprivileged
+    # It only forwards checked requests to the socket: nothing in the container is written.
+    read_only: true
     build: docker/socket-proxy
     restart: unless-stopped
     user: root
@@ -108,6 +121,7 @@ services:
     networks: [docker_api]
 
   dashboard:
+    <<: *unprivileged
     build:
       context: .
       dockerfile: apps/dashboard/Dockerfile
@@ -120,6 +134,7 @@ services:
     networks: [internal]
 
   proxy:
+    <<: *nnp
     build: docker/proxy
     restart: unless-stopped
     networks: [agent_net, egress]
@@ -127,7 +142,8 @@ services:
   # Read-only npm mirror (Verdaccio in proxy mode, publishing refused). Agents install from here and cannot reach registry.npmjs.org,
   # so a prompt-injected agent cannot `npm publish` the repository with its own token.
   npm-mirror:
-    image: verdaccio/verdaccio:6.1.6@sha256:44af8dec4b8bfb9b940263f56ee5f371484515e4397eea56ab9c942500ab9dfa
+    <<: *nnp
+    build: docker/npm-mirror
     restart: unless-stopped
     volumes:
       - ./docker/npm-mirror/config.yaml:/verdaccio/conf/config.yaml:ro
@@ -137,10 +153,9 @@ services:
   # Build only: `docker compose --profile build build` produces sdlc-agent/agent:latest.
   agent-image:
     profiles: [build]
+    # The Claude Code version is the CLAUDE_CODE_VERSION default in docker/agent/Dockerfile (the one place it is set).
     build:
       context: docker/agent
-      args:
-        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-2.1.322}
     image: ${AGENT_IMAGE:-sdlc-agent/agent:latest}
     network_mode: none
     command: ["true"]
@@ -160,6 +175,6 @@ volumes:
   pgdata: {}
   npm_mirror:
     name: sdlc_npm_mirror
-  # Shared npm cache for agent containers (mounted at /npm-cache); created now, used from milestone 3.
+  # npm cache (mounted at /npm-cache) for agent containers outside a project folder. Each project gets its own sdlc_npm_cache_<id> volume, created on first use.
   npm_cache:
     name: sdlc_npm_cache

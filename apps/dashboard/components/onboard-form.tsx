@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
-/** The two-field start of a project (BUILD_PLAN v1 6.7): a repo URL and, optionally, a Jira project key. Everything else is proposed. */
+/** The two-field start of a project: a repo URL and, optionally, a Jira project key. Everything else is proposed. */
 export function OnboardForm() {
   const router = useRouter();
   const [repoUrl, setRepoUrl] = useState('');

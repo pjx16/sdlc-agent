@@ -16,7 +16,7 @@ import { StageOutcomes } from '../worker/pipeline/stage-outcomes';
 import { WorkerConfig } from '../worker/worker-config';
 import { TicketsModule } from './tickets.module';
 
-describe('Versioned outputs and rerun context (BUILD_PLAN v1 6.8)', () => {
+describe('Versioned outputs and rerun context', () => {
   let db: TestDatabase;
   let t: TestApp;
   let states: StateMachine;

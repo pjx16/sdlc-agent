@@ -97,13 +97,11 @@ The integrations are described in [`docs/TRACKER.md`](./docs/TRACKER.md) and [`d
 This tool runs AI-generated code and holds a GitHub token. The short version; the full threat model and residual risks are in [`SECURITY.md`](./SECURITY.md).
 
 - **Agents only edit files.** Agent containers run as a non-root user with all capabilities dropped, `no-new-privileges`, resource limits and a timeout, with no Docker socket, **no Claude token** and no GitHub or Jira credentials. The workspace's `.git` is mounted read-only.
-- **Model calls go through an LLM gateway** inside the worker, which adds the Claude token and forwards only `POST /v1/messages`. **npm goes through a read-only mirror**, so an agent cannot publish. The egress proxy allows only Prisma's binary host. The worker reaches Docker through a **filtering `docker-proxy`** that refuses privileged containers, host mounts and the like.
+- **Model calls go through an LLM gateway** inside the worker, which adds the Claude token and forwards only `POST /v1/messages`, and only with the key it gave that run's container. **npm goes through a read-only mirror**, so an agent cannot publish. The egress proxy allows only Prisma's binary host. The worker reaches Docker through a **filtering `docker-proxy`** on a network of its own. It requires the agent image and the full sandbox on every container it starts, and it only touches containers carrying the agent label.
 - The worker holds the GitHub and Jira credentials (in bot mode, one-hour single-repository tokens from the optional broker) and runs git with hooks, fsmonitor and credential helpers disabled. Repositories are restricted to `https://github.com/...`.
 - The API is not published to the host, the dashboard binds to `127.0.0.1`, cross-site state-changing requests are refused, and secrets are redacted from logs and the dashboard.
 - Tokens entered in the dashboard are encrypted in Postgres with `ENCRYPTION_KEY`; back up `.env` separately from the database.
 - Ticket text and repository content are untrusted data. There is no auto-merge. Enable branch protection on every base branch.
-
-**Known gap:** the hardening above (docker-proxy, LLM gateway, npm mirror) is in the source-build Compose file. The release bundle's `deploy/docker-compose.yml` has not been moved to it yet, so use `npm run up:prod` from a checkout until it has.
 
 Never publish the dashboard beyond `127.0.0.1` without a TLS reverse proxy and `COOKIE_SECURE=true`.
 
@@ -160,7 +158,7 @@ mkdir -p "$(grep ^DATA_DIR= .env | cut -d= -f2)"
 docker compose up -d
 ```
 
-`sdlc-agent up` pulls the agent image before starting the stack, so the first run takes a little longer (release installs only; a source checkout builds it with `npm run up:prod`). Note the [known gap](#security-model) in the release bundle. Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
+`sdlc-agent up` builds the agent image on your machine before starting the stack, so the first run takes a few minutes longer. The agent image is never published because it contains Claude Code, which is Anthropic's software (release installs build it from `docker/agent`; a source checkout builds it with `npm run up:prod`). Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
 
 The images are published to GHCR with provenance attestations. To verify one (needs the GitHub CLI):
 
@@ -288,15 +286,14 @@ Known limitations:
 - Only two small tickets have run with live Claude ([`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)). Review fixes, CI fixes, support queries, Jira, Confluence and larger tickets have only been tested against the stand-in.
 - A failed first dependency install leaves a half-installed `node_modules`, and Retry skips the reinstall. Delete the workspace's `node_modules` and reinstall, or delete the workspace (see [`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)).
 - Creating a ticket through the API requires the text in `body`; unknown fields are rejected.
-- The release bundle has not been moved to the hardened Compose layout yet (see the [security model](#security-model)).
 
 ## Releases and versioning
 
-Versions follow [semantic versioning](https://semver.org/). `0.0.x` releases are pre-releases for the author's own use, and breaking changes (database migrations, configuration, API) are allowed until `0.1.0`. See [`CHANGELOG.md`](./CHANGELOG.md) before upgrading.
+Versions follow [semantic versioning](https://semver.org/). Releases are tags on `dev`; until `1.0`, breaking changes (database migrations, configuration, API) can happen in any minor release and are marked **Breaking** in [`CHANGELOG.md`](./CHANGELOG.md), so read it before upgrading. Release images are signed and attested; [`SECURITY.md`](./SECURITY.md#verifying-a-release) shows how to verify them. Third-party licences are listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
 ## Contributing
 
-Bug reports and feedback are welcome through issues. Pull requests are not accepted yet, except small fixes agreed in an issue first. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the ground rules, and [`SECURITY.md`](./SECURITY.md) for how to report a vulnerability.
+Contributions are welcome: bug reports, documentation and pull requests (signed off under the [DCO](./CONTRIBUTING.md#developer-certificate-of-origin)). Start with [`CONTRIBUTING.md`](./CONTRIBUTING.md); questions go to [Discussions](https://github.com/pjx16/sdlc-agent/discussions) (see [`SUPPORT.md`](./SUPPORT.md)), and how decisions are made is in [`GOVERNANCE.md`](./GOVERNANCE.md).
 
 ## Security
 

@@ -1,5 +1,5 @@
 /**
- * Markdown to Confluence storage format (BUILD_PLAN v1 6.10): headings, paragraphs, bullet and numbered lists, fenced code blocks,
+ * Markdown to Confluence storage format: headings, paragraphs, bullet and numbered lists, fenced code blocks,
  * tables, links, bold, italic, inline code, and `file:line` references as code. No AI involved; everything is escaped.
  */
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

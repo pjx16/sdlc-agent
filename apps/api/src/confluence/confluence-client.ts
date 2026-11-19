@@ -1,6 +1,6 @@
 import type { ConfluenceSpace } from '@sdlc/shared';
 
-/** What the pipeline needs from Confluence (BUILD_PLAN v1 6.10). Cloud only; the page operations arrive with the document hub. */
+/** What the pipeline needs from Confluence. Cloud only; the page operations arrive with the document hub. */
 export interface ConfluenceClient {
   /** The spaces the person can create pages in. */
   listWritableSpaces(): Promise<ConfluenceSpace[]>;
@@ -41,7 +41,7 @@ export class ConfluenceHttpError extends Error {
   }
 }
 
-/** The credentials do not reach Confluence, or are missing. The project then works without it (BUILD_PLAN v1 D6). */
+/** The credentials do not reach Confluence, or are missing. The project then works without it. */
 export class ConfluenceNotConfiguredError extends Error {
   constructor() {
     super('Confluence is not configured: add the Atlassian site URL, email and API token in Settings → Connections');

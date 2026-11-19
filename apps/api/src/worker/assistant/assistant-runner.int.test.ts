@@ -12,7 +12,7 @@ import { WorkerConfig } from '../worker-config';
 import { AssistantRunner } from './assistant-runner';
 import { buildContextPack, type PackDeps } from './context-pack';
 
-describe('assistant runner and context packs (BUILD_PLAN v1 6.6)', () => {
+describe('assistant runner and context packs', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let tmp: string;

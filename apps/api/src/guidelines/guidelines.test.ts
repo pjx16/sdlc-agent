@@ -32,7 +32,7 @@ beforeEach(() => {
   writeFileSync(path.join(tmp, 'secret.md'), 'outside the guidelines directory');
 });
 
-describe('resolveGuidelinePath: the path guard (BUILD_PLAN section 11)', () => {
+describe('resolveGuidelinePath: the path guard', () => {
   it('accepts markdown files inside the directory', () => {
     expect(resolveGuidelinePath(root, 'default-CLAUDE.md')).toBe(path.join(root, 'default-CLAUDE.md'));
     expect(resolveGuidelinePath(root, 'stages/kb-build.md')).toBe(path.join(root, 'stages/kb-build.md'));

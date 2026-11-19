@@ -1,0 +1,44 @@
+name: DCO
+
+# Every commit in a pull request needs a Signed-off-by line matching its author (CONTRIBUTING.md, "Developer Certificate of Origin").
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dco:
+    name: dco
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check sign-offs
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for sha in $(git rev-list --no-merges "${BASE}..${HEAD}"); do
+            email=$(git log -1 --format=%ae "${sha}")
+            # Bot commits (Dependabot, GitHub Actions) carry no sign-off; they are reviewed like any other change.
+            case "${email}" in *'[bot]@users.noreply.github.com') continue ;; esac
+            if ! git log -1 --format=%B "${sha}" | grep -qiF "Signed-off-by: $(git log -1 --format='%an <%ae>' "${sha}")"; then
+              echo "::error::${sha:0:7} \"$(git log -1 --format=%s "${sha}")\" has no Signed-off-by line for $(git log -1 --format='%an <%ae>' "${sha}")"
+              missing=1
+            fi
+          done
+          if [ "${missing}" -ne 0 ]; then
+            echo "Sign off your commits: git rebase --signoff ${{ github.event.pull_request.base.ref }}, then force-push. See CONTRIBUTING.md." >&2
+            exit 1
+          fi
+          echo "Every commit is signed off."

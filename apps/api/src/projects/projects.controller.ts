@@ -15,7 +15,7 @@ export class ProjectsController {
     return this.projects.list();
   }
 
-  /** The two-field start: a repo URL and, optionally, a Jira project key (BUILD_PLAN v1 6.7). */
+  /** The two-field start: a repo URL and, optionally, a Jira project key. */
   @Post('onboard')
   start(@Body() body: unknown): Promise<ProjectDto> {
     return this.onboarding.start(body);

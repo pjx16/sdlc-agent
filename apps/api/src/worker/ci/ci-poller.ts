@@ -71,7 +71,7 @@ export class CiPoller implements Housekeeper {
           await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'git', message: `Checks of PR #${number} failed; a CI fix round is queued` } });
           return;
         }
-        // The CI fix round already ran once: that back-edge is used up (BUILD_PLAN v1 6.8), so the ticket needs a person.
+        // The CI fix round already ran once: that back-edge is used up, so the ticket needs a person.
         return ticket.ciFixDone ? this.holdIt(ticket.id, `${loopLimitMessage('ciFix', 1)} The checks of PR #${number} still fail after the CI fix`, 'loop_limit') : this.holdIt(ticket.id, `The checks of PR #${number} failed`);
     }
   }

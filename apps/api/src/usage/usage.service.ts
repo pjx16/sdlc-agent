@@ -16,7 +16,7 @@ export interface UsageSnapshotDto {
 export interface UsageSummaryDto {
   /** Tokens (input + output + cache write) per stage and model, most first. */
   tokens: { stage: string; model: string; tokens: number; runs: number }[];
-  /** `windowTokens` at the last `rejected` snapshot: a good `calibratedWindowTokens` (BUILD_PLAN 6.7). Null if there was none. */
+  /** `windowTokens` at the last `rejected` snapshot: a good `calibratedWindowTokens`. Null if there was none. */
   suggestedCalibration: number | null;
 }
 
@@ -44,7 +44,7 @@ export class UsageService {
     return rows.reverse().map((r) => ({ id: r.id, at: r.at.toISOString(), fiveHourPct: r.fiveHourPct, sevenDayPct: r.sevenDayPct, status: r.status, resetsAt: r.resetsAt?.toISOString() ?? null, source: r.source, windowTokens: r.windowTokens }));
   }
 
-  /** GET /usage/models: tokens by kind, cost, runs and share per model, the split by stage and day, and the estimated share of each window (BUILD_PLAN v1 6.4). */
+  /** GET /usage/models: tokens by kind, cost, runs and share per model, the split by stage and day, and the estimated share of each window. */
   async models(query: { from?: string; to?: string }): Promise<{ from: string; to: string; models: ModelUsage[]; estimateNote: string }> {
     const to = parseDate(query.to) ?? new Date();
     const from = parseDate(query.from) ?? new Date(to.getTime() - 7 * 86_400_000);

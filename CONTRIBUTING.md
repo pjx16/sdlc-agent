@@ -1,16 +1,17 @@
 # Contributing
 
-The project is in `0.0.x` pre-release and built in public. Bug reports and feedback are welcome through issues. Pull requests are not accepted yet, except small fixes agreed in an issue first.
+Thanks for helping with sdlc-agent. Bug reports, documentation fixes and pull requests are all welcome.
 
-## How to help right now
+- **Bugs and feature requests:** open an issue with the [bug](https://github.com/pjx16/sdlc-agent/issues/new?template=bug_report.yml) or [feature](https://github.com/pjx16/sdlc-agent/issues/new?template=feature_request.yml) form. Check [Scope and known limitations](./README.md#scope-and-known-limitations) first: features outside it are unlikely to be accepted.
+- **Questions and ideas:** use [Discussions](https://github.com/pjx16/sdlc-agent/discussions). See [`SUPPORT.md`](./SUPPORT.md).
+- **Security problems:** do not open an issue. Follow [`SECURITY.md`](./SECURITY.md).
+- **Where to start:** issues labelled [`good first issue`](https://github.com/pjx16/sdlc-agent/labels/good%20first%20issue) and [`help wanted`](https://github.com/pjx16/sdlc-agent/labels/help%20wanted).
 
-- Open an issue for [bugs](https://github.com/pjx16/sdlc-agent/issues/new?template=bug_report.yml) or [feature ideas](https://github.com/pjx16/sdlc-agent/issues/new?template=feature_request.yml).
-- Check the scope first (see [Scope and known limitations](./README.md#scope-and-known-limitations) in the README): features outside it will not be accepted.
-- For security problems, do not open an issue. Follow [`SECURITY.md`](./SECURITY.md).
+For anything bigger than a bug fix or a small improvement, open an issue first and agree the approach with a maintainer, so your work is not wasted. How decisions are made is in [`GOVERNANCE.md`](./GOVERNANCE.md).
 
 ## Development setup
 
-You need Node.js 24 or later, npm (Turborepo runs the workspaces), Git and Docker (for integration tests and the full stack).
+You need Node.js 24 or later (see `.nvmrc`), npm 12 (the version in `packageManager`), Git, and Docker for the integration tests and the full stack. Or open the repository in the dev container (`.devcontainer/`, works with VS Code and GitHub Codespaces), which has all of them.
 
 ```bash
 git clone https://github.com/pjx16/sdlc-agent.git
@@ -20,34 +21,67 @@ cp .env.example .env     # then fill in the values the file asks for
 npm run up:dev           # the full stack in Docker, development mode
 ```
 
-See the [README](./README.md#run-from-source) for the details of a source install and the layout of the repository.
+See the [README](./README.md#run-from-source) for the details of a source install.
+
+## Finding your way around
+
+| Path | What is there |
+| --- | --- |
+| `apps/api` | NestJS API and the worker (`src/worker`): pipeline, agent runner, git, GitHub, Jira, Confluence |
+| `apps/dashboard` | Next.js dashboard |
+| `apps/broker` | Token broker for the GitHub App (bot mode) |
+| `packages/shared` | Types, schemas, the state machine and agent definitions shared by everything |
+| `packages/cli` | The `sdlc-agent` npm package that installs and runs a release |
+| `docker/` | The agent image, the egress proxy, `docker-proxy` and the npm mirror config |
+| `guidelines/` | Agent prompts, output formats and stack guides (`npm run agents` and `npm run formats` regenerate derived files) |
+| `docs/architecture/` | Architecture notes and diagrams for each version; start with the latest |
+| `docs/kb/` | Short reference pages per feature, with file and line pointers |
 
 ## Checks to run before a pull request
 
 ```bash
 npm run lint
 npm run typecheck
-npm test            # unit tests, no Docker needed
-npm run test:int    # integration tests (needs Docker)
-npm run test:e2e    # browser tests (first run: npx playwright install chromium)
+npm test            # unit tests: no Docker needed
+npm run test:int    # integration tests: needs Docker (Postgres via Testcontainers, real agent containers)
+npm run test:e2e    # browser tests: needs Docker (first run: npx playwright install chromium)
 ```
 
-CI runs the same checks. A change that touches only documentation needs just a read-through.
+`npm test`, lint and typecheck are enough for most changes and run without Docker. CI runs everything, so if you cannot run the Docker suites locally, say so in the pull request. A change that touches only documentation needs just a read-through. If you change dependencies, run `npm run notices` and commit `THIRD_PARTY_NOTICES.md`.
 
 ## Branches, commits and pull requests
 
+- `dev` is the default branch and where all work lands. Releases are tags (`vX.Y.Z`) on `dev`; there is no separate release branch.
 - Branch from `dev` and give the branch a type prefix: `feat/`, `fix/`, `chore/`, `docs/`.
 - Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`, `build:`, `ci:`, `chore:`). Keep one logical change per commit.
+- **Sign off every commit** (`git commit -s`). See [Developer Certificate of Origin](#developer-certificate-of-origin) below. A CI check refuses pull requests with unsigned commits.
 - Open the pull request against `dev` and fill in the template. Keep it small: one concern per pull request.
 - Add an entry under `## [Unreleased]` in [`CHANGELOG.md`](./CHANGELOG.md) for anything a user would notice.
 - A maintainer reviews every pull request (see [`CODEOWNERS`](./.github/CODEOWNERS)). CI must pass before merge.
+
+## Developer Certificate of Origin
+
+Contributions are accepted under the project's [MIT License](./LICENSE), certified with the [Developer Certificate of Origin 1.1](https://developercertificate.org/). By adding a `Signed-off-by` line to a commit you certify that you wrote the change, or otherwise have the right to submit it under that licence:
+
+```
+Signed-off-by: Your Name <you@example.com>
+```
+
+`git commit -s` adds it from your `user.name` and `user.email`; the e-mail must match the commit author. To sign off commits you already made: `git rebase --signoff dev`, then force-push your branch.
+
+## AI-assisted contributions
+
+This is a tool for AI-assisted development, and you may use AI tools to write your contribution. You are still its author:
+
+- Review, understand and test every line before you open the pull request, and be able to explain it in review.
+- Your sign-off covers AI-generated code too: only submit what you have the right to contribute.
+- Do not paste secrets, private code or other people's data into an AI tool for a contribution.
+- Do not add `Co-Authored-By` trailers or other AI attribution to commits. Mention in the pull request description if a large part was generated, which helps the review.
 
 ## Ground rules
 
 - Use npm and Turborepo only (no pnpm or yarn).
 - Keep functions small and named after what they do; prefer boring, well-documented libraries.
-- Do not add `Co-Authored-By` trailers or any AI attribution to commits.
-- Never commit secrets, tokens or `.env` files.
-- Never paste unredacted logs.
+- Never commit secrets, tokens or `.env` files, and never paste unredacted logs.
 
 By participating, you agree to follow the [Code of Conduct](./CODE_OF_CONDUCT.md).

@@ -13,7 +13,7 @@ export const MAX_QUESTIONS_PER_STAGE = 3;
 export type NonDoneResult = Exclude<StageResult, { kind: 'done' }>;
 
 /**
- * What a ticket does when a stage did not simply succeed (BUILD_PLAN 6.8). `done` is the stage's own business;
+ * What a ticket does when a stage did not simply succeed. `done` is the stage's own business;
  * everything else is the same for every stage, so it lives here.
  */
 @Injectable()

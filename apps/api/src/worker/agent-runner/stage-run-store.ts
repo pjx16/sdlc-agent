@@ -64,7 +64,7 @@ export class PrismaStageRunStore implements StageRunStore {
     return row.id;
   }
 
-  /** `user` for the first run after a person sent the ticket back (BUILD_PLAN v1 6.8), else `auto`. */
+  /** `user` for the first run after a person sent the ticket back, else `auto`. */
   private async triggerFor(ticketId?: string): Promise<string> {
     if (!ticketId) return 'auto';
     const last = await this.prisma.stateTransition.findFirst({ where: { ticketId }, orderBy: [{ at: 'desc' }, { id: 'desc' }] });
@@ -139,13 +139,13 @@ export class PrismaStageRunStore implements StageRunStore {
   }
   async setRetryAt(id: string, at: Date): Promise<void> {
     const run = await this.prisma.stageRun.update({ where: { id }, data: { retryAt: at } });
-    // "Claude API error (529). Retry 1/3 at 14:32." (BUILD_PLAN v1 6.4)
+    // "Claude API error (529). Retry 1/3 at 14:32."
     if (run.errorCode === 'CLAUDE_API_ERROR') {
       await logEvent(this.prisma, events.error({ code: 'CLAUDE_API_ERROR', vars: { detail: (run.error ?? '').slice(0, 80) }, retry: { n: run.attempt, of: 3 }, retryAt: at }), { ticketId: run.ticketId, stageRunId: id });
     }
   }
 
-  /** Keeps the latest rate_limit_event for the usage gate (milestone 10). */
+  /** Keeps the latest rate_limit_event for the usage gate. */
   async saveRateLimit(limit: RateLimit): Promise<void> {
     await this.prisma.usageSnapshot.create({
       data: { fiveHourPct: limit.fiveHourPct, sevenDayPct: limit.sevenDayPct, status: limit.status, resetsAt: limit.resetsAt, source: 'event' },

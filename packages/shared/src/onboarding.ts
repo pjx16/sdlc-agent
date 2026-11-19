@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { PROJECT_STACKS, TICKET_STATUSES, type TicketStatus } from './enums';
 
-/** Project onboarding (BUILD_PLAN v1 6.7): code collects facts, two agents propose, the person confirms. */
+/** Project onboarding: code collects facts, two agents propose, the person confirms. */
 
 export const ONBOARDING_STATUSES = ['draft', 'profiling', 'proposed', 'confirmed'] as const;
 export type OnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
@@ -9,7 +9,7 @@ export type OnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
 /** What a ticket of an issue type becomes. `ignore` types are not picked up. */
 export const ISSUE_KINDS = ['feature', 'bug', 'chore', 'ignore'] as const;
 export type IssueKind = (typeof ISSUE_KINDS)[number];
-/** What a pipeline ticket is (BUILD_PLAN v1 6.9). */
+/** What a pipeline ticket is. */
 export const TICKET_KINDS = ['feature', 'bug', 'chore'] as const;
 export type TicketKind = (typeof TICKET_KINDS)[number];
 
@@ -101,7 +101,7 @@ export function defaultRouting(issueTypes: { name: string; subtask: boolean }[])
   return Object.fromEntries(issueTypes.map((t) => [t.name, t.subtask ? 'ignore' : (DEFAULT_ROUTING_KINDS[t.name.trim().toLowerCase()] ?? 'feature')]));
 }
 
-/** The intake query: the label, and only the issue types that route to a kind (BUILD_PLAN v1 6.7). Editable under Advanced. */
+/** The intake query: the label, and only the issue types that route to a kind. Editable under Advanced. */
 export function buildIntakeJql(a: { projectKey: string; label: string; routing: Record<string, IssueKind> }): string {
   const types = Object.entries(a.routing)
     .filter(([, kind]) => kind !== 'ignore')

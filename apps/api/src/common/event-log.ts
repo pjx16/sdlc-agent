@@ -12,7 +12,7 @@ export interface EventContext {
   subtaskId?: string | null;
 }
 
-/** Writes one typed event (BUILD_PLAN v1 6.4). Use the `events.*` helpers from @sdlc/shared to build the draft. */
+/** Writes one typed event. Use the `events.*` helpers from @sdlc/shared to build the draft. */
 export async function writeEvent(db: EventWriter, draft: EventDraft, ctx: EventContext = {}): Promise<void> {
   await db.event.create({
     data: {

@@ -2,7 +2,7 @@ import type { TicketStatus } from './enums';
 import { HOLDABLE, TRANSITIONS, checkTransition, type TransitionVerdict } from './state-machine';
 
 /**
- * Moves and reruns (BUILD_PLAN v1 6.8). The state table of v0 says which moves are legal; here every move also has a kind, and a
+ * Moves and reruns. The state table of v0 says which moves are legal; here every move also has a kind, and a
  * ticket can be sent back to a stage that already finished. One pure function, `legalMoves`, lists every legal move, and the
  * worker, the API, the dashboard and the orchestrator all use it.
  */
@@ -35,7 +35,7 @@ export interface MoveRecord {
 
 /**
  * The states that have finished for a ticket, from its moves in time order. A forward advance or approval completes the state it
- * leaves; a rerun or a rejection un-completes the target and everything after it (BUILD_PLAN v1 D4: everything after the rerun
+ * leaves; a rerun or a rejection un-completes the target and everything after it (everything after the rerun
  * stage is stale, always). Pure.
  */
 export function completedStates(moves: readonly MoveRecord[]): Set<TicketStatus> {
@@ -75,7 +75,7 @@ export const positionOf = (t: Pick<LegalMovesInput, 'status' | 'holdFromStatus'>
 
 /**
  * Every legal move for a ticket, with its kind. A pure helper: it looks at the state table, the gates and the history, and does no
- * I/O. When it returns one move, code takes it; when it returns several, the orchestrator chooses (BUILD_PLAN v1 6.11).
+ * I/O. When it returns one move, code takes it; when it returns several, the orchestrator chooses.
  */
 export function legalMoves(t: LegalMovesInput): Move[] {
   const gates = t.gates ?? { plan: true, breakdown: true };
@@ -114,7 +114,7 @@ export function legalMoves(t: LegalMovesInput): Move[] {
 /** Is this particular move legal right now? */
 export const isLegalMove = (t: LegalMovesInput, kind: MoveKind, to: TicketStatus): boolean => legalMoves(t).some((m) => m.kind === kind && m.to === to);
 
-/** Back-edges with a limit per ticket (BUILD_PLAN v1 6.8). Going over one raises a hold with the reason `loop_limit`. */
+/** Back-edges with a limit per ticket. Going over one raises a hold with the reason `loop_limit`. */
 export const LOOP_EDGES = ['testFix', 'reviewFix', 'ciFix', 'userRerun', 'orchestratorReplan'] as const;
 export type LoopEdge = (typeof LOOP_EDGES)[number];
 export const DEFAULT_LOOP_LIMITS: Record<LoopEdge, number> = { testFix: 2, reviewFix: 2, ciFix: 1, userRerun: 5, orchestratorReplan: 1 };

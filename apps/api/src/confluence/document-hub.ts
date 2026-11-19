@@ -1,7 +1,7 @@
 import { markdownToStorage } from '@sdlc/shared';
 import { ConfluenceVersionConflict, type ConfluenceClient } from './confluence-client';
 
-/** What a document hub is given: a title, markdown, and the status line shown at the top (BUILD_PLAN v1 6.10). */
+/** What a document hub is given: a title, markdown, and the status line shown at the top. */
 export interface HubDocument {
   title: string;
   markdown: string;

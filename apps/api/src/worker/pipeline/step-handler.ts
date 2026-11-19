@@ -1,7 +1,7 @@
 import type { HoldReason, TicketStatus } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 
-/** What one pipeline step decided (BUILD_PLAN 6.6 step 4). The loop applies it through the state machine. */
+/** What one pipeline step decided. The loop applies it through the state machine. */
 export type StepOutcome =
   | { kind: 'transition'; to: TicketStatus; reason?: string; stageRunId?: string }
   | { kind: 'hold'; reason: HoldReason; note?: string; stageRunId?: string }

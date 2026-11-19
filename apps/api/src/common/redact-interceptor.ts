@@ -13,7 +13,7 @@ export function redactDeep<T>(value: T, redact: (text: string) => string): T {
 }
 
 /**
- * Secrets are redacted from everything the dashboard shows (BUILD_PLAN 13). Logs are redacted when they are written; this covers the
+ * Secrets are redacted from everything the dashboard shows. Logs are redacted when they are written; this covers the
  * rest: events, error messages and run errors stored by the worker, and anything else an API response carries.
  */
 @Injectable()

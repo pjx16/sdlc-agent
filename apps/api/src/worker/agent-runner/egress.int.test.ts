@@ -7,7 +7,7 @@ const through = (port: number, host: string) =>
 
 const outcome = async (script: string) => (await shellInAgent(script)).lines.join(' ');
 
-describe('egress from an agent container (BUILD_PLAN 6.1, F5)', () => {
+describe('egress from an agent container', () => {
   let egress: EgressFixture;
   beforeAll(async () => {
     egress = await startEgress();

@@ -8,7 +8,7 @@ import { UsageGate } from './usage-gate';
 const RESET = new Date('2026-11-12T13:00:00Z');
 const limit = (over: Record<string, unknown> = {}) => ({ fiveHourPct: 10, sevenDayPct: 10, status: 'allowed', resetsAt: RESET, ...over }) as never;
 
-describe('UsageGate (F14, BUILD_PLAN 6.7)', () => {
+describe('UsageGate (F14)', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let gate: UsageGate;
