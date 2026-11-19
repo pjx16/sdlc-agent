@@ -72,6 +72,46 @@ updates:
     commit-message:
       prefix: chore(deps)
 
+  - package-ecosystem: docker
+    directory: /apps/broker
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+    ignore:
+      # Stay on the Node.js LTS line (24). Odd-numbered releases (25) are short-lived and not LTS; move to the next LTS by hand.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: docker
+    directory: /docker/socket-proxy
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+    ignore:
+      # Stay on the Node.js LTS line (24). Odd-numbered releases (25) are short-lived and not LTS; move to the next LTS by hand.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: docker
+    directory: /docker/npm-mirror
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+
+  # The release compose file pins its own images (Postgres); without this entry it drifts from the root compose file.
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore(deps)
+    ignore:
+      - dependency-name: postgres
+        update-types: ['version-update:semver-major']
+
   - package-ecosystem: docker-compose
     directory: /
     schedule:

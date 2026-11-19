@@ -26,7 +26,7 @@ The `api` and `worker` services are built from two Dockerfiles that share the sa
 8. Worker runtime stage first runs one `RUN` that installs `git`, `ca-certificates`, `curl`, fetches the `gh` apt keyring with `curl`, installs `gh`, purges `curl` and removes apt lists; `gnupg` is not installed — `docker/worker/Dockerfile:22-30`
 9. Worker copies `git-askpass-token`, sets `GIT_ASKPASS` and `GIT_TERMINAL_PROMPT=0`, and marks every directory as a git `safe.directory` because workspaces belong to uid 1000 while the worker runs as root — `docker/worker/Dockerfile:31-36`
 10. Worker copies `node_modules` from `deps` and the shared and api `package.json` and `dist` from `build` (no `prisma/` folder), then sets `WORKDIR /app/apps/api`, `NODE_ENV=production`, `CMD ["node", "dist/worker.js"]` — `docker/worker/Dockerfile:38-47`
-11. The worker runs as root (no `USER`) because it drives Docker — `docker/worker/Dockerfile:46`. In the source-build compose it reaches Docker through the filtering `docker-proxy` service (`docker/socket-proxy`, `DOCKER_HOST=tcp://docker-proxy:2375`) rather than the socket itself; `deploy/docker-compose.yml` still mounts the socket directly
+11. The worker runs as root (no `USER`) because it drives Docker — `docker/worker/Dockerfile:46`. In the source-build compose it reaches Docker through the filtering `docker-proxy` service (`docker/socket-proxy`, `DOCKER_HOST=tcp://docker-proxy:2375`) rather than the socket itself; `deploy/docker-compose.yml` does the same
 12. The dashboard image uses a similar two-stage build (build stage, then only `.next/standalone` and `.next/static` copied) — `apps/dashboard/Dockerfile:1`, `:12-17`
 
 ## Data touched
@@ -43,7 +43,7 @@ The `api` and `worker` services are built from two Dockerfiles that share the sa
 - Images use `npm ci --ignore-scripts`, so the `postinstall` `prisma generate` does not run; the build script runs it — `apps/api/Dockerfile:7`, `apps/api/package.json:6`
 - The base image digest is pinned in every `FROM`; changing it is a supply-chain decision — `apps/api/Dockerfile:1`
 - `.dockerignore` excludes `*.md`, so any file the build needs must not be a markdown file — `.dockerignore:8`
-- `docker-compose.yml:1` documents that the agent image is built separately with `docker compose --profile build build`; the release compose says the worker pulls the agent image on first start — `deploy/docker-compose.yml:1`
+- `docker-compose.yml:1` documents that the agent image is built separately with `docker compose --profile build build`; the release compose builds it the same way from the shipped `docker/agent` folder (never published, because it contains Claude Code) — `deploy/docker-compose.yml:1`
 - The pull size of published images is set by the release workflow, which builds these Dockerfiles (`.github/workflows/release.yml`, content not verified)
 
 ## Tests

@@ -7,7 +7,7 @@ import { envFor, runDoctor } from './doctor';
 import { getEnv } from './envfile';
 import { readManifest } from './manifest';
 import { run } from './proc';
-import { CliError, dim, green, out, yellow } from './ui';
+import { CliError, dim, green, out } from './ui';
 
 export const INSTALL_TIP = 'Tip: install it as an app from Chrome/Edge (address-bar install icon) or Safari (File → Add to Dock).';
 
@@ -52,16 +52,24 @@ export async function fetchSetupStatus(dir: string): Promise<{ adminCreated: boo
   }
 }
 
-/** The agent image the worker will start containers from; pulled now so the first stage does not wait. */
+/** The agent image the worker starts containers from: AGENT_IMAGE when set, else the one built locally for the installed version. */
 export function agentImage(envText: string): string {
-  return getEnv(envText, 'AGENT_IMAGE') || `${getEnv(envText, 'SDLC_REGISTRY') || 'ghcr.io/pjx16'}/sdlc-agent-agent:${getEnv(envText, 'SDLC_VERSION')}`;
+  return getEnv(envText, 'AGENT_IMAGE') || `sdlc-agent/agent:${getEnv(envText, 'SDLC_VERSION')}`;
 }
 
-/** Pulls the agent image before the stack starts so the worker finds it; a failure only warns. */
-async function pullAgentImage(envText: string): Promise<void> {
-  const image = agentImage(envText);
-  out(`Pulling the agent image ${image}…`);
-  if ((await run('docker', ['pull', image], { inherit: true })).code !== 0) out(yellow('Could not pull the agent image now; the worker will pull the image when it starts.'));
+/**
+ * Makes the agent image available before the stack starts. It is built locally from the shipped docker/agent folder rather than
+ * published, because it bundles Claude Code, which is not ours to redistribute. A custom AGENT_IMAGE is the operator's own and is pulled.
+ */
+async function prepareAgentImage(dir: string, envText: string): Promise<void> {
+  if (getEnv(envText, 'AGENT_IMAGE')) {
+    const image = agentImage(envText);
+    out(`Pulling the agent image ${image}…`);
+    if ((await run('docker', ['pull', image], { inherit: true })).code !== 0) throw new CliError(`Could not pull the agent image ${image} (AGENT_IMAGE in .env).`);
+    return;
+  }
+  out('Building the agent image (installs Claude Code; the first build takes a few minutes)…');
+  if ((await compose(dir, ['--profile', 'build', 'build', 'agent-image'], { inherit: true })).code !== 0) throw new CliError('Could not build the agent image. See the output above.');
 }
 
 export async function up(opts: { dir: string; quiet?: boolean }): Promise<void> {
@@ -71,7 +79,7 @@ export async function up(opts: { dir: string; quiet?: boolean }): Promise<void> 
 
   out('Pulling images…');
   if ((await compose(opts.dir, ['pull'], { inherit: true })).code !== 0) throw new CliError('Could not pull the images. Check your network and that the release is published.');
-  await pullAgentImage(envText);
+  await prepareAgentImage(opts.dir, envText);
   out('Starting…');
   if ((await compose(opts.dir, ['up', '-d', '--wait', '--wait-timeout', '300'], { inherit: true })).code !== 0) throw new CliError('The stack did not become healthy. See `sdlc-agent logs`.');
 

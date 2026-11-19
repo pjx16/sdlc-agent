@@ -100,6 +100,8 @@ jobs:
           - { name: dashboard, context: ., file: apps/dashboard/Dockerfile }
           - { name: broker, context: ., file: apps/broker/Dockerfile }
           - { name: proxy, context: docker/proxy, file: docker/proxy/Dockerfile }
+          - { name: docker-proxy, context: docker/socket-proxy, file: docker/socket-proxy/Dockerfile }
+          - { name: npm-mirror, context: docker/npm-mirror, file: docker/npm-mirror/Dockerfile }
           - { name: agent, context: docker/agent, file: docker/agent/Dockerfile }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -111,8 +113,17 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           push: false
+          load: true
+          tags: sdlc-agent-ci/${{ matrix.name }}:pr
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
+      # The same gate as the release (fixable HIGH and CRITICAL), so a pull request finds out before a tag does.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: sdlc-agent-ci/${{ matrix.name }}:pr
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
 
   audit:
     name: audit
@@ -129,6 +140,25 @@ jobs:
       - run: npm install -g npm@12.0.2
       - run: npm ci --ignore-scripts
       - run: npm audit --omit=dev --audit-level=high
+
+  notices:
+    name: notices
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install -g npm@12.0.2
+      - run: npm ci --ignore-scripts
+      - name: THIRD_PARTY_NOTICES.md matches package-lock.json
+        run: |
+          npm run notices
+          git diff --exit-code THIRD_PARTY_NOTICES.md || { echo "Run 'npm run notices' and commit THIRD_PARTY_NOTICES.md" >&2; exit 1; }
 
   cli:
     name: cli
