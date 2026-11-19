@@ -3,10 +3,13 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CredentialsService } from '../../credentials/credentials.service';
 import { WorkerConfig } from '../worker-config';
+import { GatewayTokens } from './gateway-tokens';
 import { LlmGateway } from './llm-gateway';
 
 let upstream: Server;
 let gateway: LlmGateway;
+let tokens: GatewayTokens;
+let key: string;
 const seen: { url: string; method: string; headers: Record<string, string | string[] | undefined>; body: string }[] = [];
 
 async function start(token: string | null = 'sk-ant-oat-secret') {
@@ -21,7 +24,9 @@ async function start(token: string | null = 'sk-ant-oat-secret') {
   });
   await new Promise<void>((r) => upstream.listen(0, r));
   const config = new WorkerConfig({ DATA_DIR: '/tmp/x', DATABASE_URL: 'x', LLM_GATEWAY_UPSTREAM: `http://127.0.0.1:${(upstream.address() as AddressInfo).port}` } as NodeJS.ProcessEnv);
-  gateway = new LlmGateway(config, { resolve: async () => ({ claude_token: token }) } as unknown as CredentialsService);
+  tokens = new GatewayTokens();
+  key = tokens.issue();
+  gateway = new LlmGateway(config, { resolve: async () => ({ claude_token: token }) } as unknown as CredentialsService, tokens);
   return `http://127.0.0.1:${await gateway.start(0)}`;
 }
 
@@ -34,7 +39,7 @@ afterEach(() => {
 describe('LlmGateway (scan finding 1)', () => {
   it('forwards POST /v1/messages with the token it holds, dropping the agent\'s own credentials', async () => {
     const base = await start();
-    const res = await fetch(`${base}/v1/messages`, { method: 'POST', headers: { 'x-api-key': 'attacker-key', authorization: 'Bearer attacker', 'anthropic-version': '2023-06-01', 'anthropic-beta': 'foo', 'content-type': 'application/json' }, body: '{"model":"m"}' });
+    const res = await fetch(`${base}/v1/messages`, { method: 'POST', headers: { 'x-api-key': key, authorization: 'Bearer attacker', 'anthropic-version': '2023-06-01', 'anthropic-beta': 'foo', 'content-type': 'application/json' }, body: '{"model":"m"}' });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
     expect(seen).toHaveLength(1);
@@ -53,9 +58,22 @@ describe('LlmGateway (scan finding 1)', () => {
     expect(seen).toHaveLength(0);
   });
 
+  it('refuses a request without a live per-run key, and accepts the key as a Bearer token too', async () => {
+    const base = await start();
+    const post = (headers: Record<string, string>) => fetch(`${base}/v1/messages`, { method: 'POST', headers, body: '{}' });
+    expect((await post({})).status).toBe(401);
+    expect((await post({ 'x-api-key': 'sdlc-gateway-placeholder' })).status).toBe(401);
+    expect((await post({ 'x-api-key': `${key}x` })).status).toBe(401);
+    expect(seen).toHaveLength(0);
+    expect((await post({ authorization: `Bearer ${key}` })).status).toBe(200);
+    tokens.revoke(key);
+    expect((await post({ 'x-api-key': key })).status).toBe(401);
+    expect(seen).toHaveLength(1);
+  });
+
   it('answers 503 and sends nothing upstream when no token is set', async () => {
     const base = await start(null);
-    expect((await fetch(`${base}/v1/messages`, { method: 'POST', body: '{}' })).status).toBe(503);
+    expect((await fetch(`${base}/v1/messages`, { method: 'POST', headers: { 'x-api-key': key }, body: '{}' })).status).toBe(503);
     expect(seen).toHaveLength(0);
   });
 });
