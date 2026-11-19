@@ -1,0 +1,17 @@
+{
+  // Everything the contributing guide needs: Node.js 24, npm 12, Git and Docker (for the integration and end-to-end tests).
+  "name": "sdlc-agent",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "postCreateCommand": "npm install -g npm@12.0.2 && npm ci",
+  "forwardPorts": [3000],
+  "portsAttributes": { "3000": { "label": "dashboard" } },
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "vitest.explorer", "Prisma.prisma", "ms-azuretools.vscode-docker"]
+    }
+  }
+}

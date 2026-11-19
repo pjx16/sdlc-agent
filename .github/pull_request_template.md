@@ -9,6 +9,7 @@
 ## Checklist
 
 - [ ] Tests added or updated
+- [ ] Every commit is signed off (`git commit -s`, see CONTRIBUTING.md)
 - [ ] No secrets, tokens or private data in the diff, logs or screenshots
 - [ ] Architecture docs updated if the structure changed
 - [ ] `CHANGELOG.md` entry added under `## [Unreleased]`

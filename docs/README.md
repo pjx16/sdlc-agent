@@ -12,6 +12,6 @@ Start with the root [`README.md`](../README.md) (what it is, install, security m
 | [`LIVE_RUNS.md`](./LIVE_RUNS.md) | See what has been run against live Claude, and what went wrong |
 | [`kb/`](./kb) | Read the project's own knowledge base (per-feature docs the pipeline maintains for this repository; `features.json` is its index) |
 
-Elsewhere: [`CHANGELOG.md`](../CHANGELOG.md), [`CONTRIBUTING.md`](../CONTRIBUTING.md), [`SECURITY.md`](../SECURITY.md), [`packages/cli/README.md`](../packages/cli/README.md) (the installer), [`guidelines/`](../guidelines) (what the agents are told).
+Elsewhere: [`CHANGELOG.md`](../CHANGELOG.md), [`CONTRIBUTING.md`](../CONTRIBUTING.md), [`SECURITY.md`](../SECURITY.md), [`SUPPORT.md`](../SUPPORT.md), [`GOVERNANCE.md`](../GOVERNANCE.md), [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md), [`packages/cli/README.md`](../packages/cli/README.md) (the installer), [`guidelines/`](../guidelines) (what the agents are told).
 
 Documentation rules: describe what is built, not what is planned; change the docs in the same pull request as the behaviour; a structural change gets a new architecture version (see [how versions work](./architecture/README.md#how-versions-work)).
