@@ -10,7 +10,7 @@ const base = {
   testCommand: 'npx vitest run {files}',
 };
 
-describe('buildPrDescription (BUILD_PLAN 6.9)', () => {
+describe('buildPrDescription', () => {
   it('follows the template: Summary, Problem, Fix implemented, Test plan, Review notes, in order', () => {
     const md = buildPrDescription({ ...base, jiraBaseUrl: 'https://acme.atlassian.net/' });
     expect([...md.matchAll(/^## (.+)$/gm)].map((m) => m[1])).toEqual(['Summary', 'Problem', 'Fix implemented', 'Test plan', 'Review notes']);

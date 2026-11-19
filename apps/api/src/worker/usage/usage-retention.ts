@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { Housekeeper } from '../loop/worker-loop';
 
 const DAY_MS = 86_400_000;
-/** Snapshots newer than this keep full detail (BUILD_PLAN v1 6.2). */
+/** Snapshots newer than this keep full detail. */
 export const FULL_DETAIL_DAYS = 90;
 
 /** Once a day: snapshots older than 90 days are reduced to the last one of each hour. Nothing newer is touched. */

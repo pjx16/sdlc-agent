@@ -1,5 +1,5 @@
 /**
- * A small line diff, enough to show what a rewrite changed (BUILD_PLAN v1 6.6). Lines only in the old text start with "- ",
+ * A small line diff, enough to show what a rewrite changed. Lines only in the old text start with "- ",
  * lines only in the new text with "+ ". Order inside each group follows the text. Returns "(no change)" when equal.
  */
 export function planDiff(before: string, after: string): string {

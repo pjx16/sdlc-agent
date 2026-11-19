@@ -12,7 +12,7 @@ const result = (over: Record<string, unknown> = {}) => ({
 const rate = { type: 'rate_limit_event', rate_limit_info: { status: 'allowed', resetsAt: 1794418200, unifiedWindows: { five_hour: { utilization: 0.42, resetsAt: 1794418200, status: 'allowed' }, seven_day: { utilization: 0.08, resetsAt: 1794740400, status: 'allowed' } } } };
 const lines = (...objs: unknown[]) => objs.map((o) => (typeof o === 'string' ? o : JSON.stringify(o)));
 
-describe('parseStream (BUILD_PLAN 6.4)', () => {
+describe('parseStream', () => {
   it('reads structured_output from the last result line, with tokens, cost, turns, session and CLI version', () => {
     const p = parseStream(lines(init, { type: 'assistant' }, rate, result()), 'solutionDesign');
     expect(p.kind).toBe('ok');

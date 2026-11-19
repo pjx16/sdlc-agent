@@ -3,7 +3,7 @@ import type { RateLimit } from '../agent-runner/result-parser';
 export interface UsageInput {
   /** The latest rate_limit_event of the stage, if it had one. */
   limit: RateLimit | null;
-  /** The stage ended with a rate-limit error: treated as `rejected` (BUILD_PLAN 6.7). */
+  /** The stage ended with a rate-limit error: treated as `rejected`. */
   rateLimitError?: boolean;
   /** Input, output and cache-write tokens of all stage runs started in the last 5 hours. */
   windowTokens: number;
@@ -26,7 +26,7 @@ export interface UsageDecision {
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
- * The usage gate (BUILD_PLAN 6.7, F14), after every AI stage:
+ * The usage gate, after every AI stage:
  * 1. the percentages come from the event; with none, `windowTokens / calibratedWindowTokens x 100` (5 hours only), else null;
  * 2. the status is the event's, or `rejected` after a rate-limit error;
  * 3. (the caller stores the snapshot);

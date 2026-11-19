@@ -13,7 +13,7 @@ const featureKey = z
   .optional()
   .transform((v) => (v === '' ? undefined : v));
 
-/** Body of POST /tickets (BUILD_PLAN 8 Tickets, paste). */
+/** Body of POST /tickets. */
 /** Strict: an unknown field (a typo such as `description` for `body`) is an error, not silently dropped. */
 export const PasteTicketSchema = z.strictObject({
   projectId: z.string({ error: 'required' }).min(1, 'required'),

@@ -7,7 +7,7 @@ const MODELS = [
   'ReviewFinding', 'SupportTicket', 'UsageSnapshot', 'Event', 'Session', 'Credential', 'AdminAccount',
 ];
 
-describe('data model (BUILD_PLAN section 7)', () => {
+describe('data model', () => {
   let db: TestDatabase;
   let client: Client;
 

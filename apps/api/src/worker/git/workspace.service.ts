@@ -46,7 +46,7 @@ const HASH_FILE = '.git/sdlc-install-hash'; // inside .git: never part of a comm
 export const installedHash = (workspace: string): string | null => readTextNoFollowSync(workspace, HASH_FILE)?.trim() ?? null;
 export const recordInstalled = (workspace: string): void => writeTextNoFollowSync(workspace, HASH_FILE, manifestHash(workspace));
 
-/** Prepares a ticket's workspace, installs its dependencies, and records the branch (BUILD_PLAN 6.2, `Git.prepareWorkspace`). */
+/** Prepares a ticket's workspace, installs its dependencies, and records the branch. */
 @Injectable()
 export class WorkspaceService {
   private readonly logger = new Logger(WorkspaceService.name);
@@ -108,7 +108,7 @@ export class WorkspaceService {
     const result = await commitAll(this.git, this.config.workspacePath(ticket.projectId, ticket.key), message, await this.identity(ticket.projectId), opts);
     if (result.committed) {
       await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Committed ${result.sha.slice(0, 8)}: ${message.split('\n')[0]}`.slice(0, 500) } });
-      // The stage that made this commit ends here (BUILD_PLAN v1 6.8): its range is startSha..endSha.
+      // The stage that made this commit ends here: its range is startSha..endSha.
       const run = await this.prisma.stageRun.findFirst({ where: { ticketId, startSha: { not: null }, endedAt: { not: null } }, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] });
       if (run) await this.prisma.stageRun.update({ where: { id: run.id }, data: { endSha: result.sha } }).catch(() => undefined);
     }
@@ -126,7 +126,7 @@ export class WorkspaceService {
     return { name: c.git_author_name, email: c.git_author_email };
   }
 
-  /** Removes work with a revert commit (BUILD_PLAN v1 D1): history is append-only and nothing is ever force-pushed. */
+  /** Removes work with a revert commit: history is append-only and nothing is ever force-pushed. */
   async revertRange(ticketId: string, range: string, message: string): Promise<RevertResult> {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
     const result = await revertRange(this.git, this.config.workspacePath(ticket.projectId, ticket.key), range, message, await this.identity(ticket.projectId));

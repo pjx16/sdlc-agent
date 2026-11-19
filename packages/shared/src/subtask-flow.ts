@@ -2,7 +2,7 @@ export const SUBTASK_STATUSES = ['PENDING', 'TESTS', 'VERIFY_RED', 'IMPLEMENT', 
 export type SubtaskStatus = (typeof SUBTASK_STATUSES)[number];
 
 /**
- * Subtask states (BUILD_PLAN 6.6): PENDING -> TESTS -> VERIFY_RED -> IMPLEMENT -> VERIFY_GREEN -> DONE, with
+ * Subtask states: PENDING -> TESTS -> VERIFY_RED -> IMPLEMENT -> VERIFY_GREEN -> DONE, with
  * VERIFY_GREEN -> FIXING -> VERIFY_GREEN as the fix loop. With `tests` off, PENDING -> IMPLEMENT.
  * VERIFY_RED -> TESTS is the one retry of the `tests` stage when the red check was invalid (F9).
  */

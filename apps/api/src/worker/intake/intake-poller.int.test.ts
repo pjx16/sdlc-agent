@@ -122,7 +122,7 @@ describe('Jira intake polling (F3)', () => {
     expect((await poller.poll()).created).toBe(2);
   });
 
-  it('routes each issue type by the project routing: a kind for the ticket, and ignored types are not picked up (BUILD_PLAN v1 6.7)', async () => {
+  it('routes each issue type by the project routing: a kind for the ticket, and ignored types are not picked up', async () => {
     const p = await project({ settings: { jiraIssueTypeRouting: { Story: 'feature', Bug: 'bug', Chore: 'chore', Epic: 'ignore' } } });
     jira.tickets = [jt('ABC-1', { issuetype: 'Story' }), jt('ABC-2', { issuetype: 'Bug' }), jt('ABC-3', { issuetype: 'Chore' }), jt('ABC-4', { issuetype: 'Epic' }), jt('ABC-5', { issuetype: 'Mystery' })] as never;
     const res = await poller.poll();

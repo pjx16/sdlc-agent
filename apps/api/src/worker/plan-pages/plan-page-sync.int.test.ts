@@ -8,7 +8,7 @@ import { FakeJira, FakeJiraClients } from '../../testing/fake-jira';
 import { createTestDatabase, type TestDatabase } from '../../testing/test-db';
 import { PlanPageSync } from './plan-page-sync';
 
-describe('the plan page sync (BUILD_PLAN v1 6.10)', () => {
+describe('the plan page sync', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let fake: FakeConfluence;

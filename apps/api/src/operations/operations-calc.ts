@@ -1,6 +1,6 @@
 import { ACTIONABLE_STATUSES, type TicketStatus } from '@sdlc/shared';
 
-/** Pure calculations behind the operations page (BUILD_PLAN v1 6.4). No database here, so they are unit-tested directly. */
+/** Pure calculations behind the operations page. No database here, so they are unit-tested directly. */
 
 export interface StuckThresholds {
   /** A ticket in a state the worker acts on, with nothing running and no change for this long, is stuck. Default 30 min. */

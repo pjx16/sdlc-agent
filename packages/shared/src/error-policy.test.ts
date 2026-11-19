@@ -23,7 +23,7 @@ describe('error policy table', () => {
     expect(nextBackoffMin('CLAUDE_AUTH', 1)).toBeNull();
   });
 
-  it('recovery rules follow BUILD_PLAN 6.3', () => {
+  it('recovery rules follow the error policy table', () => {
     expect(ERROR_POLICY.CLAUDE_AUTH.recovery.kind).toBe('pause_global');
     expect(ERROR_POLICY.CLAUDE_RATE_LIMIT.recovery.kind).toBe('pause_until_reset');
     expect(ERROR_POLICY.CLAUDE_USAGE_LIMIT.recovery.kind).toBe('pause_until_reset');

@@ -6,7 +6,7 @@ import { OrchestratorService } from './orchestrator.service';
 
 const answer = (kind: string, to: string, reason = 'Only a test changed.'): StageEnvelope => ({ status: 'done', summary: 'chose', data: { move: { kind, to }, reason } as never });
 
-describe('the orchestrator (BUILD_PLAN v1 6.11)', () => {
+describe('the orchestrator', () => {
   let h: StepsHarness;
   let orchestrator: OrchestratorService;
   const outcome = { kind: 'transition', to: 'KB_UPDATE', reason: 'Review done' } as const;

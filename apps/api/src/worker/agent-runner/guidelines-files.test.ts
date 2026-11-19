@@ -9,7 +9,7 @@ import { buildStageContext, buildSystemMd } from './context-builder';
 const GUIDELINES = path.resolve(__dirname, '../../../../../guidelines');
 const read = (rel: string) => readFileSync(path.join(GUIDELINES, rel), 'utf8');
 
-describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
+describe('shipped guideline files', () => {
   it('has every file this milestone owns', () => {
     for (const f of ['default-CLAUDE.md', 'kb-doc-template.md', 'stacks/ts-node.md', 'stacks/nestjs.md', 'stacks/nextjs.md', 'stages/documentor.md', 'stages/solution-architect.md', 'stages/technical-architect.md', 'stages/test-writer.md', 'stages/coder.md', 'stages/fixer.md', 'stages/pr-reviewer.md', 'review-checklist.md']) expect(existsSync(path.join(GUIDELINES, f)), f).toBe(true);
   });
@@ -53,7 +53,7 @@ describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
   });
 });
 
-describe('review-checklist.md (BUILD_PLAN 6.9)', () => {
+describe('review-checklist.md', () => {
   it('has the Correctness, Security and Standards sections and the output rules', () => {
     const t = read('review-checklist.md');
     for (const needle of ['## Correctness', '## Security', '## Standards', "repository's existing patterns", 'Small named functions', 'acceptance criterion', 'validated before use', 'Authentication and authorization', 'No secrets', 'parameterised', 'logs', 'path traversal', 'At most 10 findings']) expect(t, needle).toContain(needle);

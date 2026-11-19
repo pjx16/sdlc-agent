@@ -4,7 +4,7 @@ import type { SupportTicket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
- * The context an assistant conversation gets (BUILD_PLAN v1 6.6): a fixed set of parts per kind of support ticket, built by
+ * The context an assistant conversation gets: a fixed set of parts per kind of support ticket, built by
  * code, never the whole repository. Each part has a heading, so a test can check that a pack holds only what is listed.
  */
 export interface PackSection {

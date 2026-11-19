@@ -46,7 +46,7 @@ function Check({ check, label }: { check: { command: string; ok: boolean; tail: 
 }
 
 /**
- * The review of an onboarding proposal (BUILD_PLAN v1 6.7): one card per section with Accept or Edit, a dry run of the intake
+ * The review of an onboarding proposal: one card per section with Accept or Edit, a dry run of the intake
  * query, and Confirm. The status map and the label must be accepted explicitly.
  */
 export function OnboardingPanel({ projectId, initial }: { projectId: string; initial: OnboardingView }) {

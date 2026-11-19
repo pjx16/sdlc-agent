@@ -15,7 +15,7 @@ class RepoAccessError extends Error {}
 const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_ERROR_LENGTH = 500;
 
-/** Bare mirrors of project repositories (BUILD_PLAN 6.2). */
+/** Bare mirrors of project repositories. */
 @Injectable()
 export class MirrorService {
   private readonly logger = new Logger(MirrorService.name);
@@ -65,7 +65,7 @@ export class MirrorService {
     if (count > 0) this.logger.log(error ? `Mirror for "${project.name}" failed: ${error}` : `Mirror for "${project.name}" is ready`);
   }
 
-  /** `git remote update --prune`, run before every workspace preparation (used from milestone 4). */
+  /** `git remote update --prune`, run before every workspace preparation. */
   async update(projectId: string): Promise<void> {
     await this.git(['--git-dir', this.config.mirrorPath(projectId), 'remote', 'update', '--prune']);
   }

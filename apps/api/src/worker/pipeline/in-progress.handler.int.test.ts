@@ -6,7 +6,7 @@ import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import { InProgressHandler, type SubtaskSteps } from './in-progress.handler';
 import type { StepOutcome } from './step-handler';
 
-describe('IN_PROGRESS handler (subtask orchestration, BUILD_PLAN 6.6)', () => {
+describe('IN_PROGRESS handler (subtask orchestration)', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let projectId: string;

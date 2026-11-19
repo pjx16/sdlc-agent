@@ -175,7 +175,7 @@ export class TicketsService {
     }));
   }
 
-  /** GET /tickets/:id/moves: every legal move right now (BUILD_PLAN v1 6.8). The dashboard offers reruns from it. */
+  /** GET /tickets/:id/moves: every legal move right now. The dashboard offers reruns from it. */
   async moves(id: string): Promise<Move[]> {
     const t = await this.prisma.ticket.findUnique({ where: { id }, include: { project: true } });
     if (!t) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Ticket not found');
@@ -190,7 +190,7 @@ export class TicketsService {
     return (await allArtifacts(this.prisma, id)).map((a) => ({ id: a.id, stage: a.stage, version: a.version, data: a.data, stale: a.supersededAt !== null, supersededAt: a.supersededAt?.toISOString() ?? null, stageRunId: a.stageRunId, createdAt: a.createdAt.toISOString(), externalUrl: a.externalUrl }));
   }
 
-  /** GET /tickets/:id/decisions: what the orchestrator was asked at each decision point, the options, its answer and why, oldest first (BUILD_PLAN v1 6.11). */
+  /** GET /tickets/:id/decisions: what the orchestrator was asked at each decision point, the options, its answer and why, oldest first. */
   async decisions(id: string): Promise<DecisionDto[]> {
     await this.findOr404(id);
     const rows = await this.prisma.orchestratorDecision.findMany({ where: { ticketId: id }, orderBy: [{ at: 'asc' }, { id: 'asc' }] });
@@ -208,7 +208,7 @@ export class TicketsService {
     }));
   }
 
-  /** GET /tickets/:id/events: the plain-English stream of everything that happened to the ticket, oldest first (BUILD_PLAN v1 6.4). */
+  /** GET /tickets/:id/events: the plain-English stream of everything that happened to the ticket, oldest first. */
   async events(id: string): Promise<TicketEventDto[]> {
     await this.findOr404(id);
     const rows = await this.prisma.event.findMany({ where: { ticketId: id }, orderBy: [{ at: 'asc' }, { id: 'asc' }], take: 1000 });
@@ -225,7 +225,7 @@ export class TicketsService {
   /** POST /tickets: a pasted ticket with a local key `<localKeyPrefix>-<n>`, status NEW. Works in every Jira mode. */
   async paste(body: unknown): Promise<TicketDto> {
     const input = parseBody(PasteTicketSchema, body);
-    // A pasted ticket carries a kind (BUILD_PLAN v1 6.7). The older `type` field still works and the two stay consistent.
+    // A pasted ticket carries a kind. The older `type` field still works and the two stay consistent.
     const kind = input.kind ?? kindOfType(input.type ?? 'story');
     const type = input.type && !input.kind ? input.type : typeOfKind(kind);
     const project = await this.prisma.project.findUnique({ where: { id: input.projectId } });
@@ -336,7 +336,7 @@ export class TicketsService {
 
   /**
    * POST /tickets/:id/retry: like resume, but the stage that was in progress runs again fresh: the fix-round, CI-fix and verify-red
-   * counters of the work in progress are reset (BUILD_PLAN 6.8). Works on held and failed tickets.
+   * counters of the work in progress are reset. Works on held and failed tickets.
    */
   async retryTicket(id: string): Promise<TicketDto> {
     await this.heldOrFailed(id, 'Retry');

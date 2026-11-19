@@ -70,7 +70,7 @@ export type StageScript = (ctx: { ws: string; req: StageRequest; attempt: number
 
 /**
  * Stands in for AgentRunner in tests: runs a script per stage (which may edit the workspace), records real StageRun rows like the
- * runner does, applies the orchestrator's `validate` hook, and retries once on a rejected output (BUILD_PLAN 6.8).
+ * runner does, applies the orchestrator's `validate` hook, and retries once on a rejected output.
  */
 export class StubAgent {
   scripts: Partial<Record<StageName, StageScript>> = {};

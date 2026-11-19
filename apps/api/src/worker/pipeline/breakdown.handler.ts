@@ -52,7 +52,7 @@ export class BreakdownHandler implements StepHandler {
       },
       {
         workspacePath: ws,
-        // A rejected output counts as a failed attempt (BUILD_PLAN 6.8).
+        // A rejected output counts as a failed attempt.
         validate: (envelope) => {
           const verdict = validateBreakdown(this.subtasksOf(envelope), { maxSubtasks });
           return verdict.ok ? null : describeIssues(verdict.issues);

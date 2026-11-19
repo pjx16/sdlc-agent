@@ -16,7 +16,7 @@ export interface RecoveryResult {
 export const MAX_RESTART_REQUEUES = 1;
 
 /**
- * Startup recovery (F4, BUILD_PLAN 6.8): mark runs that were `running` as failed (`worker_restart`), remove leftover
+ * Startup recovery (F4): mark runs that were `running` as failed (`worker_restart`), remove leftover
  * agent containers, and let the ticket's stage run again. A re-run starts at attempt 1, so it is not counted as an attempt.
  */
 @Injectable()

@@ -53,7 +53,7 @@ export function parseMemory(text: string): number {
   return Math.floor(Number(match[1]) * (UNITS[(match[2] ?? '').toLowerCase()] as number));
 }
 
-/** The hardening from BUILD_PLAN 6.4 and F5, in one place so it can be tested. */
+/** The agent container hardening, in one place so it can be tested. */
 export function buildCreateOptions(spec: ContainerSpec): Docker.ContainerCreateOptions {
   const binds: string[] = [];
   if (spec.workspace) {

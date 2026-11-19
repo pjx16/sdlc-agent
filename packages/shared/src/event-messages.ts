@@ -1,7 +1,7 @@
 import { describeError, type ErrorCode } from './error-policy';
 
 /**
- * One plain-English sentence per kind of happening (BUILD_PLAN v1 6.4). Code never writes free-form event strings:
+ * One plain-English sentence per kind of happening. Code never writes free-form event strings:
  * it calls one of these, so the timeline reads the same everywhere.
  */
 

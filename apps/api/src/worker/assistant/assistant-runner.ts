@@ -8,7 +8,7 @@ import { lookup } from '../kb/kb-index';
 import { WorkerConfig } from '../worker-config';
 import { buildContextPack, defaultLogTail, type PackDeps } from './context-pack';
 
-/** After this many messages, older turns are replaced by a short summary (BUILD_PLAN v1 6.6). */
+/** After this many messages, older turns are replaced by a short summary. */
 export const MESSAGES_BEFORE_SUMMARY = 10;
 /** What stays word for word once a summary is used. */
 export const RECENT_MESSAGES = 4;
@@ -39,7 +39,7 @@ export function windowOf(before: Pick<AssistantMessage, 'role' | 'text'>[]): Win
 }
 
 /**
- * Answers the messages people send in the assistant chat (BUILD_PLAN v1 6.6, D7). It runs on its own timer, outside the worker
+ * Answers the messages people send in the assistant chat. It runs on its own timer, outside the worker
  * loop's one-stage-at-a-time rule, because it is interactive and should not wait behind a long stage. At most one session runs at
  * a time, it counts toward the usage gate like any stage, and it is refused while the pipeline is paused for limits.
  */

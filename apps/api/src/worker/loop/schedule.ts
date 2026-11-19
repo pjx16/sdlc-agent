@@ -1,4 +1,4 @@
-/** Runs housekeeping parts only when due (BUILD_PLAN 6.6 step 1). */
+/** Runs housekeeping parts only when due. */
 export class Schedule {
   private readonly last = new Map<string, number>();
 

@@ -189,7 +189,7 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
 }
 
 /**
- * The inbox (BUILD_PLAN v1 6.5): everything that needs a person, grouped as Blocking, Approvals, Questions and FYI, oldest
+ * The inbox: everything that needs a person, grouped as Blocking, Approvals, Questions and FYI, oldest
  * first in each group, each with one-click actions. Resolved items are in the History tab.
  */
 export function Inbox({ tickets, tab, now = Date.now() }: { tickets: SupportTicketView[]; tab: 'open' | 'history'; now?: number }) {

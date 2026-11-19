@@ -15,7 +15,7 @@ const READS: Partial<Record<TicketStatus, string>> = {
 };
 
 /**
- * "Rerun from here" (BUILD_PLAN v1 6.8): send the ticket back to a stage that already finished, with a note. Everything after that
+ * "Rerun from here": send the ticket back to a stage that already finished, with a note. Everything after that
  * stage becomes stale, and the code it wrote is removed with a revert commit. Nothing is deleted.
  */
 export function RerunPicker({ ticketId, moves }: { ticketId: string; moves: MoveView[] }) {

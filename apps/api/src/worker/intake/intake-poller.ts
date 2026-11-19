@@ -7,7 +7,7 @@ import { SupportRaiser, isAuthFailure } from '../../support/support-raiser';
 import { PrismaService } from '../../prisma/prisma.service';
 import { recordIntake } from '../status/worker-status';
 
-/** When Jira stays unreachable after the client's retries, intake pauses for this long; the pipeline does not pause (BUILD_PLAN 6.3). */
+/** When Jira stays unreachable after the client's retries, intake pauses for this long; the pipeline does not pause. */
 export const INTAKE_BACKOFF_MS = 10 * 60 * 1000;
 
 export interface PollResult {
@@ -108,7 +108,7 @@ export class IntakePoller {
   }
 
   private async store(project: Project, jt: JiraTicket): Promise<'created' | 'duplicate' | 'collision' | 'ignored'> {
-    // The project's routing says what each issue type becomes; a type routed to `ignore` is never picked up (BUILD_PLAN v1 6.7).
+    // The project's routing says what each issue type becomes; a type routed to `ignore` is never picked up.
     const routing = ProjectSettingsSchema.parse(project.settings).jiraIssueTypeRouting;
     const kind = kindForIssueType(routing, jt.issuetype, kindOfType(mapJiraIssueType(jt.issuetype)));
     if (kind === 'ignore') return 'ignored';

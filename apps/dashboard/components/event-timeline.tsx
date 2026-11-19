@@ -17,7 +17,7 @@ interface Props {
 }
 
 /**
- * One stream of everything that happened to a ticket, in plain English (BUILD_PLAN v1 6.4): state changes, stage runs with
+ * One stream of everything that happened to a ticket, in plain English: state changes, stage runs with
  * their duration and cost, decisions, errors and reruns. "Problems only" shows warnings and errors.
  */
 export function EventTimeline({ events, runs = [] }: Props) {

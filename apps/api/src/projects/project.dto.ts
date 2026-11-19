@@ -5,7 +5,7 @@ export interface ProjectDto extends Omit<ProjectInput, 'settings'> {
   id: string;
   mirrorStatus: 'pending' | 'ok' | 'failed';
   mirrorError: string | null;
-  /** draft | profiling | proposed | confirmed (BUILD_PLAN v1 6.7). The worker only runs confirmed projects. */
+  /** draft | profiling | proposed | confirmed. The worker only runs confirmed projects. */
   onboardingStatus: 'draft' | 'profiling' | 'proposed' | 'confirmed';
   onboardingError: string | null;
   nextLocalNumber: number;

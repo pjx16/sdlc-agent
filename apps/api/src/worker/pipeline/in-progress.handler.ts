@@ -4,7 +4,7 @@ import type { Subtask, Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { StepHandler, StepOutcome } from './step-handler';
 
-/** The five things that can happen to a subtask in one loop iteration (BUILD_PLAN 6.6, F9). Each returns the step's outcome. */
+/** The five things that can happen to a subtask in one loop iteration. Each returns the step's outcome. */
 export interface SubtaskSteps {
   tests(ticket: Ticket, subtask: Subtask): Promise<StepOutcome>;
   verifyRed(ticket: Ticket, subtask: Subtask): Promise<StepOutcome>;

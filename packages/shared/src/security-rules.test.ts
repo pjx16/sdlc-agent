@@ -17,7 +17,7 @@ describe('securityTriggered', () => {
     expect(securityTriggered(['src/payments/charge.ts'], '', ['payments']).triggered).toBe(true);
   });
 
-  it('always flags package.json and install-time scripts, even with custom patterns (scan finding 2)', () => {
+  it('always flags package.json and install-time scripts, even with custom patterns', () => {
     expect(securityTriggered(['apps/web/package.json'], '', ['^never-matches$']).triggered).toBe(true);
     expect(securityTriggered(['src/a.ts'], '+    "postinstall": "node x.js",\n', ['^never-matches$']).triggered).toBe(true);
     expect(securityTriggered(['src/a.ts'], '+    "test": "vitest",\n', ['^never-matches$']).triggered).toBe(false);

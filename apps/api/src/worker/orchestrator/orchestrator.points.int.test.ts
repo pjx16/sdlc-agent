@@ -13,7 +13,7 @@ import { OrchestratorService } from './orchestrator.service';
 const GH = 'https://github.com/acme/billing';
 const answer = (kind: string, reason = 'Because.'): StageEnvelope => ({ status: 'done', summary: 'chose', data: { move: { kind, to: kind }, reason } as never });
 
-/** The decision points other than the knowledge-base update (BUILD_PLAN v1 6.11): each one asks, takes the answer, and falls back to its default. */
+/** The decision points other than the knowledge-base update: each one asks, takes the answer, and falls back to its default. */
 describe('the orchestrator at the other decision points', () => {
   let h: StepsHarness;
   let orchestrator: OrchestratorService;

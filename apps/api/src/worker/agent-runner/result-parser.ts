@@ -140,7 +140,7 @@ export function parseStream(lines: readonly string[], stage: StageName): ParsedS
   return { ...base, kind: 'ok', envelope: parsed.data as StageEnvelope };
 }
 
-/** A rate-limit rejection, from the event or from the CLI's error (BUILD_PLAN 6.8: pause, re-queue, no attempt). */
+/** A rate-limit rejection, from the event or from the CLI's error. */
 export function isRateLimited(parsed: ParsedStream): boolean {
   if (parsed.rateLimit?.status === 'rejected') return true;
   const r = parsed.result;

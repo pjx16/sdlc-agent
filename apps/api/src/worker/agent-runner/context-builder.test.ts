@@ -44,7 +44,7 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-describe('prompt.md (BUILD_PLAN 6.4)', () => {
+describe('prompt.md', () => {
   it('starts with the stage marker and ends with the output instructions', async () => {
     const { runDir } = await build('implement');
     const prompt = read(runDir, 'prompt.md');

@@ -7,7 +7,7 @@ const allowed = (testsEnabled: boolean) => {
   return out.sort();
 };
 
-describe('subtask states (BUILD_PLAN 6.6)', () => {
+describe('subtask states', () => {
   it('with tests on: PENDING > TESTS > VERIFY_RED > IMPLEMENT > VERIFY_GREEN > DONE, the fix loop, and the one tests retry', () => {
     expect(allowed(true)).toEqual(['FIXING>VERIFY_GREEN', 'IMPLEMENT>VERIFY_GREEN', 'PENDING>TESTS', 'TESTS>VERIFY_RED', 'VERIFY_GREEN>DONE', 'VERIFY_GREEN>FIXING', 'VERIFY_RED>IMPLEMENT', 'VERIFY_RED>TESTS'].sort());
   });

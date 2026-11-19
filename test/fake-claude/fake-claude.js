@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// fake-claude.js: a stand-in for the `claude` CLI in tests (BUILD_PLAN section 11). It never calls a model.
+// fake-claude.js: a stand-in for the `claude` CLI in tests. It never calls a model.
 //
 //   - reads the prompt from stdin; the first line `<!-- stage: <name> -->` names the stage
 //   - loads scenarios/<FAKE_SCENARIO>/<stage>.json: a list of attempts (attempt n uses entry n, the last repeats)

@@ -5,7 +5,7 @@ import { ProjectSettingsSchema } from './project-settings';
 const int = (def: number, min: number, max: number) =>
   z.number({ error: 'must be a number' }).int('must be a whole number').min(min, `must be at least ${min}`).max(max, `must be at most ${max}`).default(def);
 
-/** The model and turn limit a new project starts with for each stage. A project can override them under Advanced (BUILD_PLAN v1 6.7). */
+/** The model and turn limit a new project starts with for each stage. A project can override them under Advanced. */
 const builtInStages = ProjectSettingsSchema.parse({}).stages;
 const stageDefault = (stage: (typeof STAGE_NAMES)[number]) =>
   z
@@ -25,7 +25,7 @@ export const GlobalSettingsSchema = z.object({
   verifyTimeoutSec: int(600, 10, 7200),
   workspaceRetentionDays: int(7, 1, 365),
   logRetentionDays: int(30, 1, 3650),
-  /** Tokens (input and output) one assistant conversation may use before it stops (BUILD_PLAN v1 6.6). */
+  /** Tokens (input and output) one assistant conversation may use before it stops. */
   assistantTokenCap: int(200_000, 1000, 10_000_000),
   stageDefaults: z.object(Object.fromEntries(STAGE_NAMES.map((s) => [s, stageDefault(s)])) as Record<(typeof STAGE_NAMES)[number], ReturnType<typeof stageDefault>>).prefault({}),
   modelAliases: z

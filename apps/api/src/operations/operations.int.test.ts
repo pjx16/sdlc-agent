@@ -3,7 +3,7 @@ import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { OperationsModule } from './operations.module';
 
-describe('Operations API (BUILD_PLAN v1 6.4)', () => {
+describe('Operations API', () => {
   let db: TestDatabase;
   let t: TestApp;
   let projectId: string;

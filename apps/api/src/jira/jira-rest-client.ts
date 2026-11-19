@@ -15,7 +15,7 @@ export interface JiraRestOptions {
   fetch?: typeof fetch;
   /** Waits between retries; replaced in tests. */
   sleep?: (ms: number) => Promise<void>;
-  /** Backoff between retries: 1 s, 4 s, 16 s (BUILD_PLAN 6.3). */
+  /** Backoff between retries: 1 s, 4 s, 16 s. */
   backoffMs?: readonly number[];
   /** Search page size. */
   pageSize?: number;
@@ -29,7 +29,7 @@ const SEARCH_FIELDS = ['summary', 'description', 'issuetype', 'labels', 'priorit
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-/** Jira Cloud REST API v3 over plain fetch, with Basic auth (BUILD_PLAN 6.3). */
+/** Jira Cloud REST API v3 over plain fetch, with Basic auth. */
 export class JiraRestClient implements JiraClient {
   private readonly base: string;
   private readonly auth: string;

@@ -3,7 +3,7 @@ import type { TicketType } from '@sdlc/shared';
 const PREFIX: Record<TicketType, string> = { story: 'feature', bug: 'bugfix', tech: 'tech' };
 const MAX_SLUG = 40;
 
-/** Lower-cased title, every run of non-alphanumerics replaced by one `-`, trimmed, at most 40 characters (BUILD_PLAN 6.2). */
+/** Lower-cased title, every run of non-alphanumerics replaced by one `-`, trimmed, at most 40 characters. */
 export function slugify(title: string): string {
   const slug = title
     .normalize('NFKD')

@@ -23,7 +23,7 @@ export class PolicyError extends Error {
 }
 
 /**
- * Runs `fn`, retrying a failure with the waits the policy table gives `code` (BUILD_PLAN v1 6.3, 3 times with 1, 4 and
+ * Runs `fn`, retrying a failure with the waits the policy table gives `code` (3 times with 1, 4 and
  * 10 minutes for Git and GitHub). When the retries are used up it throws a PolicyError for the caller to hold on.
  */
 export async function withRetry<T>(code: ErrorCode, fn: () => Promise<T>, opts: RetryOptions = {}): Promise<T> {

@@ -3,7 +3,7 @@ import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { TicketsModule } from './tickets.module';
 
-describe('Hold, resume and retry (3.7, BUILD_PLAN 6.6 rows 16-18, 6.8)', () => {
+describe('Hold, resume and retry (3.7)', () => {
   let db: TestDatabase;
   let t: TestApp;
   let projectId: string;

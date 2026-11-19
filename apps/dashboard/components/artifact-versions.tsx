@@ -19,7 +19,7 @@ export function artifactText(a: Pick<ArtifactView, 'stage' | 'data'>): string {
 }
 
 /**
- * Every version of the plan, breakdown, review rounds and KB pointer (BUILD_PLAN v1 6.8). The current one is the latest that is not
+ * Every version of the plan, breakdown, review rounds and KB pointer. The current one is the latest that is not
  * stale; older and stale versions are kept next to it, and any version can be compared with the current one.
  */
 export function ArtifactVersions({ artifacts }: { artifacts: ArtifactView[] }) {

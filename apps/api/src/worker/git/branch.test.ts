@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { assertSafeKey, branchName, slugify } from './branch';
 
-describe('slugify (BUILD_PLAN 6.2)', () => {
+describe('slugify', () => {
   it('lower-cases and joins runs of non-alphanumerics with one dash', () => {
     expect(slugify('Add CSV Export!')).toBe('add-csv-export');
     expect(slugify('Fix   crash --- on  login')).toBe('fix-crash-on-login');

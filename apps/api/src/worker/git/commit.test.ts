@@ -57,7 +57,7 @@ describe('commit message guard (F9)', () => {
   });
 });
 
-describe('commitAll (BUILD_PLAN 6.2)', () => {
+describe('commitAll', () => {
   it('commits everything as the configured identity (author and committer)', async () => {
     const git = new GitRunner({ token: async () => '' });
     const { ws } = await workspace(git);
@@ -123,7 +123,7 @@ describe('commitAll (BUILD_PLAN 6.2)', () => {
   });
 });
 
-describe('minimalGitEnv (scan finding 6)', () => {
+describe('minimalGitEnv', () => {
   it('passes the few variables git needs and the operator\'s GIT_CONFIG_* settings, and nothing else', () => {
     const env = minimalGitEnv({ GITHUB_TOKEN: 't' }, { PATH: '/bin', HOME: '/h', ENCRYPTION_KEY: 'k', DATABASE_URL: 'd', CLAUDE_CODE_OAUTH_TOKEN: 'c', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'a.b', GIT_CONFIG_VALUE_0: 'v' });
     expect(env).toMatchObject({ PATH: '/bin', HOME: '/h', GITHUB_TOKEN: 't', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'a.b', GIT_CONFIG_VALUE_0: 'v', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' });
@@ -132,7 +132,7 @@ describe('minimalGitEnv (scan finding 6)', () => {
   });
 });
 
-describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
+describe('pushBranch', () => {
   it('pushes the ticket branch to origin', async () => {
     const git = new GitRunner({ token: async () => '' });
     const { ws, branch } = await workspace(git);

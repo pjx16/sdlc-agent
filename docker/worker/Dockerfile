@@ -47,5 +47,5 @@ COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/dist apps/api/dist
 WORKDIR /app/apps/api
 ENV NODE_ENV=production
-# Runs as root: the worker uses the Docker socket (BUILD_PLAN 6.1).
+# Runs as root: it hands workspaces to the agent user (uid 1000) with chown. It has no Docker socket; it talks to docker-proxy.
 CMD ["node", "dist/worker.js"]

@@ -5,7 +5,7 @@ export interface NavItem {
   icon: 'overview' | 'tickets' | 'support' | 'projects' | 'guidelines' | 'usage' | 'operations' | 'settings';
 }
 
-/** Left-rail navigation (BUILD_PLAN 6.10). */
+/** Left-rail navigation. */
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Overview', href: '/', icon: 'overview' },
   { label: 'Tickets', href: '/tickets', icon: 'tickets' },

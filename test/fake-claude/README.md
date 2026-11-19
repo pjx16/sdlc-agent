@@ -1,6 +1,6 @@
 # fake-claude
 
-A stand-in for the `claude` CLI so tests never call a real model (BUILD_PLAN section 11).
+A stand-in for the `claude` CLI so tests never call a real model.
 
 - `fake-claude.js` is a dependency-free Node script. `claude` is a small `sh` wrapper around it, mounted over `/usr/local/bin/claude` in the agent image (together with this directory at `/fake-claude`). The wrapper is needed because that path is a symlink to `claude.exe`, which Node will not run as a script.
 - `scenarios/<name>/<stage>.json` is a list of attempts; attempt *n* uses entry *n* and the last entry repeats.

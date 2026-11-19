@@ -8,7 +8,7 @@ export function humanizeStatus(status: string): string {
 
 const WORKING = new Set(['KB', 'PLANNING', 'BREAKDOWN', 'IN_PROGRESS', 'REVIEW', 'KB_UPDATE']);
 
-/** Semantic colours (BUILD_PLAN 6.10): green done, amber waiting or held, red failed, grey not started. */
+/** Semantic colours: green done, amber waiting or held, red failed, grey not started. */
 export function statusTone(status: string): BadgeTone {
   if (status === 'DONE') return 'green';
   if (status === 'FAILED') return 'red';

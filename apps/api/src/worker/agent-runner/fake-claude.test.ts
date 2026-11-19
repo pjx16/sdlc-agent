@@ -43,7 +43,7 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-describe('fake-claude (BUILD_PLAN 11)', () => {
+describe('fake-claude', () => {
   it('prints valid stream-json that the real parser accepts: init, assistant, result with usage and cost', () => {
     const r = run('solutionDesign', 'ok');
     expect(r.status).toBe(0);

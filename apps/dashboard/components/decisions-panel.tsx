@@ -2,7 +2,7 @@ import { LocalTime } from '@/components/local-time';
 
 import type { DecisionView } from '@/lib/types';
 
-/** What the orchestrator was asked at each decision point of a ticket: the options, its choice, and why (BUILD_PLAN v1 6.11). */
+/** What the orchestrator was asked at each decision point of a ticket: the options, its choice, and why. */
 export function DecisionsPanel({ decisions }: { decisions: DecisionView[] }) {
   if (decisions.length === 0) return <p className="text-sm text-muted">The orchestrator has not been asked anything for this ticket. It is only called where several moves are possible.</p>;
   return (

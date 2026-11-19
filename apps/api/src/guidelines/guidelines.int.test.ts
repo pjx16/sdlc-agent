@@ -6,7 +6,7 @@ import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { GuidelinesModule } from './guidelines.module';
 
-describe('Guidelines API over HTTP (BUILD_PLAN 8)', () => {
+describe('Guidelines API over HTTP', () => {
   let db: TestDatabase;
   let t: TestApp;
   let tmp: string;

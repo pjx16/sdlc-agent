@@ -1,4 +1,4 @@
-/** Atlassian Document Format conversion (BUILD_PLAN 6.3). Supported: headings, paragraphs, bullet and ordered lists, fenced code blocks. */
+/** Atlassian Document Format conversion. Supported: headings, paragraphs, bullet and ordered lists, fenced code blocks. */
 
 export interface AdfNode {
   type: string;

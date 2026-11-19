@@ -5,7 +5,7 @@ import { writeEvent } from '../common/event-log';
 import type { StateTransition, Ticket } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
-/** Thrown for any pair BUILD_PLAN 6.6 does not allow. The API answers it with 409. */
+/** Thrown for any status change the state machine does not allow. The API answers it with 409. */
 export class InvalidTransitionError extends ApiException {
   constructor(
     readonly from: TicketStatus,
@@ -31,7 +31,7 @@ export const TRANSITION_LISTENERS = Symbol('TRANSITION_LISTENERS');
 export interface TransitionOptions {
   /** Required when moving to ON_HOLD. */
   holdReason?: HoldReason;
-  /** What kind of move this is (BUILD_PLAN v1 6.8). Defaults to `advance`. */
+  /** What kind of move this is. Defaults to `advance`. */
   kind?: MoveKind;
   /** The person's instructions for a rerun, or the reason for a rejection. */
   note?: string;
@@ -40,7 +40,7 @@ export interface TransitionOptions {
 }
 
 /**
- * The only way a ticket's status changes (F15, BUILD_PLAN 8 Worker interfaces).
+ * The only way a ticket's status changes (F15).
  * Validates against the 6.6 table, then changes the status and writes the StateTransition row in one transaction.
  */
 @Injectable()

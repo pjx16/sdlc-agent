@@ -1,7 +1,7 @@
 import type { StageName } from './enums';
 
 /**
- * The agents (BUILD_PLAN v1 4.1): one job each. A prompt file per agent lives in `guidelines/stages/`, and each agent is also written to
+ * The agents: one job each. A prompt file per agent lives in `guidelines/stages/`, and each agent is also written to
  * `.claude/agents/` from it, so the two never drift. A stage key says which agent runs; the documentor serves two keys.
  */
 export interface AgentSpec {
@@ -44,7 +44,7 @@ export function promptFileOf(stage: StageName): string {
 
 const TOOLS: Record<AgentSpec['workspace'], string> = { none: 'Read', 'read-only': 'Read, Grep, Glob, Bash', writes: 'Read, Grep, Glob, Bash, Edit, Write' };
 
-/** A `.claude/agents/sdlc-<name>.md` file, generated from the agent's prompt (BUILD_PLAN v1 6.9). */
+/** A `.claude/agents/sdlc-<name>.md` file, generated from the agent's prompt. */
 export function renderAgentFile(agent: AgentSpec, prompt: string): string {
   return [
     '---',

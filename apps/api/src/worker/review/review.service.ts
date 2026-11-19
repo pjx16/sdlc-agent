@@ -68,7 +68,7 @@ export class ReviewService {
     if (settings.stages.qualityReview.enabled) reviewers.push('qualityReview');
     if (settings.stages.securityReview.enabled && security.triggered) reviewers.push('securityReview');
     else if (settings.stages.securityReview.enabled && round === 1 && this.orchestrator) {
-      // The code rules did not call the security reviewer; the orchestrator may add it (BUILD_PLAN v1 6.11), once, on the first round.
+      // The code rules did not call the security reviewer; the orchestrator may add it, once, on the first round.
       const pick = await this.orchestrator.choose(
         ticket,
         'security_add',
@@ -145,7 +145,7 @@ export class ReviewService {
     return { kind: 'reviewed', round, summary, findings: stored, fixed: fixedIds.length, stillOpen, stageRunId: firstRunId };
   }
 
-  /** At most 10 findings per round, each with a file (F10). A violation fails the attempt (BUILD_PLAN 6.8). */
+  /** At most 10 findings per round, each with a file (F10). A violation fails the attempt. */
   private validate(envelope: StageEnvelope): string | null {
     if (envelope.status !== 'done') return null;
     const findings = (envelope.data as ReviewData | undefined)?.findings ?? [];
