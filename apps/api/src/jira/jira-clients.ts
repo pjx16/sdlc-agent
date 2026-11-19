@@ -19,7 +19,7 @@ export class JiraClients {
 
   constructor(private readonly creds: CredentialsService) {}
 
-  /** The client for a project's `jiraMode`. Jira is reached over REST only (BUILD_PLAN v1 D5). */
+  /** The client for a project's `jiraMode`. Jira is reached over REST only. */
   async forMode(_mode: 'rest' = 'rest'): Promise<JiraClient> {
     return this.forRest();
   }

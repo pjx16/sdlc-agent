@@ -8,7 +8,7 @@ import { JiraClients } from './jira-clients';
 /**
  * Applies the project's `jiraStatusMap` after a transition (F15; REST directly, MCP through a jiraSync stage). The outcome is stored on the
  * StateTransition row (`jiraSyncResult`, `jiraStatusApplied`, `jiraSyncError`) and shown as a warning when it
- * failed; it never throws, so a Jira problem can never block the pipeline. (MCP mode uses a jiraSync stage, milestone 11.)
+ * failed; it never throws, so a Jira problem can never block the pipeline. (MCP mode uses a jiraSync stage.)
  */
 @Injectable()
 export class JiraStatusSync implements TransitionListener {

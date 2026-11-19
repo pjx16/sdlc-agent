@@ -9,7 +9,7 @@ export interface ChartTable {
 
 interface Props {
   title: string;
-  /** The text alternative: what the chart shows, in a sentence or two (BUILD_PLAN 13). */
+  /** The text alternative: what the chart shows, in a sentence or two. */
   summary: string;
   empty: boolean;
   emptyText: string;

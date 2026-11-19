@@ -1,4 +1,4 @@
-/** Pure helpers for the /metrics endpoints (BUILD_PLAN 8 Metrics), kept apart from the queries so they can be tested on their own. */
+/** Pure helpers for the /metrics endpoints, kept apart from the queries so they can be tested on their own. */
 
 export const RANGES = { '24h': 24 * 3600_000, '7d': 7 * 86_400_000, '30d': 30 * 86_400_000 } as const;
 export type RangeName = keyof typeof RANGES;

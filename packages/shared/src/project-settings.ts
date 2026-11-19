@@ -77,9 +77,9 @@ export const ProjectSettingsSchema = z.object({
     })
     .prefault({}),
   jiraSubtaskTypeName: z.string().trim().min(1, 'required').default('Sub-task'),
-  /** What each Jira issue type becomes: feature, bug, chore, or ignore (BUILD_PLAN v1 6.7). */
+  /** What each Jira issue type becomes: feature, bug, chore, or ignore. */
   jiraIssueTypeRouting: z.record(z.string(), z.enum(['feature', 'bug', 'chore', 'ignore'])).default({}),
-  /** Where plans are published (BUILD_PLAN v1 6.10). Null: plans go to Jira comments. */
+  /** Where plans are published. Null: plans go to Jira comments. */
   confluence: z.object({ spaceKey: z.string().min(1), parentPageId: z.string().nullable().default(null) }).nullable().default(null),
   jiraStatusMap: z.object(statusMapShape).prefault({}),
   jiraApprovalStatuses: z
@@ -92,8 +92,8 @@ export const ProjectSettingsSchema = z.object({
       ciTimeoutMin: count(30, 1, 480),
     })
     .prefault({}),
-  /** How many times each back-edge may go round for one ticket (BUILD_PLAN v1 6.8). Fix and review rounds keep their limits under `limits`. */
-  /** Paths and diff lines that bring in the security reviewer: regular expressions, case-insensitive (BUILD_PLAN v1 4.3). Empty: the built-in list. */
+  /** How many times each back-edge may go round for one ticket. Fix and review rounds keep their limits under `limits`. */
+  /** Paths and diff lines that bring in the security reviewer: regular expressions, case-insensitive. Empty: the built-in list. */
   securityRiskPatterns: z.array(z.string().min(1).refine((p) => { try { new RegExp(p); return true; } catch { return false; } }, 'must be a valid regular expression')).default([]),
   loopLimits: z
     .object({

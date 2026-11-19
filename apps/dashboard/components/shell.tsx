@@ -10,7 +10,7 @@ import { UsageWarningBanner } from './usage-warning-banner';
 import { SetupBanner } from './setup-banner';
 import type { SetupStatus } from '@sdlc/shared';
 
-/** What the top bar says about the pipeline (BUILD_PLAN 6.10): `Running <stage>`, `Idle` or `Paused`. */
+/** What the top bar says about the pipeline: `Running <stage>`, `Idle` or `Paused`. */
 export function pipelineLabel(system: SystemView | null): { text: string; tone: 'green' | 'grey' | 'amber' } {
   if (!system) return { text: 'Unknown', tone: 'grey' };
   if (system.settings.pipelinePaused) return { text: 'Paused', tone: 'amber' };

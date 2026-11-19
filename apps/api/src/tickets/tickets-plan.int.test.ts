@@ -3,7 +3,7 @@ import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { TicketsModule } from './tickets.module';
 
-describe('Plan gate API (F7, BUILD_PLAN 8)', () => {
+describe('Plan gate API (F7)', () => {
   let db: TestDatabase;
   let t: TestApp;
   let projectId: string;

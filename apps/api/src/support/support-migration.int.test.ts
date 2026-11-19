@@ -8,7 +8,7 @@ import { inject } from 'vitest';
 const MIGRATIONS = path.resolve(process.cwd(), 'prisma/migrations');
 const THIS_ONE = '20261114080000_support_tickets';
 
-/** BUILD_PLAN v1 3.1: the SupportQuery table becomes SupportTicket and the existing rows are kept. */
+/** The SupportQuery table becomes SupportTicket and the existing rows are kept. */
 describe('migration: SupportQuery to SupportTicket', () => {
   let admin: Client;
   let db: Client;

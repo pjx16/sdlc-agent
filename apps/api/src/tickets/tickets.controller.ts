@@ -85,7 +85,7 @@ export class TicketsController {
     return this.tickets.holdInfo(id);
   }
 
-  /** Sends the ticket back to a stage that already finished (BUILD_PLAN v1 6.8). */
+  /** Sends the ticket back to a stage that already finished. */
   @Post(':id/rerun')
   @HttpCode(HttpStatus.OK)
   rerun(@Param('id') id: string, @Body() body: unknown) {

@@ -67,7 +67,7 @@ export interface GitRunnerConfig {
 
 /**
  * Runs the git CLI. The GitHub token only ever reaches git through the GIT_ASKPASS helper's environment:
- * never in a URL, never in a git config file (BUILD_PLAN 6.2).
+ * never in a URL, never in a git config file.
  */
 export class GitRunner {
   constructor(private readonly config: GitRunnerConfig) {}

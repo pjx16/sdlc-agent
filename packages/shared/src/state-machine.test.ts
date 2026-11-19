@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TICKET_STATUSES, type TicketStatus } from './enums';
 import { ACTIONABLE_STATUSES, HOLDABLE, approvalTarget, checkTransition } from './state-machine';
 
-/** BUILD_PLAN 6.6 rows 1 to 15, written out independently of the implementation. */
+/** The fixed transitions, written out independently of the implementation. */
 const ROWS: [TicketStatus, TicketStatus][] = [
   ['NEW', 'KB'], ['KB', 'PLANNING'], ['PLANNING', 'AWAITING_PLAN_APPROVAL'], ['PLANNING', 'BREAKDOWN'],
   ['AWAITING_PLAN_APPROVAL', 'BREAKDOWN'], ['AWAITING_PLAN_APPROVAL', 'PLANNING'],
@@ -14,7 +14,7 @@ const ROWS: [TicketStatus, TicketStatus][] = [
 const key = (a: string, b: string) => `${a}>${b}`;
 const ROW_KEYS = new Set(ROWS.map(([a, b]) => key(a, b)));
 
-describe('state machine (BUILD_PLAN 6.6)', () => {
+describe('state machine', () => {
   it('allows every row of the table', () => {
     for (const [from, to] of ROWS) expect(checkTransition(from, to), key(from, to)).toEqual({ ok: true });
   });

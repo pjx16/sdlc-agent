@@ -67,7 +67,7 @@ export interface RecentEvent {
 
 export type WorkerState = 'idle' | 'busy' | 'stalled' | 'offline';
 
-/** A busy phase is stalled when it has lasted longer than the stage time limit plus this much (BUILD_PLAN v1 6.1). */
+/** A busy phase is stalled when it has lasted longer than the stage time limit plus this much. */
 export const STALL_GRACE_MS = 5 * 60_000;
 
 /** The four dashboard states, from the heartbeat and the phase. Pure, so it is tested without a database. */

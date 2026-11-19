@@ -39,7 +39,7 @@ describe('pathViolation (F9 commit guard)', () => {
   it('refuses key and certificate files', () => {
     for (const f of ['server.pem', 'certs/ca.PEM', 'id_rsa.key', 'keys/signing.KEY']) expect(pathViolation(f), f).toContain('key or certificate');
   });
-  it('refuses files that configure tools or run code when the repository is opened (scan finding 2)', () => {
+  it('refuses files that configure tools or run code when the repository is opened', () => {
     for (const f of ['.claude/settings.json', 'a/.claude/hooks/x.sh', '.mcp.json', '.vscode/tasks.json', '.idea/x.xml', '.devcontainer/devcontainer.json', '.husky/pre-commit', '.github/workflows/ci.yml', '.npmrc', 'pkg/.npmrc', '.yarnrc', '.yarnrc.yml', '.gitattributes', '.gitmodules', 'sub/.git/config']) expect(pathViolation(f), f).not.toBeNull();
   });
   it('refuses a gitlink (an embedded repository) when staged', async () => {

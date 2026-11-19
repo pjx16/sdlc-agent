@@ -220,7 +220,7 @@ export class OnboardingService {
         warnings.push(`Confluence: ${err instanceof Error ? err.message : String(err)}. The project works without it; plans go to Jira comments.`);
       }
     }
-    // New projects start with the models and turn limits chosen in Settings (BUILD_PLAN v1 6.7).
+    // New projects start with the models and turn limits chosen in Settings.
     const row = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     const defaults = GlobalSettingsSchema.parse({ stageDefaults: row?.stageDefaults ?? {} }).stageDefaults;
     const stages = Object.fromEntries(Object.entries(settings.stages).map(([stage, current]) => [stage, { ...current, ...(defaults[stage as keyof typeof defaults] ?? {}) }]));

@@ -9,7 +9,7 @@ export interface DecisionSpec {
 }
 
 /**
- * Where the orchestrator agent may be asked to choose (BUILD_PLAN v1 6.11). Everywhere else code takes the only legal move or the
+ * Where the orchestrator agent may be asked to choose. Everywhere else code takes the only legal move or the
  * default one. `thinking` switches on extended thinking, with a small budget, for that point only. Each point has a default option, which
  * code takes when the orchestrator is off, fails, or answers outside the options.
  */

@@ -6,7 +6,7 @@ import { InProgressHandler } from './in-progress.handler';
 import { SubtaskStepsService } from './subtask-steps.service';
 import type { StepOutcome } from './step-handler';
 
-describe('draft PR and its description (F9, BUILD_PLAN 6.3 and 6.9)', () => {
+describe('draft PR and its description (F9)', () => {
   let h: StepsHarness;
   let handler: InProgressHandler;
   const GH = 'https://github.com/acme/billing';

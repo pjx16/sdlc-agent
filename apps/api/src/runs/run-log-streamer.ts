@@ -30,7 +30,7 @@ async function readFrom(file: string, offset: number): Promise<Buffer | null> {
 
 /**
  * Sends a run's log line by line: what is already on disk first, then new lines as they appear,
- * and `onEnd` once the run has finished and everything has been sent (F5, BUILD_PLAN 8 Runs).
+ * and `onEnd` once the run has finished and everything has been sent (F5).
  */
 export async function streamLog(opts: StreamLogOptions): Promise<void> {
   const pollMs = opts.pollMs ?? 500;

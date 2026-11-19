@@ -38,7 +38,7 @@ function runnerFor(scenario: string, env: Record<string, string> = {}) {
 function workspace(): string {
   const dir = path.join(dataDir, 'workspaces', projectId, `KEY-${++n}`);
   mkdirSync(dir, { recursive: true });
-  chmodSync(dir, 0o777); // the agent runs as uid 1000; the worker chowns real workspaces (milestone 4)
+  chmodSync(dir, 0o777); // the agent runs as uid 1000; the worker chowns real workspaces
   return dir;
 }
 
@@ -155,7 +155,7 @@ describe('fake stage end to end, in a real container', () => {
     expect((limited as { resetsAt: Date }).resetsAt.getTime()).toBe(1794418200 * 1000);
   }, 180_000);
 
-  it('never puts the Claude token in the container, so a process that prints its whole environment leaks nothing (scan finding 1)', async () => {
+  it('never puts the Claude token in the container, so a process that prints its whole environment leaks nothing', async () => {
     const res = await runnerFor('leak').run(request());
     expect(res.kind).toBe('done');
     const run = await prisma.stageRun.findUniqueOrThrow({ where: { id: (res as { stageRunId: string }).stageRunId } });

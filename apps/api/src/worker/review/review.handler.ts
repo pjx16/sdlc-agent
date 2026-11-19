@@ -76,7 +76,7 @@ export class ReviewHandler implements StepHandler {
   }
 
   /**
-   * Asks the orchestrator what to do with open blocking findings (BUILD_PLAN v1 6.11). `support` holds the ticket for a person (returned
+   * Asks the orchestrator what to do with open blocking findings. `support` holds the ticket for a person (returned
    * as the outcome); any other answer returns null and the caller carries on with it. A failing orchestrator means the default.
    */
   private async escalate(ticket: Ticket, point: 'review_findings' | 'review_limit', options: { kind: string; to: string; label: string }[], defaultKind: string, blocking: { severity: string }[], onPick?: (kind: string) => void): Promise<StepOutcome | null> {

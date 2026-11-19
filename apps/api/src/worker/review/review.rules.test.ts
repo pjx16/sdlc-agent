@@ -25,7 +25,7 @@ describe('nextAfterReview (F10 exit rule)', () => {
   });
 });
 
-describe('renderReviewComment (BUILD_PLAN 6.9)', () => {
+describe('renderReviewComment', () => {
   it('has the heading, the summary, and one table per severity that has findings, most severe first', () => {
     const md = renderReviewComment({ round: 1, summary: 'Two real problems.', findings: [f({ severity: 'low', issue: 'Name', fix: 'Rename' }), f(), f({ severity: 'critical', issue: 'SQL injection', file: 'src/db.ts', line: null })] });
     expect(md.startsWith('## Review — round 1\n\nTwo real problems.\n')).toBe(true);

@@ -13,7 +13,7 @@ import { logLine } from '../../common/log-context';
 import { recordTick, setPhase } from '../status/worker-status';
 import { Schedule } from './schedule';
 
-/** A recurring part of housekeeping, run when its interval has passed (CI checks, PR state; BUILD_PLAN 6.6 step 1). */
+/** A recurring part of housekeeping, run when its interval has passed (CI checks, PR state). */
 export interface Housekeeper {
   readonly name: string;
   readonly intervalMs: number | ((pollIntervalSec: number) => number);
@@ -21,7 +21,7 @@ export interface Housekeeper {
 }
 export const HOUSEKEEPERS = Symbol('HOUSEKEEPERS');
 
-/** Sleep between iterations when there is nothing to do or the pipeline is paused (BUILD_PLAN 6.6). */
+/** Sleep between iterations when there is nothing to do or the pipeline is paused. */
 export const IDLE_MS = 5000;
 
 export type TickOutcome =
@@ -33,7 +33,7 @@ export type TickOutcome =
   | 'stepped'; // one step was run for one ticket
 
 /**
- * One process, one iteration at a time (BUILD_PLAN 6.6): housekeeping when due, pause check, pick the oldest
+ * One process, one iteration at a time: housekeeping when due, pause check, pick the oldest
  * actionable ticket, run exactly one step, apply the resulting transition.
  */
 @Injectable()
@@ -86,7 +86,7 @@ export class WorkerLoop {
       }
 
       let settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-      // A pause caused by Claude's rate or usage limit ends by itself at the reset time (BUILD_PLAN v1 6.3).
+      // A pause caused by Claude's rate or usage limit ends by itself at the reset time.
       if (settings?.pipelinePaused && (settings.pausedCode === 'CLAUDE_RATE_LIMIT' || settings.pausedCode === 'CLAUDE_USAGE_LIMIT') && settings.resetsAt && settings.resetsAt.getTime() <= this.now()) {
         settings = await this.prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null } });
         await this.prisma.event.create({ data: { type: 'usage', message: 'Claude limit reset: the pipeline resumes' } }).catch(() => undefined);
@@ -96,7 +96,7 @@ export class WorkerLoop {
         return (outcome = 'paused');
       }
 
-      // At most one pipeline StageRun runs at any time, system-wide (F4). The assistant is interactive and has its own runner (BUILD_PLAN v1 D7).
+      // At most one pipeline StageRun runs at any time, system-wide (F4). The assistant is interactive and has its own runner.
       if ((await this.prisma.stageRun.count({ where: { status: 'running', stage: { not: 'assist' } } })) > 0) return (outcome = 'blocked');
 
       const ticket = await this.pickNext();
@@ -120,12 +120,12 @@ export class WorkerLoop {
     }
   }
 
-  /** Oldest actionable ticket that has a handler (BUILD_PLAN 6.6 step 3), or null. */
+  /** Oldest actionable ticket that has a handler, or null. */
   async pickNext(): Promise<Ticket | null> {
     const handled = new Set(this.handlers.map((h) => h.status));
     const statuses = ACTIONABLE_STATUSES.filter((s) => handled.has(s));
     const where = {
-      // A project that is still being onboarded is ignored until the person confirms it (BUILD_PLAN v1 6.7).
+      // A project that is still being onboarded is ignored until the person confirms it.
       project: { enabled: true, onboardingStatus: 'confirmed' as const },
       OR: [
         ...(statuses.length > 0 ? [{ status: { in: statuses as TicketStatus[] } }] : []),
@@ -144,7 +144,7 @@ export class WorkerLoop {
     if (!handler) return 'stay';
     let outcome: StepOutcome;
     try {
-      // After a rerun the stale code is removed with a revert commit before the stage runs again (BUILD_PLAN v1 6.8).
+      // After a rerun the stale code is removed with a revert commit before the stage runs again.
       const held = ticket.revertFromSha && this.rerunPrep ? await this.rerunPrep.prepare(ticket) : null;
       if (held) outcome = held;
       else outcome = await handler.run(held === null && ticket.revertFromSha ? await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } }) : ticket);
@@ -155,7 +155,7 @@ export class WorkerLoop {
       await this.states.fail(ticket.id, message.slice(0, 500)).catch((e: unknown) => this.logger.error(String(e)));
       return 'failed';
     }
-    // At a decision point with several legal moves the orchestrator may replace the default move (BUILD_PLAN v1 6.11).
+    // At a decision point with several legal moves the orchestrator may replace the default move.
     if (this.orchestrator) outcome = await this.orchestrator.review(ticket, outcome);
     // A step that would stop the ticket for a person is first given to the orchestrator to recover (a few attempts, each recorded and written to Jira).
     if (outcome.kind === 'hold' && this.recovery) outcome = (await this.recovery.attempt(ticket, outcome)) ?? outcome;
@@ -199,7 +199,7 @@ export class WorkerLoop {
     }
   };
 
-  /** Each part runs only when due (BUILD_PLAN 6.6 step 1). CI checks, PR state and cleanup are added with their milestones. */
+  /** Each part runs only when due. CI checks, PR state and cleanup are added with their milestones. */
   private async housekeeping(): Promise<void> {
     await setPhase(this.prisma, 'housekeeping');
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });

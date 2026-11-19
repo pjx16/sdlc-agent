@@ -34,7 +34,7 @@ const OWNS: Record<string, { stages: string[]; fixReasons: string[]; artifacts: 
 };
 
 /**
- * Sends a ticket back to a stage that already finished (BUILD_PLAN v1 6.8). Everything after that stage becomes stale, always
+ * Sends a ticket back to a stage that already finished. Everything after that stage becomes stale, always
  * (D4): the runs and outputs are kept and marked, never deleted. Stale code is removed later by the worker with a revert commit,
  * because only the worker can touch the workspace; this service records where that revert starts.
  */
@@ -134,7 +134,7 @@ export class RerunService {
     }
   }
 
-  /** Outbound only (BUILD_PLAN v1 D3): the Jira status follows the transition, and one marker comment says why. A Jira problem never blocks. */
+  /** Outbound only: the Jira status follows the transition, and one marker comment says why. A Jira problem never blocks. */
   private async tellJira(ticket: Ticket & { project: { jiraMode: string; settings: unknown } }, stage: TicketStatus, note: string | undefined): Promise<void> {
     const settings = ProjectSettingsSchema.parse(ticket.project.settings);
     if (ticket.source !== 'jira' || !ticket.externalKey || ticket.project.jiraMode !== 'rest' || !settings.jiraWriteBack.comments) return;

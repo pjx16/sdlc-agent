@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { adfToText, markdownToAdf } from './adf';
 
-describe('markdownToAdf (BUILD_PLAN 6.3)', () => {
+describe('markdownToAdf', () => {
   it('makes paragraphs, with hard breaks inside a paragraph', () => {
     expect(markdownToAdf('First line\nsecond line\n\nNew paragraph').content).toEqual([
       { type: 'paragraph', content: [{ type: 'text', text: 'First line' }, { type: 'hardBreak' }, { type: 'text', text: 'second line' }] },
@@ -49,7 +49,7 @@ describe('markdownToAdf (BUILD_PLAN 6.3)', () => {
   });
 });
 
-describe('adfToText (BUILD_PLAN 6.3)', () => {
+describe('adfToText', () => {
   const doc = (...content: unknown[]) => ({ type: 'doc', version: 1, content });
   const p = (...content: unknown[]) => ({ type: 'paragraph', content });
   const t = (value: string, marks?: unknown[]) => ({ type: 'text', text: value, ...(marks ? { marks } : {}) });

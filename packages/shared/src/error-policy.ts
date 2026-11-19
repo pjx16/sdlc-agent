@@ -1,5 +1,5 @@
 /**
- * Error codes, who is responsible, and what to do about each (BUILD_PLAN v1 6.3). One table, used by the worker,
+ * Error codes, who is responsible, and what to do about each. One table, used by the worker,
  * the API and the dashboard, so a failure reads the same everywhere.
  */
 

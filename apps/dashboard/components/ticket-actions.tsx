@@ -7,7 +7,7 @@ type Action = 'hold' | 'resume' | 'retry' | 'kb-update/rerun';
 
 const LABEL: Record<Action, string> = { hold: 'Hold', resume: 'Resume', retry: 'Retry', 'kb-update/rerun': 'Re-run KB update' };
 
-/** Which actions make sense for a ticket in `status` (BUILD_PLAN 6.6 rows 16 to 18, F11). */
+/** Which actions make sense for a ticket in `status`. */
 export function actionsFor(status: string): Action[] {
   if (status === 'ON_HOLD') return ['resume', 'retry'];
   if (status === 'FAILED') return ['retry'];

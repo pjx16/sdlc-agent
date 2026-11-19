@@ -25,7 +25,7 @@ const advice: OnboardAdvice = {
 };
 const done = (data: unknown): StageResult => ({ kind: 'done', envelope: { status: 'done', summary: 's', data } as StageEnvelope, stageRunId: 'r', attempts: 1 });
 
-describe('OnboardingWorker (BUILD_PLAN v1 6.7)', () => {
+describe('OnboardingWorker', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let tmp: string;

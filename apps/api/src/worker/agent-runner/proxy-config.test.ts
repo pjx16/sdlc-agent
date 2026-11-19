@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const conf = readFileSync(path.resolve(__dirname, '../../../../../docker/proxy/squid.conf'), 'utf8');
 const rules = conf.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
 
-describe('squid.conf allowlist (BUILD_PLAN 6.1)', () => {
+describe('squid.conf allowlist', () => {
   it('listens on 3128 only', () => {
     expect(rules.filter((r) => r.startsWith('http_port'))).toEqual(['http_port 3128']);
   });

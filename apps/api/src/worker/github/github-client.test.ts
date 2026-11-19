@@ -56,7 +56,7 @@ describe('parseRepo', () => {
   });
 });
 
-describe('GhCliClient (BUILD_PLAN 6.3)', () => {
+describe('GhCliClient', () => {
   it('opens a draft PR with gh pr create --draft, passing the body as a file, and reads the number from the URL', async () => {
     reply({ 'pr create': { stdout: 'Creating draft pull request...\nhttps://github.com/acme/billing/pull/42\n' } });
     const pr = await client.openDraftPr({ repo: 'acme/billing', base: 'dev', head: 'feature/ABC-1-x', title: 'ABC-1: Export', body: '## Summary\nhello `code` $(not run)' });

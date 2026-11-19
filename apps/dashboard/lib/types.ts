@@ -196,7 +196,7 @@ export interface RunView {
   errorCode?: string | null;
   errorSource?: string | null;
   retryAt?: string | null;
-  /** Set when a rerun made the run obsolete: it is kept and shown greyed out (BUILD_PLAN v1 6.8). */
+  /** Set when a rerun made the run obsolete: it is kept and shown greyed out. */
   supersededAt?: string | null;
   /** auto | user | orchestrator */
   trigger?: string;

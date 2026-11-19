@@ -24,7 +24,7 @@ const validData: Record<string, unknown> = {
   onboardAdvise: { statusMap: { KB: 'In Progress' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature' }, intakeLabel: 'sdlc-agent', confluenceSpaceKey: null },
 };
 
-describe('stage envelopes (BUILD_PLAN 6.5)', () => {
+describe('stage envelopes', () => {
   it.each(STAGE_NAMES)('%s accepts its documented data shape', (stage) => {
     expect(stageEnvelopeSchema(stage).safeParse(done(validData[stage])).success).toBe(true);
   });

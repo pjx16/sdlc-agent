@@ -7,7 +7,7 @@ import { MetricsService } from './metrics.service';
 const NOW = new Date('2026-11-12T12:00:00Z');
 const ago = (hours: number) => new Date(NOW.getTime() - hours * 3600_000);
 
-describe('Metrics API (BUILD_PLAN 8, F17)', () => {
+describe('Metrics API', () => {
   let db: TestDatabase;
   let t: TestApp;
   let projectId: string;

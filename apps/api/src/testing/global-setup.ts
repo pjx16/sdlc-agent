@@ -8,7 +8,7 @@ declare module 'vitest' {
 }
 
 /**
- * Starts one Postgres for the whole test run (BUILD_PLAN section 11, Testcontainers).
+ * Starts one Postgres for the whole test run.
  * Set TEST_PG_URL to reuse an already running Postgres (for example the Compose one) and skip the container.
  */
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {

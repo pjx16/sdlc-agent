@@ -5,7 +5,7 @@ import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { SupportRaiser } from './support-raiser';
 import { SupportModule } from './support.module';
 
-describe('Assistant chat API (BUILD_PLAN v1 6.6)', () => {
+describe('Assistant chat API', () => {
   let db: TestDatabase;
   let t: TestApp;
   let projectId: string;

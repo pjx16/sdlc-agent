@@ -28,7 +28,7 @@ export interface SupportNotifierPort {
 const isUniqueViolation = (e: unknown) => typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002';
 
 /**
- * The one way anything raises or closes a support ticket (BUILD_PLAN v1 6.5): "anything that needs a human becomes exactly
+ * The one way anything raises or closes a support ticket: "anything that needs a human becomes exactly
  * one support ticket". Used by the transition listener, the stage outcomes, the credential checks and the plan handler.
  */
 @Injectable()

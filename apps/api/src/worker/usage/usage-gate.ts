@@ -47,7 +47,7 @@ export class UsageGate implements UsageGatePort {
       now: this.now(),
     });
     const s = decision.snapshot;
-    // Every run that ends leaves one snapshot (BUILD_PLAN v1 6.2). With no event and no calibration the percentages stay empty.
+    // Every run that ends leaves one snapshot. With no event and no calibration the percentages stay empty.
     const run = args.stageRunId ? await this.prisma.stageRun.findUnique({ where: { id: args.stageRunId }, select: { model: true } }) : null;
     await this.prisma.usageSnapshot.create({
       data: {

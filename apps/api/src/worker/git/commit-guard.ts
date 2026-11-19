@@ -22,7 +22,7 @@ export class CommitGuardError extends Error {
 const SENSITIVE_DIRS = ['.claude', '.vscode', '.idea', '.devcontainer', '.husky', '.github'];
 const SENSITIVE_FILES = ['.mcp.json', '.npmrc', '.gitattributes', '.gitmodules'];
 
-/** Why a path must not be committed, or null (F9): node_modules, `.env*`, key and certificate files; and (scan finding 2/6) tool, editor, hook and workflow configuration, nested `.git`. */
+/** Why a path must not be committed, or null (F9): node_modules, `.env*`, key and certificate files; and tool, editor, hook and workflow configuration, nested `.git`. */
 export function pathViolation(file: string): string | null {
   const segments = file.replace(/\\/g, '/').split('/');
   const base = (segments[segments.length - 1] as string).toLowerCase();
@@ -96,7 +96,7 @@ export async function squashAgentCommits(git: GitRunner, workspace: string, preS
 
 /**
  * Violations among everything a stage changed or added in the working tree (installed dependencies included). Synchronous, so it can
- * be part of a stage's output validation: a stage that leaves a secret or a huge file behind fails its attempt (BUILD_PLAN 6.8).
+ * be part of a stage's output validation: a stage that leaves a secret or a huge file behind fails its attempt.
  */
 export function workspaceViolationsSync(workspace: string): GuardViolation[] {
   const out = execFileSync('git', [...HARDENING_FLAGS, ...safeDirectory(workspace), 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: workspace, env: minimalGitEnv(), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

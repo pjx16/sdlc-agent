@@ -8,7 +8,7 @@ export interface StackPrefill {
   testCmdTemplate: string;
 }
 
-/** Editable, not enforced (BUILD_PLAN section 7). */
+/** Editable, not enforced. */
 export const STACK_PREFILLS: Record<ProjectStack, StackPrefill> = {
   ts_node: { installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx vitest run {files}' },
   nestjs: { installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}' },

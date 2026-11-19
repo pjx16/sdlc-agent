@@ -49,7 +49,7 @@ function CopyDraft({ text }: { text: string }) {
 }
 
 /**
- * The assistant for one support ticket (BUILD_PLAN v1 6.6). It only drafts: a draft is applied with one click, and that goes
+ * The assistant for one support ticket. It only drafts: a draft is applied with one click, and that goes
  * through the same action as the buttons on the ticket. While the assistant is answering, the chat asks the server every two seconds.
  */
 export function AssistantChat({ supportTicketId }: { supportTicketId: string }) {

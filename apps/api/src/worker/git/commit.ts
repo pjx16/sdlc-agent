@@ -8,7 +8,7 @@ export class CommitMessageError extends Error {
   }
 }
 
-/** The push was rejected or failed. The ticket goes on hold (`needs_help`, BUILD_PLAN 6.8). */
+/** The push was rejected or failed. The ticket goes on hold (`needs_help`). */
 export class PushRejectedError extends Error {
   constructor(
     message: string,
@@ -42,7 +42,7 @@ export function assertCommitMessage(message: string): void {
 export type CommitResult = { committed: false } | { committed: true; sha: string };
 
 /**
- * Stages everything and commits it as the configured identity (BUILD_PLAN 6.2). Repository hooks never run
+ * Stages everything and commits it as the configured identity. Repository hooks never run
  * (`core.hooksPath=/dev/null`) and the commit uses `--no-verify`. Returns `committed: false` when nothing changed.
  */
 export async function commitAll(git: GitRunner, workspace: string, message: string, identity: GitIdentity, opts: { paths?: readonly string[] } = {}): Promise<CommitResult> {

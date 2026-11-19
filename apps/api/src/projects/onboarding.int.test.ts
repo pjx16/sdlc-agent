@@ -23,7 +23,7 @@ const proposalFor = (over: Partial<OnboardingProposal> = {}): OnboardingProposal
   ...over,
 });
 
-describe('Project onboarding API (BUILD_PLAN v1 6.7)', () => {
+describe('Project onboarding API', () => {
   let db: TestDatabase;
   let t: TestApp;
   let raiser: SupportRaiser;

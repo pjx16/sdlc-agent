@@ -9,7 +9,7 @@ import { SupportRaiser, type SupportNotifierPort } from '../support/support-rais
 import { GITHUB_CLIENT, type GitHubClient, parseRepo } from './github/github-client';
 
 /**
- * A blocking support ticket also reaches the places people look (BUILD_PLAN v1 D8): a comment on the Jira issue and, when
+ * A blocking support ticket also reaches the places people look: a comment on the Jira issue and, when
  * there is a PR, a comment on the PR. Best effort: a Jira or GitHub problem is a recorded warning, never a block.
  * The PR comment for a `needs_help` hold is already written by the HoldNotifier, so it is not written twice.
  */

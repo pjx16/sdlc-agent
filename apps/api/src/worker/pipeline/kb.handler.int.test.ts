@@ -128,7 +128,7 @@ describe('NEW and KB step handlers', () => {
     });
   });
 
-  describe('StageOutcomes (BUILD_PLAN 6.8)', () => {
+  describe('StageOutcomes', () => {
     const outcomes = () => new StageOutcomes(prisma);
     it('turns each non-success result into the documented outcome', async () => {
       const t = await ticket();

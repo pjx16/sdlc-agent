@@ -15,7 +15,7 @@ import { MirrorService } from '../git/mirror.service';
 import { WorkerConfig } from '../worker-config';
 import { WorkerLoop } from './worker-loop';
 
-describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
+describe('worker loop', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let states: StateMachine;
@@ -140,7 +140,7 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     expect(await loop.tick()).toBe('idle');
   });
 
-  it('ignores a project that is not confirmed yet: no ticket is picked and no mirror is cloned (BUILD_PLAN v1 6.7)', async () => {
+  it('ignores a project that is not confirmed yet: no ticket is picked and no mirror is cloned', async () => {
     const draft = await prisma.project.create({ data: { name: `draft-${++n}`, repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: `D${n}`, mirrorStatus: 'pending', onboardingStatus: 'proposed' } });
     const t = await prisma.ticket.create({ data: { projectId: draft.id, key: `D${n}-1`, source: 'paste', title: 'x', status: 'KB' } });
     const loop = loopWith([handler('KB', () => ({ kind: 'continue' }))]);
@@ -155,7 +155,7 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     await prisma.project.delete({ where: { id: draft.id } });
   });
 
-  it('a running assistant chat does not block the pipeline, but a running stage does (BUILD_PLAN v1 D7)', async () => {
+  it('a running assistant chat does not block the pipeline, but a running stage does', async () => {
     const loop = loopWith([handler('KB', () => ({ kind: 'continue' }))]);
     await prisma.stageRun.deleteMany();
     const run = (stage: string) => prisma.stageRun.create({ data: { projectId, stage, model: 'm', status: 'running', startedAt: new Date() } });

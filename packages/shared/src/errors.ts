@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** Error body used by every API endpoint (BUILD_PLAN §8). */
+/** Error body used by every API endpoint. */
 export const ErrorBodySchema = z.object({
   error: z.string(),
   message: z.string(),

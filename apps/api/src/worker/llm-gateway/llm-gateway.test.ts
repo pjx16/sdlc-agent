@@ -36,7 +36,7 @@ afterEach(() => {
   seen.length = 0;
 });
 
-describe('LlmGateway (scan finding 1)', () => {
+describe('LlmGateway', () => {
   it('forwards POST /v1/messages with the token it holds, dropping the agent\'s own credentials', async () => {
     const base = await start();
     const res = await fetch(`${base}/v1/messages`, { method: 'POST', headers: { 'x-api-key': key, authorization: 'Bearer attacker', 'anthropic-version': '2023-06-01', 'anthropic-beta': 'foo', 'content-type': 'application/json' }, body: '{"model":"m"}' });

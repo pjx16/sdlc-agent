@@ -14,14 +14,14 @@ export interface PrDescriptionInput {
   subtasks: PrSubtask[];
   /** The targeted test command template that was used. */
   testCommand: string;
-  /** Counts of the findings that remain open after review (milestone 8). */
+  /** Counts of the findings that remain open after review. */
   remainingFindings?: { medium: number; low: number };
 }
 
 const PROBLEM_CHARS = 600;
 
 /**
- * The PR description (BUILD_PLAN 6.9), assembled by the orchestrator without AI and rewritten when the PR is marked ready.
+ * The PR description, assembled by the orchestrator without AI and rewritten when the PR is marked ready.
  * No attribution of any kind appears in it (F9).
  */
 export function buildPrDescription(input: PrDescriptionInput, template: string = FORMATS.find((f) => f.name === 'pr-description')?.default ?? ''): string {

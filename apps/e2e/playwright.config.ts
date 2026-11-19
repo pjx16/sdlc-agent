@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 /**
- * End-to-end suite (BUILD_PLAN 11). `global-setup.ts` starts a Postgres container, applies the migrations, seeds a small world,
+ * End-to-end suite. `global-setup.ts` starts a Postgres container, applies the migrations, seeds a small world,
  * and starts the built API and the dashboard; the tests then drive a real browser against them. The worker is not started: every
  * state the pages show is seeded, and the pipeline itself is covered by the integration tests (with the fake-claude stand-in).
  */

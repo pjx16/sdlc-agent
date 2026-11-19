@@ -38,7 +38,7 @@ export function factsText(projectName: string, facts: OnboardingFacts): string {
 
 /**
  * The advisor only proposes: code checks that every name it used exists in the facts, so a proposal never carries an invented
- * status, issue type or space (BUILD_PLAN v1 6.7, principle 5).
+ * status, issue type or space.
  */
 export function sanitizeAdvice(advice: OnboardAdvice | null, jira: JiraFacts | null, spaces: ConfluenceSpace[] | null): OnboardAdvice {
   const statuses = new Set((jira?.statusesByType ?? []).flatMap((t) => t.statuses.map((s) => s.name)));
@@ -75,7 +75,7 @@ function failureOf(stage: string, r: Exclude<StageResult, { kind: 'done' }>): st
 }
 
 /**
- * Onboarding (BUILD_PLAN v1 6.7): for a project in `profiling`, code collects the facts, `repo-profiler` proposes the commands, code
+ * Onboarding: for a project in `profiling`, code collects the facts, `repo-profiler` proposes the commands, code
  * checks them once, `onboarding-advisor` proposes the Jira mapping, and the result waits as a proposal for the person to review.
  * Nothing is applied to the project until it is confirmed.
  */

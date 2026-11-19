@@ -42,7 +42,7 @@ export function checkTestFiles(args: { listed: readonly string[]; exists: (file:
 }
 
 /**
- * The example test file shown to the `tests` stage (BUILD_PLAN 6.4): an existing test file in the directory of the
+ * The example test file shown to the `tests` stage: an existing test file in the directory of the
  * subtask's first listed file, otherwise the first test file in the repository.
  */
 export function pickExampleTestFile(trackedFiles: readonly string[], firstSubtaskFile: string | undefined): string | undefined {

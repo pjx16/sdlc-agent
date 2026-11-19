@@ -48,7 +48,7 @@ export class KbBuildService implements KbBuilder {
     const { index } = await readIndex(ws, kbDir);
     const keys = index.features.map((f) => f.key);
 
-    // The feature mapper decides which feature this is; only a new feature needs the documentor (BUILD_PLAN v1 4.1).
+    // The feature mapper decides which feature this is; only a new feature needs the documentor.
     let mapped: string | undefined;
     if (settings.stages.featureMap.enabled) {
       const mapRun = await this.launcher.launch(
@@ -108,7 +108,7 @@ export class KbBuildService implements KbBuilder {
     return null;
   }
 
-  /** The orchestrator's checks on a valid envelope. A message fails the attempt (BUILD_PLAN 6.8). */
+  /** The orchestrator's checks on a valid envelope. A message fails the attempt. */
   private validate(envelope: StageEnvelope, ctx: { ws: string; kbDir: string; keys: string[]; maxLines: number; mapped?: string }): string | null {
     if (envelope.status !== 'done') return null;
     const d = envelope.data as KbBuildData;

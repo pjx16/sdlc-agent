@@ -14,7 +14,7 @@ const KEPT_EVENTS = 5;
 const STAGE_OF_STATE: Record<string, 'kbUpdate' | 'prReview' | undefined> = { KB_UPDATE: 'kbUpdate', REVIEW: 'prReview' };
 
 /**
- * The orchestrator (BUILD_PLAN v1 6.11). Code asks it only where several automatic moves are legal and a decision point is defined:
+ * The orchestrator. Code asks it only where several automatic moves are legal and a decision point is defined:
  * no move means wait, one move is taken by code with no AI call, and only several moves call the agent. Its answer must be one of the
  * legal moves; anything else is replaced by the default move and recorded as a warning. Every decision is stored and written as an event.
  */
@@ -52,7 +52,7 @@ export class OrchestratorService {
   }
 
   /**
-   * Asks the orchestrator to choose between options that code offers at a point that is not a plain state move (BUILD_PLAN v1 6.11).
+   * Asks the orchestrator to choose between options that code offers at a point that is not a plain state move.
    * With one option, or with the orchestrator switched off, the default is returned with no AI call. It never throws: a failure is the default.
    */
   async choose(ticket: Ticket, point: DecisionPoint, options: DecisionOption[], defaultKind: string, facts = ''): Promise<{ option: DecisionOption; reason: string; fallbackUsed: boolean }> {
@@ -139,7 +139,7 @@ export class OrchestratorService {
     }
   }
 
-  /** A short summary: never code or diffs (BUILD_PLAN v1 6.11). */
+  /** A short summary: never code or diffs. */
   private async input(ticket: Ticket, question: string, legal: DecisionOption[], fallback: DecisionOption, facts: string) {
     const [events, run, findings, support] = await Promise.all([
       this.prisma.event.findMany({ where: { ticketId: ticket.id }, orderBy: { at: 'desc' }, take: KEPT_EVENTS }),

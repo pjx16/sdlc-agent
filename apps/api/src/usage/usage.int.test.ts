@@ -3,7 +3,7 @@ import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { UsageModule } from './usage.module';
 
-describe('Usage API (BUILD_PLAN 8)', () => {
+describe('Usage API', () => {
   let db: TestDatabase;
   let t: TestApp;
   let projectId: string;
@@ -60,7 +60,7 @@ describe('Usage API (BUILD_PLAN 8)', () => {
   });
 });
 
-describe('Usage analytics API (BUILD_PLAN v1 6.4)', () => {
+describe('Usage analytics API', () => {
   let db: TestDatabase;
   let t: TestApp;
   let projectId: string;

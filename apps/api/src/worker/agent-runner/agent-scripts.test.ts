@@ -65,7 +65,7 @@ describe('run-stage umask', () => {
   });
 });
 
-describe('run-stage (BUILD_PLAN 6.4)', () => {
+describe('run-stage', () => {
   it('builds the documented claude command from stage.json and feeds the prompt on stdin', () => {
     const ctx = path.join(tmp, 'ctx1');
     const ws = path.join(tmp, 'ws1');
@@ -104,7 +104,7 @@ describe('run-stage (BUILD_PLAN 6.4)', () => {
   });
 });
 
-describe('run-cmd (BUILD_PLAN 6.4)', () => {
+describe('run-cmd', () => {
   const run = (cmd: string, env: Record<string, string> = {}) =>
     spawnSync('bash', [RUN_CMD], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, WORKSPACE_DIR: tmp, CMD: cmd, ...env }, encoding: 'utf8' });
 

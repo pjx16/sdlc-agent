@@ -175,6 +175,6 @@ volumes:
   pgdata: {}
   npm_mirror:
     name: sdlc_npm_mirror
-  # Shared npm cache for agent containers (mounted at /npm-cache); created now, used from milestone 3.
+  # npm cache (mounted at /npm-cache) for agent containers outside a project folder. Each project gets its own sdlc_npm_cache_<id> volume, created on first use.
   npm_cache:
     name: sdlc_npm_cache

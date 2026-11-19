@@ -6,7 +6,7 @@ import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { RunsModule } from './runs.module';
 
-describe('Runs API (F5, BUILD_PLAN 8)', () => {
+describe('Runs API (F5)', () => {
   let db: TestDatabase;
   let t: TestApp;
   let dataDir: string;

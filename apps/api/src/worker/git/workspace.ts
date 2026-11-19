@@ -26,7 +26,7 @@ export interface PreparedWorkspace {
 }
 
 /**
- * Creates (or reuses) the ticket's workspace (BUILD_PLAN 6.2): refresh the mirror, standalone clone with no hardlinks,
+ * Creates (or reuses) the ticket's workspace: refresh the mirror, standalone clone with no hardlinks,
  * origin reset to the real URL, branch created from `origin/<baseBranch>`. A standalone clone is used, not a worktree,
  * because worktrees break when mounted alone.
  */

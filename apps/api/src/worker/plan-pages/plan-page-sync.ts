@@ -17,7 +17,7 @@ export const RETRY_DELAYS_MS = [0, 2000, 6000];
 const SUPERSEDED = 'Superseded by a rerun: a new plan is being written';
 
 /**
- * Keeps one Confluence page per ticket in step with its plan (BUILD_PLAN v1 6.10). Every poll it compares what the page should say (the
+ * Keeps one Confluence page per ticket in step with its plan. Every poll it compares what the page should say (the
  * current plan, its status line, the answered questions) with what was last sent, and publishes or updates when they differ. That one
  * rule covers the first publish, a rerun, an approval and an answered question. A Confluence failure is tried 3 times, then the plan goes to
  * Jira as a comment, a warning is recorded, and nothing blocks (CONFLUENCE_ERROR).

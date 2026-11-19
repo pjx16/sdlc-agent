@@ -31,7 +31,7 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-describe('prepareWorkspace (BUILD_PLAN 6.2)', () => {
+describe('prepareWorkspace', () => {
   it('clones the mirror, checks out a new branch from origin/<baseBranch>, and points origin at the real URL', async () => {
     const s = spec('a');
     const res = await prepareWorkspace(git, s);

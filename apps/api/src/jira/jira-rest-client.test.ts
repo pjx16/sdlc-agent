@@ -35,7 +35,7 @@ const issue = (key: string, over: Record<string, unknown> = {}) => ({
   fields: { summary: `Summary ${key}`, description: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: `Body ${key}` }] }] }, issuetype: { name: 'Story' }, labels: ['a'], priority: { name: 'High' }, ...over },
 });
 
-describe('JiraRestClient requests (BUILD_PLAN 6.3)', () => {
+describe('JiraRestClient requests', () => {
   it('uses Basic auth on the configured base URL', async () => {
     const { client, calls } = make([{ json: { issues: [] } }]);
     await client.searchTickets({ jiraJql: 'project = ABC' });
@@ -192,7 +192,7 @@ describe('transition', () => {
   });
 });
 
-describe('retries (BUILD_PLAN 6.3)', () => {
+describe('retries', () => {
   it('retries 5xx with 1 s, 4 s, 16 s backoff and then succeeds', async () => {
     const { client, calls, sleeps } = make([{ status: 503 }, { status: 500 }, { status: 502 }, { json: { issues: [issue('ABC-1')] } }]);
     expect((await client.searchTickets({ jiraJql: 'x' })).map((t) => t.key)).toEqual(['ABC-1']);

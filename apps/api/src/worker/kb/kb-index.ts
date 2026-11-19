@@ -2,7 +2,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { readTextNoFollow, writeTextNoFollow } from '../fs/safe-fs';
 
-/** `<kbDir>/features.json` (BUILD_PLAN 6.9). */
+/** `<kbDir>/features.json`. */
 export const KbEntrySchema = z.object({
   key: z.string().min(1),
   title: z.string().default(''),

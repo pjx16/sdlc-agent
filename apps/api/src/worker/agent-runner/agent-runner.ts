@@ -46,7 +46,7 @@ export interface StageRequest {
 export type StageResult =
   | { kind: 'done'; envelope: StageEnvelope; stageRunId: string; attempts: number }
   | { kind: 'needs_input'; question: string; stageRunId: string; attempts: number }
-  /** The recovery policy for `errorCode` is used up (BUILD_PLAN v1 6.3): the ticket is held, or failed when the policy says so. */
+  /** The recovery policy for `errorCode` is used up: the ticket is held, or failed when the policy says so. */
   | { kind: 'failed'; reason: string; errorCode?: ErrorCode; stageRunId: string; attempts: number }
   /** Reached the turn limit, also after the retry with more turns. */
   | { kind: 'turn_limit'; errorCode?: 'TURN_LIMIT'; stageRunId: string; attempts: number }
@@ -69,7 +69,7 @@ type AttemptResult =
 /** Hard stop on automatic attempts, whatever the policies say. */
 const MAX_TOTAL_ATTEMPTS = 8;
 
-/** Runs one AI stage end to end (BUILD_PLAN 6.4 and 6.8). */
+/** Runs one AI stage end to end. */
 @Injectable()
 export class AgentRunner {
   private readonly logger = new Logger(AgentRunner.name);
@@ -90,7 +90,7 @@ export class AgentRunner {
   backoffScale = 1;
 
   /**
-   * Runs the stage, and recovers from failures by the policy table (BUILD_PLAN v1 6.3): each error code has its own
+   * Runs the stage, and recovers from failures by the policy table: each error code has its own
    * number of retries and waits. When the policy is used up the failure is returned for the caller to hold or fail.
    */
   async run(req: StageRequest): Promise<StageResult> {
@@ -260,7 +260,7 @@ export class AgentRunner {
     return { kind: 'done', envelope, stageRunId };
   }
 
-  /** Why an attempt failed, with its error code (BUILD_PLAN v1 6.3), or null if it succeeded. */
+  /** Why an attempt failed, with its error code, or null if it succeeded. */
   private failureReason(container: { exitCode: number; timedOut: boolean }, parsed: ParsedStream, req: StageRequest, claudeCode: ErrorCode | null): { reason: string; code: ErrorCode } | null {
     if (container.timedOut) return { reason: describeError('TIMEOUT', { stage: req.stage, limit: `${req.stageTimeoutMin} minutes` }), code: 'TIMEOUT' };
     if (claudeCode === 'CLAUDE_CONTEXT_TOO_LONG') return { reason: describeError('CLAUDE_CONTEXT_TOO_LONG', { stage: req.stage, sizes: parsed.error ?? 'see the run log' }), code: claudeCode };
