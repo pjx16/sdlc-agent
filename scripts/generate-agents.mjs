@@ -1,4 +1,4 @@
-// Writes .claude/agents/sdlc-<name>.md from guidelines/stages/<name>.md for every agent in the roster
+// Writes .claude/agents/sdlc-<name>.md from guidelines/agents/base/<name>.md plus guidelines/agents/pipeline/<name>.md for every agent in the roster
 // (packages/shared/src/agents.ts), and removes sdlc-* files of agents that no longer exist.
 // Run `npm run build -w @sdlc/shared` first. `--check` only reports drift and exits 1 when a file is out of date.
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -7,14 +7,15 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const { AGENTS, renderAgentFile } = createRequire(import.meta.url)(path.join(root, 'packages/shared/dist/index.js'));
+const { AGENTS, assembleAgentPrompt, renderAgentFile } = createRequire(import.meta.url)(path.join(root, 'packages/shared/dist/index.js'));
 const out = path.join(root, '.claude/agents');
 const check = process.argv.includes('--check');
 mkdirSync(out, { recursive: true });
 
 const wanted = new Map();
 for (const agent of AGENTS) {
-  const prompt = readFileSync(path.join(root, 'guidelines/stages', `${agent.name}.md`), 'utf8');
+  const read = (dir) => readFileSync(path.join(root, 'guidelines/agents', dir, `${agent.name}.md`), 'utf8');
+  const prompt = assembleAgentPrompt(read('base'), read('pipeline'));
   wanted.set(`sdlc-${agent.name}.md`, renderAgentFile(agent, prompt));
 }
 let drift = 0;

@@ -223,10 +223,12 @@ Every per-project setting is listed in [`docs/CONFIGURATION.md`](./docs/CONFIGUR
 
 What the agents are told lives in [`guidelines/`](./guidelines) as markdown, and is editable on the dashboard's **Guidelines** page:
 
-- `stages/*.md`: the instructions of each of the 16 agents (what to do, constraints, the shape of the answer). `npm run agents` regenerates `.claude/agents/`; a test fails when they drift.
+- `agents/base/*.md`: what each of the 16 agents does (goal, steps, rules), with nothing about where it runs.
+- `agents/pipeline/*.md`: what each agent gets and returns in the pipeline (inputs, the shape of the answer). A stage's prompt is its base plus this overlay. `npm run agents` regenerates `.claude/agents/` from both; a test fails when they drift.
+- `agents/shared-rules.md`: the rules every agent follows (scope, safety, small context, code standards, evidence, when to ask).
 - `formats/*.md`: the ticket, plan, pull request description, review comments and Jira comments, with `{{placeholders}}`; `npm run formats` rewrites them from the defaults.
 - `stacks/*.md`: conventions for each supported stack, added to every stage's system prompt.
-- `default-CLAUDE.md`: our default `CLAUDE.md`, used in modes `ours` and `both`.
+- `default-CLAUDE.md`: how the pipeline runs and reports (headless, JSON only). With the shared rules it is our default `CLAUDE.md`, used in modes `ours` and `both`.
 - `review-checklist.md` and `kb-doc-template.md`: what the review checks, and the shape of a knowledge-base doc.
 
 Keep instructions short and concrete: every line is paid for in tokens on every run. Changes apply from the next stage run. The repository's own `CLAUDE.md` is the right place for rules that belong to that codebase.

@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
 
-Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
+Follow the rules in `guidelines/agents/shared-rules.md` and `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
 
 # Agent: documentor — create or refresh one feature doc
 
@@ -13,7 +13,7 @@ Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present i
 
 Keep one short, accurate doc per feature, so later agents do not have to explore the
 codebase themselves. A stale or bloated doc is worse than none, because every later
-stage trusts it. You work in one of two modes, named in the prompt:
+step trusts it. You work in one of two modes, named in your task:
 
 - **create** — the feature has no doc yet: write it.
 - **refresh** — the code changed: make the existing doc true again.
@@ -33,8 +33,8 @@ stage trusts it. You work in one of two modes, named in the prompt:
    calls inward. Stop as soon as you can describe the flow. Aim for no more than 20
    tool calls.
 2. **Write the doc** at `<kbDir>/<key>.md`, following the template.
-3. **Return the result.** Do not touch `features.json`: the orchestrator writes the
-   index entry (title, doc path, globs, commit, date) from your `data`.
+3. **Return the result.** Do not touch `features.json`: whoever called you writes the
+   index entry (title, doc path, globs, commit, date) from your result.
 
 ## Steps in refresh mode
 
@@ -55,19 +55,25 @@ stage trusts it. You work in one of two modes, named in the prompt:
 
 ## Rules
 
-- Change only files under `<kbDir>`, and only the feature's own doc. Anything else is
-  reverted. Never edit `features.json`: the orchestrator maintains the index.
+- Change only files under `<kbDir>`, and only the feature's own doc. Never edit
+  `features.json`: whoever called you maintains the index.
 - Describe what the code does **now**, not what the ticket wants. No history
   ("previously…"), no changelog, no ticket numbers.
 - Every step in **Flow** cites `file:line`.
 - No code block longer than 5 lines. Point to the code instead of copying it.
-- Keep the template's sections and order. Stay under the line limit given in the
-  prompt; if you are over it, shorten older detail rather than dropping new behaviour.
+- Keep the template's sections and order. Stay under the line limit you were
+  given; if you are over it, shorten older detail rather than dropping new behaviour.
 - Anything you inferred but did not check goes under **Open questions**, marked "not
   verified". In refresh mode resolve an entry only if the diff answers it, and do not
   rewrite sections the diff did not affect.
 - `globs` are as narrow as possible: the folders where this feature lives.
-- Refresh mode cannot ask questions: never use `needs_input`.
+- Do not ask questions in refresh mode.
+
+## In the pipeline
+
+- The mode is named in the prompt, and so is the line limit.
+- Any change outside the feature's doc is reverted.
+- The orchestrator writes the `features.json` entry from your `data`.
 
 ## Output `data`
 

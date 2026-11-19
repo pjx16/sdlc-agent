@@ -1,11 +1,13 @@
 import type { StageName } from './enums';
 
 /**
- * The agents: one job each. A prompt file per agent lives in `guidelines/stages/`, and each agent is also written to
- * `.claude/agents/` from it, so the two never drift. A stage key says which agent runs; the documentor serves two keys.
+ * The agents: one job each. Each agent's prompt is a base (`guidelines/agents/base/<name>.md`: goal, steps, rules) plus an
+ * overlay for where it runs (`guidelines/agents/pipeline/<name>.md`: inputs and output). The pipeline and the generated
+ * `.claude/agents/` files are both assembled from them, so they never drift. A stage key says which agent runs; the
+ * documentor serves two keys.
  */
 export interface AgentSpec {
-  /** The agent's name and the name of its prompt file (`guidelines/stages/<name>.md`). */
+  /** The agent's name and the name of its prompt files (`guidelines/agents/<base|pipeline>/<name>.md`). */
   name: string;
   /** The stage keys it runs as. */
   stages: readonly StageName[];
@@ -44,7 +46,27 @@ export function promptFileOf(stage: StageName): string {
 
 const TOOLS: Record<AgentSpec['workspace'], string> = { none: 'Read', 'read-only': 'Read, Grep, Glob, Bash', writes: 'Read, Grep, Glob, Bash, Edit, Write' };
 
-/** A `.claude/agents/sdlc-<name>.md` file, generated from the agent's prompt. */
+/** The text from `heading` up to the next `## ` heading, and the text around it. Both sections searched here hold no code fences. */
+function cutSection(text: string, heading: string, file: string): { before: string; section: string; after: string } {
+  const start = text.indexOf(`\n${heading}\n`);
+  if (start < 0) throw new Error(`${file} has no "${heading}" section`);
+  const next = text.indexOf('\n## ', start + 1);
+  const end = next < 0 ? text.length : next;
+  return { before: text.slice(0, start), section: text.slice(start + 1, end).trimEnd(), after: text.slice(end) };
+}
+
+/**
+ * One agent's prompt: the base with the overlay's `## Inputs` section placed right after the base's `## Goal`, and the
+ * overlay's other sections at the end. The overlay says where the agent runs (the pipeline, or a Claude Code plugin).
+ */
+export function assembleAgentPrompt(base: string, overlay: string): string {
+  const goal = cutSection(`\n${base.trim()}\n`, '## Goal', 'the base');
+  const inputs = cutSection(`\n${overlay.trim()}\n`, '## Inputs', 'the overlay');
+  const rest = [inputs.before, inputs.after].map((s) => s.trim()).filter(Boolean).join('\n\n');
+  return [`${goal.before.trim()}\n\n${goal.section}`, inputs.section, goal.after.trim(), rest].filter(Boolean).join('\n\n') + '\n';
+}
+
+/** A `.claude/agents/sdlc-<name>.md` file, generated from the agent's assembled pipeline prompt. */
 export function renderAgentFile(agent: AgentSpec, prompt: string): string {
   return [
     '---',
@@ -54,7 +76,7 @@ export function renderAgentFile(agent: AgentSpec, prompt: string): string {
     `model: ${agent.model}`,
     '---',
     '',
-    'Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.',
+    'Follow the rules in `guidelines/agents/shared-rules.md` and `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.',
     '',
     prompt.trimEnd(),
     '',

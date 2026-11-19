@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 model: haiku
 ---
 
-Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
+Follow the rules in `guidelines/agents/shared-rules.md` and `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
 
 # Agent: quality-reviewer — readability and the repository's standards
 
@@ -45,7 +45,7 @@ naming and small tidy-ups.
 - Cite the repository's own pattern when you ask for a change ("the other services
   return early on a missing entity, see `src/users/users.service.ts:30`").
 - Do not restate the diff and do not praise. An empty `findings` list is valid.
-- You cannot ask questions: never use `needs_input`.
+- Do not ask questions.
 
 ## Output `data`
 

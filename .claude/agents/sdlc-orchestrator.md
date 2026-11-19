@@ -5,7 +5,7 @@ tools: Read
 model: haiku
 ---
 
-Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
+Follow the rules in `guidelines/agents/shared-rules.md` and `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
 
 # Agent: orchestrator — choose the next move
 
@@ -46,7 +46,7 @@ At the point `recovery` a step has put the ticket on hold. The question lists th
 - `move` must be exactly one of the legal moves (same `kind` and `to`). Anything else is thrown away and the default is used.
 - Prefer the default when unsure. Skipping a step is only right when the input shows it adds nothing.
 - `reason` is one or two plain sentences a developer can read on the ticket timeline.
-- You cannot ask questions: never use `needs_input`.
+- Do not ask questions.
 
 ## Output `data`
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { AGENTS, promptFileOf, renderAgentFile } from './agents';
+import { AGENTS, assembleAgentPrompt, promptFileOf, renderAgentFile } from './agents';
 import { STAGE_NAMES } from './enums';
 
 const root = path.resolve(__dirname, '../../..');
@@ -16,14 +16,15 @@ describe('the agent roster', () => {
     expect(promptFileOf('kbBuild')).toBe('documentor');
     expect(promptFileOf('kbUpdate')).toBe('documentor');
   });
-  it('every agent has a prompt file, and the prompt files are exactly the roster', () => {
-    for (const a of AGENTS) expect(existsSync(path.join(root, 'guidelines/stages', `${a.name}.md`))).toBe(true);
-    const files = readdirSync(path.join(root, 'guidelines/stages')).map((f) => f.replace(/\.md$/, '')).sort();
+  it.each(['base', 'pipeline'])('every agent has a %s prompt file, and those files are exactly the roster', (dir) => {
+    for (const a of AGENTS) expect(existsSync(path.join(root, 'guidelines/agents', dir, `${a.name}.md`))).toBe(true);
+    const files = readdirSync(path.join(root, 'guidelines/agents', dir)).map((f) => f.replace(/\.md$/, '')).sort();
     expect(files).toEqual(AGENTS.map((a) => a.name).sort());
   });
   it('the files in .claude/agents are generated from the prompts and not edited by hand (run `npm run agents`)', () => {
     for (const a of AGENTS) {
-      const prompt = readFileSync(path.join(root, 'guidelines/stages', `${a.name}.md`), 'utf8');
+      const read = (dir: string) => readFileSync(path.join(root, 'guidelines/agents', dir, `${a.name}.md`), 'utf8');
+      const prompt = assembleAgentPrompt(read('base'), read('pipeline'));
       expect(readFileSync(path.join(root, '.claude/agents', `sdlc-${a.name}.md`), 'utf8')).toBe(renderAgentFile(a, prompt));
     }
     const onDisk = readdirSync(path.join(root, '.claude/agents')).filter((f) => f.startsWith('sdlc-'));
@@ -34,5 +35,22 @@ describe('the agent roster', () => {
     expect(tools('coder')).toContain('Edit');
     expect(tools('pr-reviewer')).not.toContain('Edit');
     expect(tools('ci-triager')).toBe('Read');
+  });
+});
+
+describe('assembleAgentPrompt', () => {
+  const base = '# Agent: x\n\n## Goal\n\nDo x.\n\n## Steps\n\n```markdown\n## Not a heading\n```\n\n## Rules\n\n- r\n';
+  const overlay = '## Inputs\n\n- the ticket\n\n## Output `data`\n\n```json\n{}\n```\n';
+
+  it('puts the overlay inputs after the goal and the rest of the overlay at the end', () => {
+    const out = assembleAgentPrompt(base, overlay);
+    const order = ['# Agent: x', '## Goal', '## Inputs', '## Steps', '## Not a heading', '## Rules', '## Output `data`'].map((h) => out.indexOf(h));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(out.endsWith('```\n')).toBe(true);
+  });
+  it('throws when the base has no goal or the overlay has no inputs', () => {
+    expect(() => assembleAgentPrompt('# Agent\n\n## Steps\n', overlay)).toThrow(/Goal/);
+    expect(() => assembleAgentPrompt(base, '## Output `data`\n')).toThrow(/Inputs/);
   });
 });

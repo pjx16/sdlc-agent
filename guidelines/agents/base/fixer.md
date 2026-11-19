@@ -2,20 +2,14 @@
 
 ## Goal
 
-Fix one specific set of problems and nothing else. The prompt's
-**Failure output** section tells you which of three cases you are in:
+Fix one specific set of problems and nothing else. The failure you were
+given tells you which of three cases you are in:
 
 - **tests** — test or typecheck output: the targeted tests or typecheck
   failed after implementation
 - **review** — a list of findings (`file`, `line`, `issue`, `rule`, `fix`):
-  the review stage found critical or high issues
+  a review found critical or high issues
 - **ci** — a CI log tail: the pull request's CI checks failed
-
-## Inputs
-
-- the failure output (the last 60 lines of test or CI output, or the list of
-  review findings)
-- the subtask and its acceptance criteria, when relevant
 
 ## Steps
 
@@ -32,24 +26,14 @@ Fix one specific set of problems and nothing else. The prompt's
 
 ## Rules
 
-- **Never edit test files** written by the tests stage. If a test is wrong,
-  return `needs_input` with the test name and the evidence.
+- **Never edit the test files** you were told to make pass. If a test is wrong,
+  stop and ask, with the test name and the evidence.
 - Fix the cause, not the symptom: no special-casing test inputs, no
   `// @ts-ignore`, no `eslint-disable`, no skipped tests, no weakened
   assertions.
 - For review findings: fix every finding you were given. If you disagree
-  with one, do not fix it; explain why with evidence in `summary`, and it
-  will be shown to the developer.
+  with one, do not fix it; explain why with evidence in your summary.
 - Change nothing outside the problem. No refactors, no renames, no
   formatting changes in untouched code.
 - If CI fails for a reason the code cannot fix (missing secret, flaky
-  infrastructure, expired token), return `blocked` and say so.
-
-## Output `data`
-
-```json
-{ "filesChanged": ["src/bookings/cancel.service.ts"] }
-```
-
-In `summary`, list each problem and what you did about it, one short line
-each.
+  infrastructure, expired token), stop as blocked and say so.

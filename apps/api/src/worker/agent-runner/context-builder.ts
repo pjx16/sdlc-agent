@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { promptFileOf, type ClaudeMdMode, type ProjectStack, type StageName } from '@sdlc/shared';
+import { assembleAgentPrompt, promptFileOf, type ClaudeMdMode, type ProjectStack, type StageName } from '@sdlc/shared';
 import { CLAUDE_MD_FILES, buildStageJson, hidesRepoClaudeMd, includesOurClaudeMd, type StageConfigInput, type StageJson } from './stage-config';
 
 export interface TicketInfo {
@@ -307,14 +307,23 @@ async function readIfExists(file: string): Promise<string | null> {
   return existsSync(file) ? (await readFile(file, 'utf8')).trim() : null;
 }
 
-/** `system.md`: the stack guideline, plus our default CLAUDE.md in modes ours and both. */
+/** A stage's instructions: its agent's base prompt with the pipeline overlay, or the base alone when there is no overlay. */
+async function readStageInstructions(guidelinesDir: string, stage: StageName): Promise<string | null> {
+  const name = `${promptFileOf(stage)}.md`;
+  const base = await readIfExists(path.join(guidelinesDir, 'agents', 'base', name));
+  if (!base) return null;
+  const overlay = await readIfExists(path.join(guidelinesDir, 'agents', 'pipeline', name));
+  return overlay ? assembleAgentPrompt(base, overlay).trim() : base;
+}
+
+/** `system.md`: the stack guideline, plus the shared agent rules and our default CLAUDE.md in modes ours and both. */
 export async function buildSystemMd(guidelinesDir: string, stack: ProjectStack, mode: ClaudeMdMode): Promise<string> {
   const parts: string[] = [];
   const stackGuideline = await readIfExists(path.join(guidelinesDir, 'stacks', STACK_FILE[stack]));
   if (stackGuideline) parts.push(`# Stack guideline\n\n${stackGuideline}`);
   if (includesOurClaudeMd(mode)) {
-    const ours = await readIfExists(path.join(guidelinesDir, 'default-CLAUDE.md'));
-    if (ours) parts.push(`# Project instructions\n\n${ours}`);
+    const ours = [await readIfExists(path.join(guidelinesDir, 'agents', 'shared-rules.md')), await readIfExists(path.join(guidelinesDir, 'default-CLAUDE.md'))].filter(Boolean);
+    if (ours.length) parts.push(`# Project instructions\n\n${ours.join('\n\n')}`);
   }
   return parts.join('\n\n');
 }
@@ -346,7 +355,7 @@ export async function buildStageContext(input: BuildContextInput): Promise<Built
 
   const attempt = input.config.attempt ?? 1;
   const stageJson = buildStageJson(input.config);
-  const instructions = await readIfExists(path.join(input.guidelinesDir, 'stages', `${promptFileOf(input.stage)}.md`));
+  const instructions = await readStageInstructions(input.guidelinesDir, input.stage);
   const stackGuideline = await readIfExists(path.join(input.guidelinesDir, 'stacks', STACK_FILE[input.stack]));
   const { sections, files: contextFiles } = planSections(input.stage, input.inputs);
 

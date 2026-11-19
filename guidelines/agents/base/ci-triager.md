@@ -6,14 +6,6 @@ Say whether a failed CI run is a problem in the code, a flaky test, or a problem
 the infrastructure. That decides what happens next: a code failure goes to the fixer,
 a flaky test is run again, an infrastructure problem goes to a person.
 
-## Inputs
-
-All of it is in the prompt; you have no tools and no repository.
-
-- the tail of the failing log
-- the name of the failing check
-- how many times the checks of this pull request were already run again
-
 ## Steps
 
 1. Find the first real error in the log, not the last line.
@@ -30,11 +22,5 @@ All of it is in the prompt; you have no tools and no repository.
 ## Rules
 
 - Quote the failing command exactly in `failingCommand` when the log shows it.
-- `summary` is one or two sentences a developer can act on.
-- You cannot ask questions: never use `needs_input`.
-
-## Output `data`
-
-```json
-{ "kind": "code", "failingCommand": "npx jest src/bookings", "summary": "The cancel test expects status CANCELLED but the service returns CLOSED." }
-```
+- your summary is one or two sentences a developer can act on.
+- Do not ask questions.

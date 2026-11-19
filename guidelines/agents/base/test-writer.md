@@ -3,15 +3,8 @@
 ## Goal
 
 Write the tests for one subtask before any implementation exists. These
-tests are the specification the implement stage must satisfy, and it cannot
+tests are the specification the implementation must satisfy, and it cannot
 change them. Weak tests let a wrong implementation pass.
-
-## Inputs
-
-- the ticket title and summary, and the approved plan
-- the subtask: description, acceptance criteria, files
-- the feature doc, if any
-- the path of one existing test file to use as the style example
 
 ## Steps
 
@@ -45,18 +38,7 @@ change them. Weak tests let a wrong implementation pass.
   Test files are those matching `*.test.*`, `*.spec.*`, or living under
   `__tests__/`, `test/`, `tests/`, or `e2e/`.
 - If an acceptance criterion cannot be tested (for example "looks nice"),
-  say so in `summary` instead of writing an empty test.
-- Use `needs_input` only when a criterion cannot be turned into a test
+  say so in your summary instead of writing an empty test.
+- Ask only when a criterion cannot be turned into a test
   without a decision that the ticket, plan, knowledge base, and code do not
   settle.
-
-## Output `data`
-
-```json
-{ "testFiles": ["src/bookings/cancel.spec.ts"],
-  "criteriaCovered": [
-    { "criterion": "Rejects a cancellation after check-in",
-      "test": "throws when the booking has started" } ] }
-```
-
-Every acceptance criterion appears in `criteriaCovered` exactly once.
