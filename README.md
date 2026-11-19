@@ -76,7 +76,7 @@ Key points:
 - **Usage gate:** the pipeline pauses at a configurable share of the 5-hour window (default 50%) and the 7-day window (default 80%), with *Resume* and *Ignore usage for this window* actions. Claude's own warning only shows a banner; it does not pause.
 - **GitHub access, per project:** your own personal token (the default), or **sdlc-agent-bot**: you install the sdlc-agent GitHub App on the repository and everything is done in the bot's name with one-hour, single-repository tokens, so no personal token is needed. See [`docs/BOT.md`](./docs/BOT.md).
 - **Knowledge base:** per-feature docs live in the target repository and are looked up through a deterministic index (a ticket is first mapped to a feature), then built or updated by AI stages.
-- **Sixteen agents, one job each:** the prompts are markdown in [`guidelines/stages`](./guidelines/stages) and are also written to `.claude/agents/`.
+- **Sixteen agents, one job each:** the prompts are markdown in [`guidelines/agents`](./guidelines/agents) and are also written to `.claude/agents/`. Eleven of them ship as a [Claude Code plugin](#use-the-agents-in-your-own-claude-code) you can use without the stack.
 - **Onboarding and the inbox:** give a repository URL and the pipeline profiles it (stack, commands, Jira mapping) for you to accept; anything that needs you lands in the inbox, and you can rerun a ticket from any finished stage with a note.
 - **Dashboard:** single-user password login, a live pipeline diagram that shows which step is moving, per-ticket overview (tokens, cost, time, PR size), inbox with the plan and breakdown to read before approving, live logs, settings, guideline editing and charts. Dates and chart axes use your own time zone.
 - **Jira and Confluence:** REST polling with a configurable JQL per project, issue-type routing, and ticket states mapped to Jira statuses. Plans can be published to Confluence. Pasting tickets works with or without Jira.
@@ -209,6 +209,21 @@ The dashboard can be installed as an app that opens in its own window, with its 
 - The stack must be running (`sdlc-agent up` or `docker compose up -d`) for the app window to show anything.
 - Firefox cannot install it.
 
+## Use the agents in your own Claude Code
+
+Eleven of the agents also ship as a Claude Code plugin, `sdlc-subagents`, so you can call them from any session on any
+machine, without running the stack: design, bug investigation, breakdown, tests, implementation, fixes, docs, the three
+reviewers and CI triage. Agents that only make sense inside the pipeline (orchestrator, onboarding advisor, assistant,
+feature mapper, repo profiler) are not in it.
+
+```text
+/plugin install sdlc-subagents --marketplace pjx16/sdlc-agent
+```
+
+On Claude Code before 2.1.275, run `/plugin marketplace add pjx16/sdlc-agent` then `/plugin install sdlc-subagents@sdlc-agent`.
+The plugin's version is the release version. See [`plugins/sdlc-subagents/README.md`](./plugins/sdlc-subagents/README.md)
+for the agents and how to use them.
+
 ## Adding a project
 
 Open **Projects → New** and give a **repository URL** (an HTTPS `github.com` URL such as `https://github.com/acme/billing`) and, optionally, a Jira project key. The pipeline collects the facts (default branch and languages, Jira issue types, statuses and labels, Confluence spaces), asks the repo-profiler and onboarding-advisor agents for a proposal, and shows it for you to review and accept: stack and its install, typecheck and targeted-test commands (the test command must contain `{files}`), knowledge-base folder, Jira status mapping and approval status, issue-type routing, intake label and Confluence space. Everything stays editable on the project page. Choose how the project reaches GitHub (your token or sdlc-agent-bot) and the **CLAUDE.md mode**: `ours` (our defaults; the repository's own `CLAUDE.md` is hidden from Claude), `theirs` (only the repository's) or `both`.
@@ -225,6 +240,7 @@ What the agents are told lives in [`guidelines/`](./guidelines) as markdown, and
 
 - `agents/base/*.md`: what each of the 16 agents does (goal, steps, rules), with nothing about where it runs.
 - `agents/pipeline/*.md`: what each agent gets and returns in the pipeline (inputs, the shape of the answer). A stage's prompt is its base plus this overlay. `npm run agents` regenerates `.claude/agents/` from both; a test fails when they drift.
+- `agents/plugin/*.md` and `agents/plugin-preamble.md`: the same for the [`sdlc-subagents` plugin](#use-the-agents-in-your-own-claude-code), for the agents that ship in it (`plugin: true` in `packages/shared/src/agents.ts`). `npm run agents` regenerates `plugins/sdlc-subagents/` too. Dashboard edits change the pipeline only; the plugin changes with a release.
 - `agents/shared-rules.md`: the rules every agent follows (scope, safety, small context, code standards, evidence, when to ask).
 - `formats/*.md`: the ticket, plan, pull request description, review comments and Jira comments, with `{{placeholders}}`; `npm run formats` rewrites them from the defaults.
 - `stacks/*.md`: conventions for each supported stack, added to every stage's system prompt.
@@ -256,9 +272,12 @@ docker/
   npm-mirror/     Read-only Verdaccio configuration
 deploy/           Compose file shipped in release bundles
 scripts/          up/down scripts, agent and format generators, version bump
+plugins/
+  sdlc-subagents/ Claude Code plugin with the general-purpose agents (generated by npm run agents)
 docs/             Index, configuration, integrations, architecture per version, live runs, the project's own KB
 guidelines/       Default CLAUDE.md, agent prompts, output formats, stack guidelines, review checklist
-.claude/agents/   The 16 agents, generated from guidelines/stages
+.claude/agents/   The 16 agents, generated from guidelines/agents
+.claude-plugin/   Marketplace file listing the sdlc-subagents plugin
 test/fake-claude/ Claude CLI stub used by tests
 ```
 
@@ -291,7 +310,7 @@ Known limitations:
 
 ## Releases and versioning
 
-Versions follow [semantic versioning](https://semver.org/). Releases are tags on `dev`; until `1.0`, breaking changes (database migrations, configuration, API) can happen in any minor release and are marked **Breaking** in [`CHANGELOG.md`](./CHANGELOG.md), so read it before upgrading. Release images are signed and attested; [`SECURITY.md`](./SECURITY.md#verifying-a-release) shows how to verify them. Third-party licences are listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+Versions follow [semantic versioning](https://semver.org/). Releases are tags on `dev`, and each one also publishes the `sdlc-subagents` plugin at the same version (`scripts/bump-version.sh` sets both); until `1.0`, breaking changes (database migrations, configuration, API) can happen in any minor release and are marked **Breaking** in [`CHANGELOG.md`](./CHANGELOG.md), so read it before upgrading. Release images are signed and attested; [`SECURITY.md`](./SECURITY.md#verifying-a-release) shows how to verify them. Third-party licences are listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
 ## Contributing
 

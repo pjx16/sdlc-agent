@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **`sdlc-subagents`, a Claude Code plugin.** Eleven agents (solution architect, bug investigator, technical architect, test writer, coder, fixer, documentor, PR, quality and security reviewers, CI triager) can be called from any Claude Code session, without the stack: `/plugin install sdlc-subagents --marketplace pjx16/sdlc-agent`. This repository is the marketplace (`.claude-plugin/marketplace.json`). The plugin's version is the release version, and each release attaches `sdlc-subagents-<version>.zip`. Pipeline-only agents (orchestrator, onboarding advisor, assistant, feature mapper, repo profiler) are not in it.
+
 ### Security
 
 - **docker-proxy filter bypass fixed.** A request that asked to upgrade was forwarded without `Connection: close`, and later requests on the same connection reached the Docker socket unchecked, including a privileged container create. The proxy now handles one request per connection and only the attach route may upgrade. It also requires the agent image (`ALLOWED_IMAGES`), the `sdlc.agent` label, `CapDrop: ALL`, `no-new-privileges`, a read-only root filesystem, memory and PID limits and a numeric non-root `uid:gid` on every create. It refuses `MaskedPaths`/`ReadonlyPaths` overrides and extra networks. It acts only on containers carrying the agent label, and it sits on its own network shared with the worker only.
@@ -14,6 +18,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Breaking:** Postgres no longer publishes a port in production (`npm run up:prod`) or release installs. Connections from the host to `127.0.0.1:5432` (psql, backups, BI tools) stop working; use `docker compose exec postgres psql -U sdlc sdlc` or `docker compose exec postgres pg_dump -U sdlc sdlc`. Development mode keeps a loopback-only port (`127.0.0.1:5433`) through `docker-compose.dev.yml`.
 
 ### Changed
+
+- **Breaking (customised prompts): agent prompts moved.** `guidelines/stages/<name>.md` is now a base prompt, `guidelines/agents/base/<name>.md` (goal, steps, rules), plus a pipeline overlay, `guidelines/agents/pipeline/<name>.md` (inputs and the shape of the answer). The rules every agent follows moved from `default-CLAUDE.md` to `guidelines/agents/shared-rules.md`; `default-CLAUDE.md` keeps how the pipeline runs and reports, and modes `ours` and `both` include both files as before. Edits made to the old files are not carried over: apply them to the new ones. The prompts say the same things, but the section order and a few words changed.
 
 - **Pull requests are open.** Contributions need a DCO sign-off (`git commit -s`), checked by a new `dco` workflow. `CONTRIBUTING.md` covers the branch model, which tests need Docker, a map of the code and a policy for AI-assisted contributions. New files: `GOVERNANCE.md`, `MAINTAINERS.md`, `SUPPORT.md` and a dev container (`.devcontainer/`). `SECURITY.md` now has response targets, the current threat model (docker-proxy, per-run gateway keys, egress), and how to verify release images. References to the unpublished internal build plan were removed from code comments and tests.
 - **Breaking (release installs): the agent image is built locally.** It contains Claude Code, which is Anthropic's software and not ours to redistribute, so it is no longer published to GHCR. `sdlc-agent up` builds it from the shipped `docker/agent` folder as `sdlc-agent/agent:<version>`, which takes a few minutes the first time. Set `AGENT_IMAGE` to use an image you build and host yourself. The Claude Code version is set in one place, `docker/agent/Dockerfile`.
