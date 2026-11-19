@@ -3,6 +3,7 @@ import { Readable, Transform } from 'node:stream';
 import { Injectable, Logger } from '@nestjs/common';
 import { CredentialsService } from '../../credentials/credentials.service';
 import { WorkerConfig } from '../worker-config';
+import { GatewayTokens } from './gateway-tokens';
 
 /** The only calls an agent may make to Anthropic. Anything else (the Files API, batches, admin calls) is refused. */
 const ALLOWED = new Set(['POST /v1/messages', 'POST /v1/messages/count_tokens']);
@@ -19,7 +20,8 @@ const refuse = (res: ServerResponse, status: number, message: string): void => {
 /**
  * The Claude token never enters an agent container. Agents call this gateway (ANTHROPIC_BASE_URL) on the agent network; it drops whatever
  * credentials the agent sent, adds the subscription token itself and forwards `POST /v1/messages` to Anthropic, nothing else.
- * An agent that reads its own environment finds no token, and cannot use the gateway for anything but messages.
+ * An agent that reads its own environment finds no token, and cannot use the gateway for anything but messages. Each request must carry
+ * the per-run key from GatewayTokens, so nothing but a running stage can use it.
  */
 @Injectable()
 export class LlmGateway {
@@ -29,6 +31,7 @@ export class LlmGateway {
   constructor(
     private readonly config: WorkerConfig,
     private readonly creds: CredentialsService,
+    private readonly tokens: GatewayTokens,
   ) {}
 
   /** Replaced in tests. (Not a constructor argument: Nest would try to inject it.) */
@@ -56,6 +59,10 @@ export class LlmGateway {
   private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://gateway');
     if (!ALLOWED.has(`${req.method} ${url.pathname}`)) return refuse(res, 403, 'Only POST /v1/messages is allowed');
+    // The per-run key the agent runner gave this container (Claude Code sends ANTHROPIC_API_KEY as x-api-key).
+    const bearer = /^Bearer (.+)$/i.exec(String(req.headers.authorization ?? ''))?.[1];
+    const key = typeof req.headers['x-api-key'] === 'string' ? req.headers['x-api-key'] : bearer;
+    if (!this.tokens.isLive(key)) return refuse(res, 401, 'Unknown or expired gateway key');
     const token = (await this.creds.resolve()).claude_token;
     if (!token) return refuse(res, 503, 'No Claude token is set');
 
