@@ -115,8 +115,10 @@ jobs:
           push: false
           load: true
           tags: sdlc-agent-ci/${{ matrix.name }}:pr
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+          # Always a fresh build on the latest base: a cached apt/apk layer would never pick up security fixes, and the scan below
+          # would judge a stale image.
+          no-cache: true
+          pull: true
       # The same gate as the release (fixable HIGH and CRITICAL), so a pull request finds out before a tag does.
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
