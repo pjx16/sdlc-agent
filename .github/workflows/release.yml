@@ -119,13 +119,22 @@ jobs:
           cp -R guidelines "${dir}/guidelines"
           cp LICENSE README.md CHANGELOG.md SECURITY.md THIRD_PARTY_NOTICES.md "${dir}/"
           tar -czf "${dir}.tar.gz" "${dir}"
-          sha256sum "${dir}.tar.gz" > SHA256SUMS
+          # The sdlc-subagents Claude Code plugin, for installs without the marketplace (claude --plugin-dir). It is generated
+          # by `npm run agents` and committed; a test fails when it drifts, so it is zipped as it is in the repository.
+          PLUGIN_VERSION=$(node -p "require('./plugins/sdlc-subagents/.claude-plugin/plugin.json').version")
+          if [ "${PLUGIN_VERSION}" != "${VERSION}" ]; then
+            echo "plugins/sdlc-subagents/.claude-plugin/plugin.json is ${PLUGIN_VERSION} but the tag is ${VERSION} (bump packages/cli/package.json, then npm run agents)" >&2
+            exit 1
+          fi
+          (cd plugins && zip -qr "../sdlc-subagents-${VERSION}.zip" sdlc-subagents)
+          sha256sum "${dir}.tar.gz" "sdlc-subagents-${VERSION}.zip" > SHA256SUMS
           cat SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bundle
           path: |
             sdlc-agent-*.tar.gz
+            sdlc-subagents-*.zip
             SHA256SUMS
           if-no-files-found: error
 
@@ -200,7 +209,7 @@ jobs:
           # While the major version is 0 the release is a pre-release.
           PRERELEASE=false
           case "${VERSION}" in 0.*) PRERELEASE=true ;; esac
-          files=("dist/sdlc-agent-${VERSION}.tar.gz" dist/SHA256SUMS)
+          files=("dist/sdlc-agent-${VERSION}.tar.gz" "dist/sdlc-subagents-${VERSION}.zip" dist/SHA256SUMS)
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             # The release already exists (created from the GitHub UI when the tag was made): fill it in instead of failing.
             gh release edit "${TAG}" --repo "${GITHUB_REPOSITORY}" --title "${TAG}" --notes-file notes.md --prerelease="${PRERELEASE}"
