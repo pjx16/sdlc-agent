@@ -9,6 +9,7 @@
 //
 // Entry: { edits: [{ path, content }], deletes: [], result: <stage envelope>, usage: {...}, rateLimit?: {...},
 //          exitCode?, delayMs?, subtype?: "error_max_turns", fenced?: true, noResult?: true, leakEnv?: ["NAME"],
+//          apiError?: { status, message } (an API error result, like a 400 for a low credit balance),
 //          promptMatches?: "regex" }
 //   promptMatches selects the entry by the prompt text; attempt n then picks among the matching entries.
 //   leakEnv prints those environment variables in the assistant text, to test that logs are redacted.
@@ -83,7 +84,9 @@ const emit = (value) => process.stdout.write(`${JSON.stringify(value)}\n`);
 
   if (!entry.noResult) {
     const base = { type: 'result', num_turns: entry.numTurns ?? 2, duration_ms: 1, total_cost_usd: entry.costUsd ?? 0.001, session_id: sessionId, usage };
-    if (entry.subtype === 'error_max_turns') {
+    if (entry.apiError) {
+      emit({ ...base, subtype: 'error_during_execution', is_error: true, result: entry.apiError.message, api_error_status: entry.apiError.status, errors: [entry.apiError.message] });
+    } else if (entry.subtype === 'error_max_turns') {
       emit({ ...base, subtype: 'error_max_turns', is_error: true, terminal_reason: 'max_turns', result: null, errors: ['Reached maximum number of turns'] });
     } else if (entry.fenced) {
       emit({ ...base, subtype: 'success', is_error: false, result: `Done.\n\`\`\`json\n${JSON.stringify(entry.result)}\n\`\`\`` });

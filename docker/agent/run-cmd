@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs one verification command (install, typecheck, tests) in the workspace, without the Claude token.
+# Runs one verification command (install, typecheck, tests) in the workspace, without the Anthropic API key.
 # CMD is the command line; VERIFY_TIMEOUT (seconds, default 600) bounds it. Exit code 124 means timeout.
 set -uo pipefail
 # See run-stage: what installs and tests create in the shared workspace must stay accessible to the worker's user.

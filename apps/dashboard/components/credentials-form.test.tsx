@@ -8,7 +8,7 @@ const refresh = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
 
 const view = (key: CredentialView['key'], over: Partial<CredentialView> = {}): CredentialView => ({ key, source: 'unset', hint: null, verifiedAt: null, verifyError: null, updatedAt: null, ...over });
-const ALL: CredentialView['key'][] = ['claude_token', 'github_token', 'git_author_name', 'git_author_email', 'jira_base_url', 'jira_email', 'jira_api_token', 'jira_mcp_url', 'jira_mcp_token', 'jira_mcp_oauth', 'jira_cloud_id'];
+const ALL: CredentialView['key'][] = ['anthropic_api_key', 'github_token', 'git_author_name', 'git_author_email', 'jira_base_url', 'jira_email', 'jira_api_token', 'jira_mcp_url', 'jira_mcp_token', 'jira_mcp_oauth', 'jira_cloud_id'];
 const views = (over: Partial<Record<CredentialView['key'], Partial<CredentialView>>> = {}) => ALL.map((k) => view(k, over[k]));
 const card = (id: string) => within(screen.getByTestId(`card-${id}`));
 const fetchMock = vi.fn();
@@ -55,9 +55,9 @@ describe('CredentialsForm', () => {
   });
 
   it('pre-fills plain values so they can be edited, and shows a value set in .env as read-only', () => {
-    render(<CredentialsForm initial={views({ git_author_name: { source: 'db', hint: 'Dev Bot' }, claude_token: { source: 'env', hint: 'abcd' } })} />);
+    render(<CredentialsForm initial={views({ git_author_name: { source: 'db', hint: 'Dev Bot' }, anthropic_api_key: { source: 'env', hint: 'abcd' } })} />);
     expect((screen.getByLabelText('Git author name') as HTMLInputElement).value).toBe('Dev Bot');
-    expect(screen.getByLabelText('Claude token')).toBeDisabled();
+    expect(screen.getByLabelText('Anthropic API key')).toBeDisabled();
     expect(card('claude').queryByRole('button', { name: 'Save' })).toBeNull();
   });
 

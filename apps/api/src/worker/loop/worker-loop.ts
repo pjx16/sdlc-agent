@@ -12,6 +12,7 @@ import { STEP_HANDLERS, type StepHandler, type StepOutcome } from '../pipeline/s
 import { logLine } from '../../common/log-context';
 import { recordTick, setPhase } from '../status/worker-status';
 import { Schedule } from './schedule';
+import type { BudgetGatePort } from '../usage/budget-gate';
 
 /** A recurring part of housekeeping, run when its interval has passed (CI checks, PR state). */
 export interface Housekeeper {
@@ -57,6 +58,7 @@ export class WorkerLoop {
     @Optional() private readonly rerunPrep?: { prepare(ticket: Ticket): Promise<StepOutcome | null> },
     @Optional() private readonly orchestrator?: { review(ticket: Ticket, outcome: StepOutcome): Promise<StepOutcome> },
     @Optional() private readonly recovery?: { attempt(ticket: Ticket, held: Extract<StepOutcome, { kind: 'hold' }>): Promise<StepOutcome | null> },
+    @Optional() private readonly budgets?: BudgetGatePort,
   ) {
     this.schedule = new Schedule(now);
   }
@@ -86,12 +88,13 @@ export class WorkerLoop {
       }
 
       let settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-      // A pause caused by Claude's rate or usage limit ends by itself at the reset time.
-      if (settings?.pipelinePaused && (settings.pausedCode === 'CLAUDE_RATE_LIMIT' || settings.pausedCode === 'CLAUDE_USAGE_LIMIT') && settings.resetsAt && settings.resetsAt.getTime() <= this.now()) {
+      // A pause for a spent budget ends by itself when the next budget period starts.
+      if (settings?.pipelinePaused && settings.pausedCode === 'SPEND_BUDGET_REACHED' && settings.resetsAt && settings.resetsAt.getTime() <= this.now()) {
         settings = await this.prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null } });
-        await this.prisma.event.create({ data: { type: 'usage', message: 'Claude limit reset: the pipeline resumes' } }).catch(() => undefined);
+        await this.prisma.event.create({ data: { type: 'usage', message: 'A new budget period started: the pipeline resumes' } }).catch(() => undefined);
       }
-      if (settings?.pipelinePaused) {
+      // Before a step, not only after one: a step must not start once a budget is used up.
+      if (settings?.pipelinePaused || (await this.budgets?.check())) {
         await phase('paused');
         return (outcome = 'paused');
       }

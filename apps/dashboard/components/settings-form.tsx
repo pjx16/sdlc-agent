@@ -57,10 +57,15 @@ export function SettingsForm({ settings }: { settings: GlobalSettingsView }) {
   return (
     <FormProvider value={{ values, errors, set }}>
       <form onSubmit={submit} className="max-w-4xl space-y-6" noValidate>
-        <Section title="Usage gate" description="The pipeline pauses when usage passes these thresholds (percent of the plan window).">
-          <Num path="usageThresholdPct" label="5-hour threshold (%)" />
-          <Num path="usageThresholdWeeklyPct" label="Weekly threshold (%)" />
-          <Num path="calibratedWindowTokens" label="Calibrated window tokens" hint="Optional. Leave empty if not calibrated." />
+        <Section
+          title="Budgets"
+          description="Credits the pipeline may spend (1 credit = 1 USD of Anthropic credit balance). When one is used up the pipeline pauses until the next period starts. Leave a budget empty for no limit."
+        >
+          <Num path="budgetDailyCredits" label="Daily budget (credits)" />
+          <Num path="budgetWeeklyCredits" label="Weekly budget (credits)" hint="Monday to Sunday." />
+          <Num path="budgetMonthlyCredits" label="Monthly budget (credits)" />
+          <Num path="budgetWarnPct" label="Warn at (% of a budget)" />
+          <Text path="timezone" label="Timezone" hint="IANA name, like Asia/Kolkata. Days, weeks and months are counted here." />
         </Section>
 
         <Section title="Polling and timeouts">

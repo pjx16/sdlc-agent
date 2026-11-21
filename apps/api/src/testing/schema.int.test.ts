@@ -4,7 +4,7 @@ import { type TestDatabase, createTestDatabase } from './test-db';
 
 const MODELS = [
   'Project', 'GlobalSettings', 'Ticket', 'StateTransition', 'Subtask', 'StageRun',
-  'ReviewFinding', 'SupportTicket', 'UsageSnapshot', 'Event', 'Session', 'Credential', 'AdminAccount',
+  'ReviewFinding', 'SupportTicket', 'Event', 'Session', 'Credential', 'AdminAccount',
 ];
 
 describe('data model', () => {

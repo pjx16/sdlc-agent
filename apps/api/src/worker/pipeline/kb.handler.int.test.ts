@@ -160,12 +160,11 @@ describe('NEW and KB step handlers', () => {
       expect((await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).status).not.toBe('FAILED');
     });
 
-    it('pauses the pipeline on a rate limit and leaves the ticket where it is', async () => {
+    it('pauses the pipeline on a low credit balance and leaves the ticket where it is', async () => {
       await prisma.globalSettings.deleteMany();
       const t = await ticket();
-      const resetsAt = new Date('2026-12-01T00:00:00Z');
-      expect(await outcomes().forResult(t.id, 'plan', { kind: 'rate_limited', resetsAt, stageRunId: 'x', attempts: 1 })).toEqual({ kind: 'stay' });
-      expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: true, pausedReason: expect.stringContaining('usage limit'), pausedCode: 'CLAUDE_USAGE_LIMIT', resetsAt });
+      expect(await outcomes().forResult(t.id, 'plan', { kind: 'out_of_credits', stageRunId: 'x', attempts: 1 })).toEqual({ kind: 'stay' });
+      expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: true, pausedReason: expect.stringContaining('credit balance'), pausedCode: 'CLAUDE_CREDITS', resetsAt: null });
     });
   });
 });

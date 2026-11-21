@@ -75,7 +75,7 @@ describe('subtask TDD loop end to end (real containers, fake-claude)', () => {
     mkdirSync(dataDir, { recursive: true });
     chmodSync(dataDir, 0o777);
     const config = new WorkerConfig({
-      DATA_DIR: dataDir, DATABASE_URL: db.url, CLAUDE_CODE_OAUTH_TOKEN: 'fake-token', GUIDELINES_DIR: path.join(ROOT, 'guidelines'), TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com',
+      DATA_DIR: dataDir, DATABASE_URL: db.url, ANTHROPIC_API_KEY: 'fake-token', GUIDELINES_DIR: path.join(ROOT, 'guidelines'), TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com',
       AGENT_EXTRA_BINDS: `${ROOT}/test/fake-claude/claude:/usr/local/bin/claude:ro,${ROOT}/test/fake-claude:/fake-claude:ro`,
       AGENT_EXTRA_ENV: `FAKE_SCENARIO=${scenario},FAKE_SCENARIOS_DIR=/fake-claude/scenarios`,
     } as NodeJS.ProcessEnv);
@@ -87,7 +87,7 @@ describe('subtask TDD loop end to end (real containers, fake-claude)', () => {
     const git = new GitRunner({ token: async () => '' });
     const verify = new VerifyService(containers, config);
     const workspaces = new WorkspaceService(prisma, config, git, verify, staticCredentials());
-    const agent = new AgentRunner(containers, config, staticCredentials({ claude_token: 'fake-token' }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ claude_token: 'fake-token' })));
+    const agent = new AgentRunner(containers, config, staticCredentials({ anthropic_api_key: 'fake-token' }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ anthropic_api_key: 'fake-token' })));
     const launcher = new StageLauncher(prisma, config, agent);
     const outcomes = new StageOutcomes(prisma);
     const github = new FakeGitHub();

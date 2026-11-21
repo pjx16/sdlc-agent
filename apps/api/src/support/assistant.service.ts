@@ -66,7 +66,7 @@ export class AssistantService {
   private async blocked(conversation: { tokens: number; pendingAt: Date | null } | null): Promise<{ reason: string | null; cap: number }> {
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     const cap = settings?.assistantTokenCap ?? 200_000;
-    if (settings?.pipelinePaused && settings.pausedReason !== 'manual') return { reason: `The pipeline is paused (${settings.pausedReason ?? 'usage limit'}), so the assistant is paused too. It comes back when the pipeline resumes.`, cap };
+    if (settings?.pipelinePaused && settings.pausedReason !== 'manual') return { reason: `The pipeline is paused (${settings.pausedReason ?? 'paused'}), so the assistant is paused too. It comes back when the pipeline resumes.`, cap };
     if (conversation && conversation.tokens >= cap) return { reason: `This conversation used its ${cap.toLocaleString('en-US')} token budget. Raise the assistant token cap in Settings to go on.`, cap };
     if (conversation?.pendingAt) return { reason: 'The assistant is still answering your last message.', cap };
     return { reason: null, cap };

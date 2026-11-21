@@ -4,7 +4,7 @@ import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { TicketsModule } from '../tickets/tickets.module';
 
 const TOKEN = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';
-const CLAUDE = 'sk-ant-oat01-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123';
+const CLAUDE = 'sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123';
 
 describe('Secrets never reach the dashboard', () => {
   let db: TestDatabase;

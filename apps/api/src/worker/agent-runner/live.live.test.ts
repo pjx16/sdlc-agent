@@ -12,7 +12,7 @@ import { DockerodeEngine } from './container-engine';
 import { ContainerRunner } from './container-runner';
 import { FileLogSink } from './file-log-sink';
 
-const live = Boolean(process.env.LIVE_CLAUDE && process.env.CLAUDE_CODE_OAUTH_TOKEN);
+const live = Boolean(process.env.LIVE_CLAUDE && process.env.ANTHROPIC_API_KEY);
 const ROOT = path.resolve(__dirname, '../../../../..');
 
 /** One trivial real prompt through the whole path: container, proxy, real Claude Code, parser, redaction. Costs a few cents of usage. */
@@ -25,10 +25,10 @@ describe.skipIf(!live)('live smoke test (LIVE_CLAUDE=1)', () => {
   afterAll(() => rmSync(dataDir, { recursive: true, force: true }));
 
   it('runs a trivial prompt with the real Claude CLI and returns a valid, redacted result', async () => {
-    const token = process.env.CLAUDE_CODE_OAUTH_TOKEN as string;
-    const config = new WorkerConfig({ DATA_DIR: dataDir, DATABASE_URL: 'unused', CLAUDE_CODE_OAUTH_TOKEN: token, GUIDELINES_DIR: path.join(ROOT, 'guidelines') } as NodeJS.ProcessEnv);
+    const token = process.env.ANTHROPIC_API_KEY as string;
+    const config = new WorkerConfig({ DATA_DIR: dataDir, DATABASE_URL: 'unused', ANTHROPIC_API_KEY: token, GUIDELINES_DIR: path.join(ROOT, 'guidelines') } as NodeJS.ProcessEnv);
     const store = new MemoryStore();
-    const runner = new AgentRunner(new ContainerRunner(new DockerodeEngine(docker)), config, staticCredentials({ claude_token: 'fake-token' }), store, new FileLogSink(config, staticCredentials({ claude_token: 'fake-token' })));
+    const runner = new AgentRunner(new ContainerRunner(new DockerodeEngine(docker)), config, staticCredentials({ anthropic_api_key: 'fake-token' }), store, new FileLogSink(config, staticCredentials({ anthropic_api_key: 'fake-token' })));
     const workspace = path.join(dataDir, 'ws');
     mkdirSync(workspace);
     chmodSync(workspace, 0o777);

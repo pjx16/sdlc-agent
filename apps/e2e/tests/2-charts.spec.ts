@@ -12,7 +12,7 @@ async function login(page: Page) {
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
 }
 
-const CHARTS = ['Usage over time', 'Tokens by stage', 'Pull requests merged', 'Lines changed', 'Tickets by state', 'Findings by severity', 'Stage duration'];
+const CHARTS = ['Spend over time', 'Tokens by stage', 'Pull requests merged', 'Lines changed', 'Tickets by state', 'Findings by severity', 'Stage duration'];
 const figure = (page: Page, title: string) => page.locator('figure', { has: page.getByText(title, { exact: true }) });
 
 test('with data: every chart renders, has a text alternative, and its data as a table', async ({ page }) => {
@@ -49,10 +49,13 @@ test('the ticket timeline shows one bar per run, and its data', async ({ page })
   await expect(fig.getByRole('cell', { name: 'failed' })).toBeVisible();
 });
 
-test('the usage page lists the snapshots', async ({ page }) => {
+test('the usage page shows the budgets, the spend rate and the credits by stage', async ({ page }) => {
   await login(page);
   await page.goto('/usage');
-  await expect(page.getByRole('table').filter({ hasText: 'allowed_warning' }).first()).toBeVisible();
+  await expect(page.getByTestId('budget-daily')).toContainText('credits');
+  await expect(page.getByTestId('month-projection')).toBeVisible();
+  await expect(figure(page, 'Spend rate')).toBeVisible();
+  await expect(page.getByRole('table').filter({ hasText: 'Credits' }).first()).toBeVisible();
 });
 
 test('without data: every chart shows an empty state instead of a chart', async ({ page }) => {
@@ -60,14 +63,13 @@ test('without data: every chart shows an empty state instead of a chart', async 
     await c.query('DELETE FROM "ReviewFinding"');
     await c.query('DELETE FROM "SupportTicket"');
     await c.query('DELETE FROM "StageRun"');
-    await c.query('DELETE FROM "UsageSnapshot"');
     await c.query(`DELETE FROM "Event"`);
     await c.query('DELETE FROM "StateTransition"');
     await c.query('DELETE FROM "Ticket"');
   });
   await login(page);
   const expected: Record<string, RegExp> = {
-    'Usage over time': /No usage recorded/, 'Tokens by stage': /No tokens used/, 'Pull requests merged': /No pull request was merged/, 'Lines changed': /No merged pull request with line counts/, 'Tickets by state': /No tickets yet/, 'Findings by severity': /No review findings/, 'Stage duration': /No stage has finished/,
+    'Spend over time': /Nothing spent in this range/, 'Tokens by stage': /No tokens used/, 'Pull requests merged': /No pull request was merged/, 'Lines changed': /No merged pull request with line counts/, 'Tickets by state': /No tickets yet/, 'Findings by severity': /No review findings/, 'Stage duration': /No stage has finished/,
   };
   for (const title of CHARTS) {
     const fig = figure(page, title);

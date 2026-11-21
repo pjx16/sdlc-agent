@@ -33,6 +33,6 @@ describe('PauseBanner with an error code', () => {
   it('names Claude and says what to do', () => {
     render(<PauseBanner code="CLAUDE_AUTH" reason="Claude rejected the credential. Update it in Settings → Connections." resetsAt={null} />);
     expect(screen.getByTestId('error-source')).toHaveTextContent('Claude');
-    expect(screen.getByText(/Update the Claude token/)).toBeInTheDocument();
+    expect(screen.getByText(/Update the Anthropic API key/)).toBeInTheDocument();
   });
 });

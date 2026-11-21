@@ -17,7 +17,8 @@ A stand-in for the `claude` CLI so tests never call a real model.
 | `turn-limit` | `solutionDesign` ends with `error_max_turns` |
 | `needs-input` | `solutionDesign` asks a question |
 | `rate-limit` | `solutionDesign` is rejected by the rate limiter |
-| `leak` | `solutionDesign` prints `CLAUDE_CODE_OAUTH_TOKEN` in its output (tests log redaction) |
+| `out-of-credits` | `solutionDesign` fails with a 400: the credit balance is too low |
+| `leak` | `solutionDesign` prints `ANTHROPIC_API_KEY` in its output (tests that the real key never reaches the container) |
 | `kb-new` | `kbBuild` writes a new doc and also edits a file outside the KB directory |
 | `kb-existing` | `kbBuild` selects the existing `bookings` key |
 | `kb-bad-key` | `kbBuild` returns `isNew: false` with a key that is not in the index |

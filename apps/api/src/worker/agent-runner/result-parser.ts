@@ -37,7 +37,7 @@ export interface ParsedStream {
   /** Human-readable reason for any non-ok kind. */
   error?: string;
   usage: StageUsage;
-  /** The latest rate_limit_event of the run (kept for the usage gate). */
+  /** The latest rate_limit_event of the run (a rejected one means the run was rate limited). */
   rateLimit: RateLimit | null;
   /** The raw `result` line, for resultJson. */
   result: Record<string, unknown> | null;
@@ -145,5 +145,5 @@ export function isRateLimited(parsed: ParsedStream): boolean {
   if (parsed.rateLimit?.status === 'rejected') return true;
   const r = parsed.result;
   if (r?.api_error_status === 429) return true;
-  return parsed.kind === 'error' && /usage limit|rate.?limit/i.test(parsed.error ?? '');
+  return parsed.kind === 'error' && /rate.?limit/i.test(parsed.error ?? '');
 }

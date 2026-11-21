@@ -7,6 +7,8 @@ import { AttentionTitle } from './attention-title';
 import { Sidebar } from './sidebar';
 import { PauseBanner } from './pause-banner';
 import { UsageWarningBanner } from './usage-warning-banner';
+import { BudgetApprovalBanner } from './budget-approval-banner';
+import { needsBudgetApproval } from '@/lib/budgets';
 import { SetupBanner } from './setup-banner';
 import type { SetupStatus } from '@sdlc/shared';
 
@@ -36,6 +38,7 @@ export async function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
         {setup && !setup.ready && <SetupBanner missing={setup.missing} adminCreated={setup.adminCreated} />}
+        {system && needsBudgetApproval(system) && <BudgetApprovalBanner suggested={system.spend.suggested} />}
         {!system?.settings.pipelinePaused && <UsageWarningBanner system={system} />}
         {system?.settings.pipelinePaused && <PauseBanner code={system.settings.pausedCode} reason={system.settings.pausedReason} resetsAt={system.settings.resetsAt} />}
         <main className="flex-1 p-8">{children}</main>

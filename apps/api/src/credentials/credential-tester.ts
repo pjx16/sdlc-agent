@@ -10,6 +10,8 @@ export interface TestResult {
 
 export interface TesterOptions {
   githubApiUrl?: string;
+  /** Where the Anthropic API is reached: LLM_GATEWAY_UPSTREAM, the same upstream the worker's LLM gateway uses. */
+  anthropicApiUrl?: string;
   fetch?: typeof fetch;
   /** What the Rovo MCP sign-in can see; tests replace it. */
   describeMcp?: () => Promise<{ cloudId: string; site: string | null; tools: string[] }>;
@@ -19,10 +21,11 @@ export const TESTER_OPTIONS = Symbol('TESTER_OPTIONS');
 
 const TIMEOUT_MS = 10_000;
 
-/** Connection tests run in the API (it has outbound internet); the Claude token can only be verified by a stage run in the worker. */
+/** Connection tests run in the API (it has outbound internet). */
 @Injectable()
 export class CredentialTester {
   private readonly githubApi: string;
+  private readonly anthropicApi: string;
   private readonly fetchImpl: typeof fetch;
   private readonly describeMcp: NonNullable<TesterOptions['describeMcp']>;
 
@@ -31,6 +34,7 @@ export class CredentialTester {
     options: TesterOptions = {},
   ) {
     this.githubApi = (options.githubApiUrl ?? 'https://api.github.com').replace(/\/+$/, '');
+    this.anthropicApi = (options.anthropicApiUrl ?? 'https://api.anthropic.com').replace(/\/+$/, '');
     this.fetchImpl = options.fetch ?? fetch;
     // A fresh client each time: the test must use the credentials as they are now.
     this.describeMcp = options.describeMcp ?? (async () => (await new JiraClients(this.creds).mcpClient()).describe());
@@ -83,11 +87,14 @@ export class CredentialTester {
         if (res.status === 401 || res.status === 403) return { ok: false, message: 'Jira rejected the credentials' };
         return { ok: false, message: `Jira answered ${res.status}` };
       }
-      case 'claude_token': {
-        if (!c.claude_token) return { ok: false, message: 'No Claude token is set' };
-        return CredentialValueSchemas.claude_token.safeParse(c.claude_token).success
-          ? { ok: true, message: 'Format OK — verified on the first stage run' }
-          : { ok: false, message: 'The token does not look like a Claude token' };
+      case 'anthropic_api_key': {
+        if (!c.anthropic_api_key) return { ok: false, message: 'No Anthropic API key is set' };
+        if (!CredentialValueSchemas.anthropic_api_key.safeParse(c.anthropic_api_key).success) return { ok: false, message: 'The value does not look like an Anthropic API key' };
+        // Listing the models is free and needs only a valid key.
+        const res = await this.get(`${this.anthropicApi}/v1/models?limit=1`, { 'x-api-key': c.anthropic_api_key, 'anthropic-version': '2023-06-01', Accept: 'application/json' });
+        if (res.ok) return { ok: true, message: 'Anthropic accepted the API key' };
+        if (res.status === 401 || res.status === 403) return { ok: false, message: 'Anthropic rejected the API key' };
+        return { ok: false, message: `Anthropic answered ${res.status}` };
       }
       case 'broker_url':
       case 'broker_key': {

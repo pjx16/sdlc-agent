@@ -37,7 +37,7 @@ You stay in control at two points only: plan approval and merge. Anything else t
 
 Turning tickets into reviewable PRs should take little hand-holding. This project aims to do that while:
 
-- keeping AI usage efficient (one AI stage at a time, capped turns, small prompts, the right model per stage, and a usage gate that pauses the pipeline), and
+- keeping AI usage efficient (one AI stage at a time, capped turns, small prompts, the right model per stage, and spend budgets that pause the pipeline), and
 - never exposing your machine, GitHub credentials or Jira credentials to AI agents.
 
 Anyone can clone the repository and run it with Docker Compose on macOS or a Linux VM.
@@ -73,7 +73,7 @@ Key points:
 - **Support queries:** an agent can ask you a question. The ticket goes on hold and the next ticket starts while you answer.
 - **Self-recovery:** when a step gets stuck (for example a test that fails for the wrong reason), the orchestrator reads the failure and tries again with a note it writes, up to a limit you set (default 3), before it asks you. Every decision is stored, shown on the ticket's Decisions tab and commented on the Jira ticket. A push blocked by the pipeline's own earlier attempt is replaced under a lease; commits by anyone else never are.
 - **Reviewable PRs:** the branch's changed lines are measured after every subtask against a soft (600) and a hard (1500) limit, both set per project. Crossing them is reported to Jira and, at the hard limit, on the PR with the size of each commit. Nothing is blocked.
-- **Usage gate:** the pipeline pauses at a configurable share of the 5-hour window (default 50%) and the 7-day window (default 80%), with *Resume* and *Ignore usage for this window* actions. Claude's own warning only shows a banner; it does not pause.
+- **Spend budgets:** the pipeline runs on an Anthropic API key and is billed per token. Set daily, weekly and monthly budgets in credits (1 credit = 1 USD of Anthropic credit balance), counted in your timezone. When one is used up the pipeline pauses until the next period starts, with *Resume* and *Ignore budgets until then* actions. A banner warns at 80% of a budget (configurable). The Usage page shows spend against each budget, the spend rate, a month-end projection and the average cost per ticket.
 - **GitHub access, per project:** your own personal token (the default), or **sdlc-agent-bot**: you install the sdlc-agent GitHub App on the repository and everything is done in the bot's name with one-hour, single-repository tokens, so no personal token is needed. See [`docs/BOT.md`](./docs/BOT.md).
 - **Knowledge base:** per-feature docs live in the target repository and are looked up through a deterministic index (a ticket is first mapped to a feature), then built or updated by AI stages.
 - **Sixteen agents, one job each:** the prompts are markdown in [`guidelines/agents`](./guidelines/agents) and are also written to `.claude/agents/`. Eleven of them ship as a [Claude Code plugin](#use-the-agents-in-your-own-claude-code) you can use without the stack.
@@ -96,8 +96,8 @@ The integrations are described in [`docs/TRACKER.md`](./docs/TRACKER.md) and [`d
 
 This tool runs AI-generated code and holds a GitHub token. The short version; the full threat model and residual risks are in [`SECURITY.md`](./SECURITY.md).
 
-- **Agents only edit files.** Agent containers run as a non-root user with all capabilities dropped, `no-new-privileges`, resource limits and a timeout, with no Docker socket, **no Claude token** and no GitHub or Jira credentials (Jira connector mode's `jiraConnector` stage alone holds a claude.ai login, see [TRACKER.md](docs/TRACKER.md#credential-boundary)). The workspace's `.git` is mounted read-only.
-- **Model calls go through an LLM gateway** inside the worker, which adds the Claude token and forwards only `POST /v1/messages`, and only with the key it gave that run's container. **npm goes through a read-only mirror**, so an agent cannot publish. The egress proxy allows only Prisma's binary host. The worker reaches Docker through a **filtering `docker-proxy`** on a network of its own. It requires the agent image and the full sandbox on every container it starts, and it only touches containers carrying the agent label.
+- **Agents only edit files.** Agent containers run as a non-root user with all capabilities dropped, `no-new-privileges`, resource limits and a timeout, with no Docker socket, **no Anthropic API key** and no GitHub or Jira credentials (Jira connector mode's `jiraConnector` stage alone holds a claude.ai login, see [TRACKER.md](docs/TRACKER.md#credential-boundary)). The workspace's `.git` is mounted read-only.
+- **Model calls go through an LLM gateway** inside the worker, which adds the Anthropic API key and forwards only `POST /v1/messages`, and only with the key it gave that run's container. **npm goes through a read-only mirror**, so an agent cannot publish. The egress proxy allows only Prisma's binary host. The worker reaches Docker through a **filtering `docker-proxy`** on a network of its own. It requires the agent image and the full sandbox on every container it starts, and it only touches containers carrying the agent label.
 - The worker holds the GitHub and Jira credentials (in bot mode, one-hour single-repository tokens from the optional broker) and runs git with hooks, fsmonitor and credential helpers disabled. Repositories are restricted to `https://github.com/...`.
 - The API is not published to the host, the dashboard binds to `127.0.0.1`, cross-site state-changing requests are refused, and secrets are redacted from logs and the dashboard.
 - Tokens entered in the dashboard are encrypted in Postgres with `ENCRYPTION_KEY`; back up `.env` separately from the database.
@@ -133,7 +133,7 @@ The architecture is documented per version in [`docs/architecture`](./docs/archi
 Requirements:
 
 - Docker and Docker Compose, on macOS or a Linux VM (the host user must be able to use the Docker socket)
-- Access to Claude Code: a token from `claude setup-token`
+- An Anthropic API key from the [Anthropic Console](https://console.anthropic.com/settings/keys), with credits. Set a spend limit on its workspace too
 - A GitHub repository to ship into, and optionally a Jira Cloud project
 
 ### Install with the CLI
@@ -301,7 +301,7 @@ Out of scope for now: Jira MCP mode (removed), a QA agent or post-merge testing,
 Known limitations:
 
 - Targeted tests must be runnable inside a plain Node container with no external services (no database, no network beyond the npm registry).
-- The usage gate reads the `rate_limit_event` that Claude Code prints. If a future CLI stops printing it, the gate falls back to an estimate from tokens, which needs `calibratedWindowTokens` to be set on the Usage page.
+- Spend is the cost Claude Code reports for each run. A run's cost counts when the run ends, so a budget can be overshot by the run that was in progress when it was reached.
 - Only one stage runs at a time, system-wide, and a ticket's whole run is sequential.
 - The first-pass rate on the Overview is approximate: a subtask has no completion time of its own, so it counts in the range where its last stage run ended.
 - Only two small tickets have run with live Claude ([`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)). Review fixes, CI fixes, support queries, Jira, Confluence and larger tickets have only been tested against the stand-in.

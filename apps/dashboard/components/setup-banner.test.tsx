@@ -4,8 +4,8 @@ import { SetupBanner } from './setup-banner';
 
 describe('SetupBanner', () => {
   it('names what is missing and links to the connections page', () => {
-    render(<SetupBanner missing={['claude_token', 'git_author_email']} />);
-    expect(screen.getByRole('alert')).toHaveTextContent('the Claude token, the git author email');
+    render(<SetupBanner missing={['anthropic_api_key', 'git_author_email']} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('the Anthropic API key, the git author email');
     expect(screen.getByRole('link', { name: /Finish setup/ })).toHaveAttribute('href', '/setup/connections');
   });
   it('mentions the admin password when it is missing', () => {

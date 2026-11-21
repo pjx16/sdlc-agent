@@ -19,7 +19,7 @@ This package is only a launcher. The application is the Docker images published 
 
 - Docker with Compose v2.20 or newer, on macOS or Linux (on Windows, use WSL2)
 - Node.js 20 or newer
-- A Claude token (`claude setup-token`) and either a GitHub token or a connection to sdlc-agent-bot (see [`docs/BOT.md`](../../docs/BOT.md)), which you enter in the browser
+- An Anthropic API key (from the Anthropic Console) and either a GitHub token or a connection to sdlc-agent-bot (see [`docs/BOT.md`](../../docs/BOT.md)), which you enter in the browser
 
 ## Quick start
 

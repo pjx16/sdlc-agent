@@ -1,22 +1,35 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { DEFAULT_GLOBAL_SETTINGS, ErrorCodes, GlobalSettingsSchema, deepMerge, type GlobalSettingsInput } from '@sdlc/shared';
+import { DEFAULT_GLOBAL_SETTINGS, DEFAULT_SUGGESTED_BUDGETS, ErrorCodes, GlobalSettingsSchema, budgetPeriod, deepMerge, type GlobalSettingsInput } from '@sdlc/shared';
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
 import type { GlobalSettings, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { budgetDecision, spentSince } from '../usage/spend';
 
 const GLOBAL_ID = 'global';
-const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+const BUDGET_KEYS = ['budgetDailyCredits', 'budgetWeeklyCredits', 'budgetMonthlyCredits'] as const;
 
 export interface GlobalSettingsView extends GlobalSettingsInput {
   pipelinePaused: boolean;
   pausedReason: string | null;
-  /** The ERROR_CODES value behind the pause (CLAUDE_AUTH, CLAUDE_USAGE_LIMIT, ...), or null for a manual or threshold pause. */
+  /** The ERROR_CODES value behind the pause (CLAUDE_AUTH, CLAUDE_CREDITS, SPEND_BUDGET_REACHED, ...), or null for a manual pause. */
   pausedCode: string | null;
   resetsAt: string | null;
+  /** Budgets are not enforced until then. */
   usageIgnoredUntil: string | null;
+  /** When the budgets were approved (or "no limits" chosen); null while the dashboard should ask. */
+  budgetsApprovedAt: string | null;
   intakePaused: boolean;
+}
+
+/** Spend in the current day, week and month against the budgets, for the banners. */
+export interface SpendView {
+  timezone: string;
+  warnPct: number;
+  periods: { period: 'daily' | 'weekly' | 'monthly'; spent: number; budget: number | null; pct: number | null; resetsAt: string }[];
+  /** What the approval banner suggests: 1.5 times the average day of the last 30 days, rounded up, or the defaults with no spend. */
+  suggested: Record<'daily' | 'weekly' | 'monthly', number>;
 }
 
 /** What the worker last reported (see worker/status). `online` is derived from the heartbeat. */
@@ -92,16 +105,25 @@ export interface SystemView {
   /** Projects whose onboarding is running or waits for review, so the overview can show them. */
   onboarding: { projectId: string; name: string; status: 'profiling' | 'proposed' }[];
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
-  usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
+  spend: SpendView;
+}
+
+/** Room above an average day, so a busy day does not pause the pipeline: weekly is five such days, monthly about four weeks. */
+export function suggestBudgets(avgDaily: number): Record<'daily' | 'weekly' | 'monthly', number> {
+  if (avgDaily <= 0) return { ...DEFAULT_SUGGESTED_BUDGETS };
+  const daily = Math.max(1, Math.ceil(avgDaily * 1.5));
+  return { daily, weekly: daily * 5, monthly: daily * 20 };
 }
 
 const IgnoreBody = z.object({ until: z.coerce.date({ error: 'must be a date' }).optional() });
 
 function toView(row: GlobalSettings): GlobalSettingsView {
   const parsed = GlobalSettingsSchema.parse({
-    usageThresholdPct: row.usageThresholdPct,
-    usageThresholdWeeklyPct: row.usageThresholdWeeklyPct,
-    calibratedWindowTokens: row.calibratedWindowTokens === null ? null : Number(row.calibratedWindowTokens),
+    budgetDailyCredits: row.budgetDailyCredits,
+    budgetWeeklyCredits: row.budgetWeeklyCredits,
+    budgetMonthlyCredits: row.budgetMonthlyCredits,
+    budgetWarnPct: row.budgetWarnPct,
+    timezone: row.timezone,
     pollIntervalSec: row.pollIntervalSec,
     stageTimeoutMin: row.stageTimeoutMin,
     verifyTimeoutSec: row.verifyTimeoutSec,
@@ -118,6 +140,7 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     pausedCode: row.pausedCode,
     resetsAt: row.resetsAt?.toISOString() ?? null,
     usageIgnoredUntil: row.usageIgnoredUntil?.toISOString() ?? null,
+    budgetsApprovedAt: row.budgetsApprovedAt?.toISOString() ?? null,
     intakePaused: row.intakePaused,
   };
 }
@@ -148,7 +171,7 @@ export class SystemSettingsService {
   async system(): Promise<SystemView> {
     const settings = await this.settings();
     const running = await this.prisma.stageRun.findFirst({ where: { status: 'running' }, orderBy: { startedAt: 'desc' } });
-    const usage = await this.prisma.usageSnapshot.findFirst({ orderBy: { at: 'desc' } });
+    const spend = await this.spend();
     const worker = await this.prisma.workerStatus.findUnique({ where: { id: 'worker' } });
     const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest', 'intake-mcp', 'intake-connector'] } }, orderBy: { id: 'asc' } });
     const restarts = await this.prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: new Date(Date.now() - 10 * 60_000) } } });
@@ -195,31 +218,38 @@ export class SystemSettingsService {
         ticketId: running.ticketId,
         startedAt: running.startedAt?.toISOString() ?? null,
       },
-      usage: usage && {
-        at: usage.at.toISOString(),
-        fiveHourPct: usage.fiveHourPct,
-        sevenDayPct: usage.sevenDayPct,
-        status: usage.status,
-        resetsAt: usage.resetsAt?.toISOString() ?? null,
-        source: usage.source,
-      },
+      spend,
     };
   }
 
-  /** PATCH: merge into the current editable values, validate the whole result, then save. */
+  async spend(now = new Date()): Promise<SpendView> {
+    const row = await this.row();
+    const decision = await budgetDecision(this.prisma, row, now);
+    const last30 = await spentSince(this.prisma, new Date(now.getTime() - 30 * 86_400_000));
+    return { timezone: row.timezone, warnPct: row.budgetWarnPct, periods: decision.statuses.map((s) => ({ ...s, resetsAt: s.resetsAt.toISOString() })), suggested: suggestBudgets(last30 / 30) };
+  }
+
+  /**
+   * PATCH: merge into the current editable values, validate the whole result, then save. Saving any budget counts as approving the
+   * budgets (null for "no limit" too), and ends a budget pause: the gate checks the new budgets before the next step.
+   */
   async update(body: unknown): Promise<GlobalSettingsView> {
     const current = await this.settings();
     const editable = GlobalSettingsSchema.parse(current);
     const next = parseBody(GlobalSettingsSchema, deepMerge(editable, body ?? {}));
+    const touchesBudgets = typeof body === 'object' && body !== null && BUDGET_KEYS.some((k) => k in body);
+    const endsBudgetPause = touchesBudgets && current.pipelinePaused && current.pausedCode === 'SPEND_BUDGET_REACHED';
     const row = await this.prisma.globalSettings.update({
       where: { id: GLOBAL_ID },
       data: {
         ...next,
         modelAliases: next.modelAliases as unknown as Prisma.InputJsonValue,
         stageDefaults: next.stageDefaults as unknown as Prisma.InputJsonValue,
+        ...(touchesBudgets ? { budgetsApprovedAt: new Date() } : {}),
+        ...(endsBudgetPause ? { pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null } : {}),
       },
     });
-    await this.event('settings', 'Global settings updated');
+    await this.event('settings', touchesBudgets ? 'Budgets updated' : 'Global settings updated');
     return toView(row);
   }
 
@@ -240,20 +270,19 @@ export class SystemSettingsService {
     return toView(row);
   }
 
-  /** Ignore the usage gate until `until` (default: the current window's reset) and clear the pause. */
+  /** Ignore the budgets until `until` (default: when the used-up budget resets, or the end of today) and clear the pause. */
   async ignoreUsage(body: unknown): Promise<GlobalSettingsView> {
     const { until } = parseBody(IgnoreBody, body ?? {});
     const current = await this.row();
     if (!current.pipelinePaused) {
       throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The pipeline is not paused');
     }
-    const snapshot = await this.prisma.usageSnapshot.findFirst({ where: { resetsAt: { not: null } }, orderBy: { at: 'desc' } });
-    const ignoredUntil = until ?? current.resetsAt ?? snapshot?.resetsAt ?? new Date(Date.now() + FIVE_HOURS_MS);
+    const ignoredUntil = until ?? current.resetsAt ?? budgetPeriod('daily', new Date(), current.timezone).end;
     const row = await this.prisma.globalSettings.update({
       where: { id: GLOBAL_ID },
-      data: { usageIgnoredUntil: ignoredUntil, pipelinePaused: false, pausedReason: null, resetsAt: null },
+      data: { usageIgnoredUntil: ignoredUntil, pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null },
     });
-    await this.event('usage', `Usage gate ignored until ${ignoredUntil.toISOString()}`);
+    await this.event('usage', `Budgets ignored until ${ignoredUntil.toISOString()}`);
     return toView(row);
   }
 

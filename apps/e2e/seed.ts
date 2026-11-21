@@ -48,12 +48,12 @@ export async function seed(databaseUrl: string): Promise<void> {
         { ticketId: review.id, round: 1, severity: 'low', file: 'src/export.ts', line: null, issue: 'Name', rule: 'Practices', fix: 'Rename', status: 'open' },
       ],
     });
-    for (const [h, five, seven] of [[6, 10, 4], [4, 25, 5], [2, 41, 6], [1, 55, 7]] as const) {
-      await prisma.usageSnapshot.create({ data: { at: hoursAgo(h), fiveHourPct: five, sevenDayPct: seven, status: five >= 50 ? 'allowed_warning' : 'allowed', source: 'event', resetsAt: hoursAgo(-3) } });
-    }
-    await prisma.event.create({ data: { type: 'usage', message: 'Pipeline paused: 5-hour usage is at 55% (threshold 50%)', at: hoursAgo(1) } });
+    // Every seeded run cost something, so the spend charts and budgets have data.
+    await prisma.stageRun.updateMany({ data: { costUsd: 0.42 } });
+    await prisma.event.create({ data: { type: 'usage', message: 'Pipeline paused: The daily budget of 2 credits is used up (2.1 spent)', at: hoursAgo(1) } });
     await prisma.stateTransition.create({ data: { ticketId: review.id, fromStatus: 'AWAITING_CI', toStatus: 'IN_HUMAN_REVIEW', actor: 'system', at: hoursAgo(1.5) } });
-    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: {}, create: { id: 'global' } });
+    // Budgets approved, so the approval banner (and its Approve button) stays out of the other flows; its own test clears this.
+    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { budgetsApprovedAt: new Date() }, create: { id: 'global', budgetsApprovedAt: new Date() } });
   } finally {
     await prisma.$disconnect();
   }

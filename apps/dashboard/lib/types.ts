@@ -19,9 +19,13 @@ export type ProjectView = Omit<ProjectInput, 'settings' | 'jiraProjectKey' | 'ji
 
 /** GlobalSettings as returned by GET /system and PATCH /system/settings. */
 export interface GlobalSettingsView {
-  usageThresholdPct: number;
-  usageThresholdWeeklyPct: number;
-  calibratedWindowTokens: number | null;
+  /** Spend budgets in credits (1 credit = 1 USD of Anthropic credit balance); null means no limit. */
+  budgetDailyCredits: number | null;
+  budgetWeeklyCredits: number | null;
+  budgetMonthlyCredits: number | null;
+  budgetWarnPct: number;
+  /** IANA timezone the budget days, weeks and months are counted in. */
+  timezone: string;
   pollIntervalSec: number;
   stageTimeoutMin: number;
   verifyTimeoutSec: number;
@@ -35,7 +39,73 @@ export interface GlobalSettingsView {
   pausedCode?: string | null;
   resetsAt: string | null;
   usageIgnoredUntil: string | null;
+  /** Null until the budgets are approved (or "no limits" is chosen): the dashboard asks. */
+  budgetsApprovedAt: string | null;
   intakePaused: boolean;
+}
+
+export type BudgetPeriodName = 'daily' | 'weekly' | 'monthly';
+
+export interface BudgetPeriodView {
+  period: BudgetPeriodName;
+  spent: number;
+  budget: number | null;
+  pct: number | null;
+  resetsAt: string;
+}
+
+/** GET /system → spend: the current day, week and month against the budgets. */
+export interface SpendView {
+  timezone: string;
+  warnPct: number;
+  periods: BudgetPeriodView[];
+  /** What the approval banner suggests, from the last 30 days of spend (or defaults with none). */
+  suggested: Record<BudgetPeriodName, number>;
+}
+
+export interface SpendBucketView {
+  at: string;
+  credits: number;
+  cumulative: number;
+}
+
+export interface PeriodBurnView {
+  period: BudgetPeriodName;
+  unit: 'hour' | 'day';
+  start: string;
+  end: string;
+  budget: number | null;
+  spent: number;
+  projectedAtEnd: number | null;
+  reachesBudgetAt: string | null;
+  buckets: SpendBucketView[];
+}
+
+export interface MonthProjectionView {
+  monthToDate: number;
+  avgDaily: number;
+  daysLeft: number;
+  projected: number;
+  budget: number | null;
+  reachesBudgetAt: string | null;
+}
+
+/** GET /usage/spend */
+export interface SpendOverviewView {
+  timezone: string;
+  warnPct: number;
+  periods: BudgetPeriodView[];
+  projection: MonthProjectionView;
+  burn: Record<BudgetPeriodName, PeriodBurnView>;
+}
+
+/** GET /usage/tickets: credits per ticket finished in the last `days` days. */
+export interface TicketCostsView {
+  days: number;
+  tickets: number;
+  avgCredits: number | null;
+  byKind: { kind: string; tickets: number; avgCredits: number }[];
+  top: { id: string; key: string; title: string; kind: string; credits: number }[];
 }
 
 export interface IntakeStatusView {
@@ -84,23 +154,12 @@ export interface SystemView {
   inboxFyi?: number;
   onboarding?: { projectId: string; name: string; status: 'profiling' | 'proposed' }[];
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
-  usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
-}
-
-export interface UsageSnapshotView {
-  id: string;
-  at: string;
-  fiveHourPct: number | null;
-  sevenDayPct: number | null;
-  status: string | null;
-  resetsAt: string | null;
-  source: string;
-  windowTokens: number;
+  spend: SpendView;
 }
 
 export interface UsageSummaryView {
-  tokens: { stage: string; model: string; tokens: number; runs: number }[];
-  suggestedCalibration: number | null;
+  /** Tokens (input + output + cache write) and credits per stage and model, last 30 days, most credits first. */
+  rows: { stage: string; model: string; tokens: number; credits: number; runs: number }[];
 }
 
 export interface TicketListItem {
@@ -154,26 +213,13 @@ export interface OperationsView {
   orchestrator: { decisions: number; fallbacks: number; fallbackRate: number; costUsd: number; inputTokens: number; outputTokens: number };
 }
 
-export interface RateSeriesView {
-  unit: 'pts/hour' | 'pts/day';
-  segments: { startedBy: 'first' | 'reset' | 'gap'; points: { at: string; pct: number; rate: number | null }[] }[];
-  latest: { at: string; pct: number; rate: number | null } | null;
-  projection: { thresholdPct: number; reachesAt: string | null; note: string } | null;
-}
-export interface UsageRateView {
-  thresholds: { fiveHourPct: number; weeklyPct: number };
-  fiveHour: RateSeriesView;
-  weekly: RateSeriesView;
-}
 export interface ModelUsageView {
   from: string;
   to: string;
-  estimateNote: string;
   models: {
     model: string; runs: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd: number; tokenShare: number; costShare: number;
     byStage: { stage: string; runs: number; tokens: number; costUsd: number }[];
     perDay: { day: string; tokens: number; costUsd: number; runs: number }[];
-    estimate: { fiveHourPts: number; fiveHourShare: number; weeklyPts: number; weeklyShare: number };
   }[];
 }
 
@@ -342,15 +388,17 @@ export interface MetricsSummary {
   range: MetricsRange;
   ticketsDone: number;
   firstPassRate: number | null;
-  tokensInWindow: number;
+  /** Credits spent today, in the timezone from Settings. */
+  creditsToday: number;
   queueLength: number;
 }
 
+/** GET /metrics/usage: credits per local hour (24h) or day (7d, 30d), and the pauses in range. */
 export interface MetricsUsage {
   range: MetricsRange;
-  thresholdPct: number;
-  thresholdWeeklyPct: number;
-  series: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null }[];
+  timezone: string;
+  unit: 'hour' | 'day';
+  series: SpendBucketView[];
   pauses: { at: string; message: string }[];
 }
 

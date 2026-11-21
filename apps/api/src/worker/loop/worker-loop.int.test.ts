@@ -68,7 +68,7 @@ describe('worker loop', () => {
 
   it('runs no step and clones nothing while the required credentials are missing (setup incomplete)', async () => {
     const saved = { ...process.env };
-    for (const k of ['CLAUDE_CODE_OAUTH_TOKEN', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
+    for (const k of ['ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
     try {
       const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
       const creds = new CredentialsService(prisma);
@@ -167,9 +167,9 @@ describe('worker loop', () => {
     await prisma.stageRun.deleteMany({ where: { id: { in: [chat.id, stage.id] } } });
   });
 
-  it('ends a pause caused by Claude\'s limit at the reset time, but never one the user chose', async () => {
+  it('ends a budget pause when the next period starts, but never one the user chose', async () => {
     const loop = loopWith([]);
-    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'CLAUDE_RATE_LIMIT', pausedReason: 'limit', resetsAt: new Date(clock + 60_000) }, create: { id: 'global', pipelinePaused: true, pausedCode: 'CLAUDE_RATE_LIMIT', pausedReason: 'limit', resetsAt: new Date(clock + 60_000) } });
+    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'SPEND_BUDGET_REACHED', pausedReason: 'budget', resetsAt: new Date(clock + 60_000) }, create: { id: 'global', pipelinePaused: true, pausedCode: 'SPEND_BUDGET_REACHED', pausedReason: 'budget', resetsAt: new Date(clock + 60_000) } });
     expect(await loop.tick()).toBe('paused'); // before the reset
     clock += 120_000;
     expect(await loop.tick()).not.toBe('paused');

@@ -146,15 +146,15 @@ describe('ProjectInput', () => {
 describe('GlobalSettings', () => {
   it('has the section 7 defaults', () => {
     expect(DEFAULT_GLOBAL_SETTINGS).toMatchObject({
-      usageThresholdPct: 50, usageThresholdWeeklyPct: 80, calibratedWindowTokens: null, pollIntervalSec: 120,
+      budgetDailyCredits: null, budgetWeeklyCredits: null, budgetMonthlyCredits: null, budgetWarnPct: 80, timezone: 'UTC', pollIntervalSec: 120,
       stageTimeoutMin: 20, verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
     expect(Object.keys(DEFAULT_GLOBAL_SETTINGS)).not.toContain('jiraMcp');
   });
   it('validates ranges with field-level errors', () => {
-    const f = zodFields(GlobalSettingsSchema.safeParse({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } }).error!);
-    expect(Object.keys(f).sort()).toEqual(['modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
+    const f = zodFields(GlobalSettingsSchema.safeParse({ budgetDailyCredits: 0, timezone: 'Mars/Base', pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } }).error!);
+    expect(Object.keys(f).sort()).toEqual(['budgetDailyCredits', 'modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'timezone']);
   });
 });
 

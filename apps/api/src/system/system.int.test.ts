@@ -19,7 +19,6 @@ describe('System and global settings API', () => {
   beforeEach(async () => {
     await t.prisma.globalSettings.deleteMany();
     await t.prisma.stageRun.deleteMany();
-    await t.prisma.usageSnapshot.deleteMany();
     await t.prisma.project.deleteMany();
   });
 
@@ -32,9 +31,9 @@ describe('System and global settings API', () => {
   it('GET /system returns the defaults, no running stage and no usage', async () => {
     const res = await t.agent.get('/system').expect(200);
     expect(res.body.runningStage).toBeNull();
-    expect(res.body.usage).toBeNull();
+    expect(res.body.spend.periods.map((s: { spent: number }) => s.spent)).toEqual([0, 0, 0]);
     expect(res.body.settings).toMatchObject({
-      usageThresholdPct: 50, usageThresholdWeeklyPct: 80, calibratedWindowTokens: null, pollIntervalSec: 120, stageTimeoutMin: 20,
+      budgetDailyCredits: null, budgetWeeklyCredits: null, budgetMonthlyCredits: null, budgetWarnPct: 80, timezone: 'UTC', budgetsApprovedAt: null, pollIntervalSec: 120, stageTimeoutMin: 20,
       verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
@@ -45,11 +44,11 @@ describe('System and global settings API', () => {
     await t.prisma.workerStatus.deleteMany();
     expect((await t.agent.get('/system').expect(200)).body.worker).toBeNull();
 
-    await t.prisma.workerStatus.create({ data: { heartbeatAt: new Date(), tickOutcome: 'not_configured', tickDetail: 'claude_token' } });
+    await t.prisma.workerStatus.create({ data: { heartbeatAt: new Date(), tickOutcome: 'not_configured', tickDetail: 'anthropic_api_key' } });
     await t.prisma.workerStatus.create({ data: { id: 'intake-rest', heartbeatAt: new Date(), tickOutcome: 'intake', intakeMode: 'rest', intakeAt: new Date(), intakeProjects: 1, intakeError: 'boom' } });
     await t.prisma.event.create({ data: { type: 'jira', message: 'Jira (MCP) intake: 1 new ticket' } });
     const online = (await t.agent.get('/system').expect(200)).body;
-    expect(online.worker).toMatchObject({ online: true, tickOutcome: 'not_configured', tickDetail: 'claude_token', intake: [{ mode: 'rest', projects: 1, error: 'boom', created: 0 }] });
+    expect(online.worker).toMatchObject({ online: true, tickOutcome: 'not_configured', tickDetail: 'anthropic_api_key', intake: [{ mode: 'rest', projects: 1, error: 'boom', created: 0 }] });
     expect(online.recentEvents[0]).toMatchObject({ type: 'jira', message: 'Jira (MCP) intake: 1 new ticket', ticketKey: null });
 
     await t.prisma.workerStatus.update({ where: { id: 'worker' }, data: { heartbeatAt: new Date(Date.now() - 5 * 60_000) } });
@@ -58,20 +57,23 @@ describe('System and global settings API', () => {
     await t.prisma.event.deleteMany();
   });
 
-  it('GET /system includes the running stage and the latest usage snapshot', async () => {
+  it('GET /system includes the running stage and the spend against the budgets', async () => {
     const project = await t.prisma.project.create({
       data: { name: 'p', repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'P' },
     });
     await t.prisma.stageRun.create({ data: { projectId: project.id, stage: 'plan', model: 'opus', status: 'running', startedAt: new Date() } });
-    await t.prisma.usageSnapshot.create({ data: { fiveHourPct: 0.42, sevenDayPct: 0.1, status: 'allowed', source: 'event' } });
+    await t.prisma.stageRun.create({ data: { projectId: project.id, stage: 'review', model: 'opus', status: 'succeeded', startedAt: new Date(), costUsd: 1.25 } });
+    await t.prisma.stageRun.create({ data: { projectId: project.id, stage: 'jiraConnector', model: 'opus', status: 'succeeded', startedAt: new Date(), costUsd: 9 } });
+    await t.prisma.globalSettings.upsert({ where: { id: 'global' }, update: { budgetDailyCredits: 5 }, create: { id: 'global', budgetDailyCredits: 5 } });
     const res = await t.agent.get('/system').expect(200);
     expect(res.body.runningStage).toMatchObject({ stage: 'plan', model: 'opus', projectId: project.id });
-    expect(res.body.usage).toMatchObject({ fiveHourPct: 0.42, sevenDayPct: 0.1, status: 'allowed', source: 'event' });
+    // Connector runs are billed to claude.ai, not the API key.
+    expect(res.body.spend).toMatchObject({ timezone: 'UTC', warnPct: 80, periods: [{ period: 'daily', spent: 1.25, budget: 5, pct: 25 }, { period: 'weekly', spent: 1.25, budget: null }, { period: 'monthly', spent: 1.25, budget: null }] });
   });
 
   it('round-trips global settings, merging nested values', async () => {
     const patch = {
-      usageThresholdPct: 40, usageThresholdWeeklyPct: 70, calibratedWindowTokens: 5_000_000, pollIntervalSec: 60, stageTimeoutMin: 30,
+      budgetDailyCredits: 10, budgetWeeklyCredits: 40, budgetMonthlyCredits: null, budgetWarnPct: 75, timezone: 'Asia/Kolkata', pollIntervalSec: 60, stageTimeoutMin: 30,
       verifyTimeoutSec: 300, workspaceRetentionDays: 3, logRetentionDays: 10,
       modelAliases: { opus: 'claude-opus-5-5' },
     };
@@ -79,21 +81,20 @@ describe('System and global settings API', () => {
     expect(res.body).toMatchObject({ ...patch, modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'claude-opus-5-5' } });
     const again = (await t.agent.get('/system').expect(200)).body.settings;
     expect(again).toEqual(res.body);
-    const row = await t.prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } });
-    expect(Number(row.calibratedWindowTokens)).toBe(5_000_000);
-    const cleared = await t.agent.patch('/system/settings').send({ calibratedWindowTokens: null }).expect(200);
-    expect(cleared.body.calibratedWindowTokens).toBeNull();
+    expect(res.body.budgetsApprovedAt).not.toBeNull(); // saving budgets approves them
+    const cleared = await t.agent.patch('/system/settings').send({ budgetDailyCredits: null }).expect(200);
+    expect(cleared.body.budgetDailyCredits).toBeNull();
     expect(cleared.body.pollIntervalSec).toBe(60);
   });
 
   it('returns field-level errors and saves nothing', async () => {
     const res = await t.agent
       .patch('/system/settings')
-      .send({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } })
+      .send({ budgetDailyCredits: 0, timezone: 'Mars/Base', pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } })
       .expect(400);
     expect(res.body.error).toBe('validation_error');
-    expect(Object.keys(res.body.fields).sort()).toEqual(['modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
-    expect((await t.agent.get('/system')).body.settings.usageThresholdPct).toBe(50);
+    expect(Object.keys(res.body.fields).sort()).toEqual(['budgetDailyCredits', 'modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'timezone']);
+    expect((await t.agent.get('/system')).body.settings).toMatchObject({ budgetDailyCredits: null, timezone: 'UTC', budgetsApprovedAt: null });
   });
 
   it('pauses and resumes the pipeline', async () => {

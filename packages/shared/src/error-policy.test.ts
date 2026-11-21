@@ -10,7 +10,8 @@ describe('error policy table', () => {
   });
 
   it('fills placeholders and drops empty ones', () => {
-    expect(describeError('CLAUDE_RATE_LIMIT', { time: '14:32' })).toBe('Claude rate limit reached. Resuming at 14:32.');
+    expect(describeError('CLAUDE_RATE_LIMIT', { n: 1, time: '14:32' })).toBe('Anthropic rate limit reached. Retry 1/3 at 14:32.');
+    expect(describeError('SPEND_BUDGET_REACHED', { period: 'daily', budget: 10, time: '00:00' })).toBe('The daily budget of 10 credits is used up. Resuming at 00:00.');
     expect(describeError('CLAUDE_API_ERROR', { detail: '529', n: 1, time: '14:32' })).toBe('Claude API error (529). Retry 1/3 at 14:32.');
     expect(describeError('TURN_LIMIT', { agent: 'coder' })).toBe('coder ran out of turns.');
     expect(describeError('GIT_ERROR', { detail: 'push rejected' })).toBe('Git failed: push rejected.');
@@ -25,8 +26,9 @@ describe('error policy table', () => {
 
   it('recovery rules follow the error policy table', () => {
     expect(ERROR_POLICY.CLAUDE_AUTH.recovery.kind).toBe('pause_global');
-    expect(ERROR_POLICY.CLAUDE_RATE_LIMIT.recovery.kind).toBe('pause_until_reset');
-    expect(ERROR_POLICY.CLAUDE_USAGE_LIMIT.recovery.kind).toBe('pause_until_reset');
+    expect(ERROR_POLICY.CLAUDE_RATE_LIMIT.recovery).toMatchObject({ kind: 'retry', retries: 3, backoffMin: [1, 2, 5], then: 'hold' });
+    expect(ERROR_POLICY.CLAUDE_CREDITS.recovery.kind).toBe('pause_global');
+    expect(ERROR_POLICY.SPEND_BUDGET_REACHED.recovery.kind).toBe('pause_until_reset');
     expect(ERROR_POLICY.CONTAINER_ERROR.recovery).toMatchObject({ kind: 'retry', retries: 1, then: 'fail' });
     expect(ERROR_POLICY.TIMEOUT.recovery).toMatchObject({ kind: 'retry', retries: 1, then: 'fail' });
     expect(ERROR_POLICY.TURN_LIMIT.recovery).toMatchObject({ turnFactor: 1.5 });
@@ -42,7 +44,7 @@ describe('classifyClaudeError', () => {
     ['Invalid bearer token', undefined, 'CLAUDE_AUTH'],
     ['OAuth token has expired', undefined, 'CLAUDE_AUTH'],
     ['anything', 401, 'CLAUDE_AUTH'],
-    ['Claude usage limit reached|1731600000', undefined, 'CLAUDE_USAGE_LIMIT'],
+    ['Your credit balance is too low to access the Anthropic API.', 400, 'CLAUDE_CREDITS'],
     ['rate limit exceeded', undefined, 'CLAUDE_RATE_LIMIT'],
     ['anything', 429, 'CLAUDE_RATE_LIMIT'],
     ['API Error: 529 overloaded_error', undefined, 'CLAUDE_API_ERROR'],

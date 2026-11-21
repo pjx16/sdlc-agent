@@ -60,8 +60,8 @@ function failureOf(stage: string, r: Exclude<StageResult, { kind: 'done' }>): st
   switch (r.kind) {
     case 'needs_input':
       return `The ${stage} agent needs an answer it cannot ask during onboarding: ${r.question}`;
-    case 'rate_limited':
-      return describeError(r.errorCode ?? 'CLAUDE_USAGE_LIMIT', { time: r.resetsAt?.toLocaleTimeString() });
+    case 'out_of_credits':
+      return describeError('CLAUDE_CREDITS');
     case 'claude_auth':
       return describeError('CLAUDE_AUTH');
     case 'turn_limit':

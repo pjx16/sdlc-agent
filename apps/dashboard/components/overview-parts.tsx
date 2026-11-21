@@ -25,7 +25,7 @@ export function NumberCards({ summary }: { summary: MetricsSummary }) {
   const cards = [
     { label: `Tickets done (${summary.range})`, value: String(summary.ticketsDone) },
     { label: 'First-pass rate', value: pct(summary.firstPassRate), hint: 'Subtasks done without a tests fix round' },
-    { label: 'Tokens, last 5 hours', value: summary.tokensInWindow.toLocaleString('en-US') },
+    { label: 'Credits today', value: summary.creditsToday.toFixed(2), hint: '1 credit = 1 USD of Anthropic credit balance' },
     { label: 'Queue length', value: String(summary.queueLength), hint: 'Tickets waiting for a stage' },
   ];
   return (

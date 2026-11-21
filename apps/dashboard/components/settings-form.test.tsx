@@ -12,11 +12,11 @@ const fetchMock = vi.fn();
 const reply = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body });
 
 const settings: GlobalSettingsView = {
-  usageThresholdPct: 50, usageThresholdWeeklyPct: 80, calibratedWindowTokens: null, pollIntervalSec: 120, stageTimeoutMin: 20,
+  budgetDailyCredits: 10, budgetWeeklyCredits: null, budgetMonthlyCredits: 150, budgetWarnPct: 80, timezone: 'UTC', pollIntervalSec: 120, stageTimeoutMin: 20,
   verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30, assistantTokenCap: 200000,
   stageDefaults: Object.fromEntries(STAGE_NAMES.map((st) => [st, { model: 'sonnet' as const, maxTurns: 10 }])),
   modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
-  pipelinePaused: false, pausedReason: null, resetsAt: null, usageIgnoredUntil: null, intakePaused: false,
+  pipelinePaused: false, pausedReason: null, resetsAt: null, usageIgnoredUntil: null, budgetsApprovedAt: '2026-11-01T00:00:00Z', intakePaused: false,
 };
 
 beforeEach(() => {
@@ -28,18 +28,21 @@ beforeEach(() => {
 describe('SettingsForm', () => {
   it('shows the current values', () => {
     render(<SettingsForm settings={settings} />);
-    expect(screen.getByLabelText('5-hour threshold (%)')).toHaveValue('50');
-    expect(screen.getByLabelText('Calibrated window tokens')).toHaveValue('');
+    expect(screen.getByLabelText('Daily budget (credits)')).toHaveValue('10');
+    expect(screen.getByLabelText('Weekly budget (credits)')).toHaveValue('');
+    expect(screen.getByLabelText('Timezone')).toHaveValue('UTC');
     expect(screen.getByLabelText('opus')).toHaveValue('opus');
     expect(screen.queryByLabelText('Read tools')).not.toBeInTheDocument();
   });
 
   it('saves edits as numbers and confirms', async () => {
-    fetchMock.mockResolvedValue(reply({ ...settings, usageThresholdPct: 40, calibratedWindowTokens: 5000000 }));
+    fetchMock.mockResolvedValue(reply({ ...settings, budgetDailyCredits: 12.5, budgetWeeklyCredits: 50, timezone: 'Asia/Kolkata' }));
     render(<SettingsForm settings={settings} />);
-    await userEvent.clear(screen.getByLabelText('5-hour threshold (%)'));
-    await userEvent.type(screen.getByLabelText('5-hour threshold (%)'), '40');
-    await userEvent.type(screen.getByLabelText('Calibrated window tokens'), '5000000');
+    await userEvent.clear(screen.getByLabelText('Daily budget (credits)'));
+    await userEvent.type(screen.getByLabelText('Daily budget (credits)'), '12.5');
+    await userEvent.type(screen.getByLabelText('Weekly budget (credits)'), '50');
+    await userEvent.clear(screen.getByLabelText('Timezone'));
+    await userEvent.type(screen.getByLabelText('Timezone'), 'Asia/Kolkata');
     await userEvent.clear(screen.getByLabelText('opus'));
     await userEvent.type(screen.getByLabelText('opus'), 'claude-opus-5-5');
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
@@ -48,21 +51,21 @@ describe('SettingsForm', () => {
     expect(url).toBe('/api/system/settings');
     expect(init.method).toBe('PATCH');
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ usageThresholdPct: 40, calibratedWindowTokens: 5000000, pollIntervalSec: 120, modelAliases: { opus: 'claude-opus-5-5' } });
+    expect(body).toMatchObject({ budgetDailyCredits: 12.5, budgetWeeklyCredits: 50, budgetMonthlyCredits: 150, timezone: 'Asia/Kolkata', pollIntervalSec: 120, modelAliases: { opus: 'claude-opus-5-5' } });
     expect(body).not.toHaveProperty('jiraMcp');
-    expect(screen.getByLabelText('5-hour threshold (%)')).toHaveValue('40');
+    expect(screen.getByLabelText('Daily budget (credits)')).toHaveValue('12.5');
     expect(refresh).toHaveBeenCalled();
   });
 
-  it('sends null for an emptied calibration and for blank numbers', async () => {
+  it('sends null (no limit) for an emptied budget and for blank numbers', async () => {
     fetchMock.mockResolvedValue(reply(settings));
-    render(<SettingsForm settings={{ ...settings, calibratedWindowTokens: 100 }} />);
-    await userEvent.clear(screen.getByLabelText('Calibrated window tokens'));
+    render(<SettingsForm settings={settings} />);
+    await userEvent.clear(screen.getByLabelText('Daily budget (credits)'));
     await userEvent.clear(screen.getByLabelText('Poll interval (seconds)'));
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const body = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
-    expect(body.calibratedWindowTokens).toBeNull();
+    expect(body.budgetDailyCredits).toBeNull();
     expect(body.pollIntervalSec).toBeNull();
   });
 
@@ -82,7 +85,7 @@ describe('SettingsForm', () => {
 
   it('shows field-level errors', async () => {
     fetchMock.mockResolvedValue(
-      reply({ error: 'validation_error', message: 'Validation failed', fields: { usageThresholdPct: 'must be at least 1', 'modelAliases.haiku': 'required', } }, 400),
+      reply({ error: 'validation_error', message: 'Validation failed', fields: { budgetWarnPct: 'must be at least 1', 'modelAliases.haiku': 'required', } }, 400),
     );
     render(<SettingsForm settings={settings} />);
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));

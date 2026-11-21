@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CREDENTIAL_KEYS, CredentialValueSchemas, type CredentialKey } from './credentials';
 
 const cases: Record<CredentialKey, { ok: string; bad: string }> = {
-  claude_token: { ok: 'sk-ant-oat01-abcdef', bad: 'abc' },
+  anthropic_api_key: { ok: 'sk-ant-api03-abcdefghijkl', bad: 'abc' },
   github_token: { ok: 'ghp_abcdefghijklmnopqrstu', bad: 'ghp_short' },
   broker_url: { ok: 'https://broker.example.com', bad: 'http://broker.example.com' },
   broker_key: { ok: 'abcdef0123456789.abcdefghijklmnopqrstuvwxyz', bad: 'short' },
@@ -24,6 +24,11 @@ describe('credential schemas', () => {
       expect(CredentialValueSchemas[key].safeParse(cases[key].bad).success).toBe(false);
     });
   }
+  it('rejects a Claude subscription token in the API key field, with a message that says so', () => {
+    const r = CredentialValueSchemas.anthropic_api_key.safeParse('sk-ant-oat01-abcdefghijkl');
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.message).toMatch(/subscription token/);
+  });
   it('also accepts github_pat_ tokens and rejects other Jira hosts with a path', () => {
     expect(CredentialValueSchemas.github_token.safeParse('github_pat_abcdefghijklmnopqrstu').success).toBe(true);
     expect(CredentialValueSchemas.jira_base_url.safeParse('https://acme.atlassian.net.evil.io').success).toBe(false);

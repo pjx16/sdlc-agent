@@ -33,7 +33,6 @@ describe('Metrics API', () => {
     await t.prisma.stateTransition.deleteMany();
     await t.prisma.subtask.deleteMany();
     await t.prisma.ticket.deleteMany();
-    await t.prisma.usageSnapshot.deleteMany();
     await t.prisma.event.deleteMany();
   });
 
@@ -54,8 +53,8 @@ describe('Metrics API', () => {
 
   describe('with no data every endpoint answers with empty values, not errors', () => {
     it('summary, usage, tokens, quality, durations, tickets-by-state', async () => {
-      expect((await t.agent.get('/metrics/summary').expect(200)).body).toEqual({ range: '7d', ticketsDone: 0, firstPassRate: null, tokensInWindow: 0, queueLength: 0 });
-      expect((await t.agent.get('/metrics/usage').expect(200)).body).toMatchObject({ series: [], pauses: [], thresholdPct: 50, thresholdWeeklyPct: 80 });
+      expect((await t.agent.get('/metrics/summary').expect(200)).body).toEqual({ range: '7d', ticketsDone: 0, firstPassRate: null, creditsToday: 0, queueLength: 0 });
+      expect((await t.agent.get('/metrics/usage').expect(200)).body).toMatchObject({ unit: 'day', timezone: 'UTC', pauses: [] });
       const tokens = (await t.agent.get('/metrics/tokens').expect(200)).body;
       expect(tokens).toMatchObject({ groupBy: 'stage', keys: [] });
       expect(tokens.days.every((d: { total: number }) => d.total === 0)).toBe(true);
@@ -67,7 +66,7 @@ describe('Metrics API', () => {
     });
   });
 
-  it('summary: tickets done in range, tokens in the 5-hour window, the queue, and the range switch', async () => {
+  it('summary: tickets done in range, credits spent today, the queue, and the range switch', async () => {
     const done = await ticket({ status: 'DONE' });
     await t.prisma.stateTransition.create({ data: { ticketId: done.id, fromStatus: 'IN_HUMAN_REVIEW', toStatus: 'DONE', actor: 'system', at: ago(2) } });
     const old = await ticket({ status: 'DONE' });
@@ -77,10 +76,11 @@ describe('Metrics API', () => {
     await ticket({ status: 'AWAITING_CI', ciFixPending: true });
     await ticket({ status: 'AWAITING_CI' });
     await ticket({ status: 'ON_HOLD', holdReason: 'manual', holdFromStatus: 'NEW' });
-    await run({ startedAt: ago(1) });
-    await run({ startedAt: ago(6), inputTokens: 5000 }); // outside the 5-hour window
+    await run({ startedAt: ago(1), costUsd: 0.5 });
+    await run({ startedAt: ago(14), costUsd: 3 }); // yesterday (UTC)
+    await run({ startedAt: ago(2), costUsd: 9, stage: 'jiraConnector' }); // billed to claude.ai
     const week = (await t.agent.get('/metrics/summary').expect(200)).body;
-    expect(week).toMatchObject({ range: '7d', ticketsDone: 2, tokensInWindow: 160, queueLength: 3 });
+    expect(week).toMatchObject({ range: '7d', ticketsDone: 2, creditsToday: 0.5, queueLength: 3 });
     expect((await t.agent.get('/metrics/summary?range=24h').expect(200)).body).toMatchObject({ range: '24h', ticketsDone: 1 });
     expect((await t.agent.get('/metrics/summary?range=bogus').expect(200)).body.range).toBe('7d');
   });
@@ -118,18 +118,21 @@ describe('Metrics API', () => {
     expect((await t.agent.get('/metrics/tokens?range=24h').expect(200)).body.days.length).toBeLessThanOrEqual(2);
   });
 
-  it('usage: the series, the thresholds and the pause events in range', async () => {
-    await t.prisma.globalSettings.upsert({ where: { id: 'global' }, update: { usageThresholdPct: 40 }, create: { id: 'global', usageThresholdPct: 40 } });
-    await t.prisma.usageSnapshot.create({ data: { at: ago(3), fiveHourPct: 20, sevenDayPct: 5, status: 'allowed', source: 'event' } });
-    await t.prisma.usageSnapshot.create({ data: { at: ago(1), fiveHourPct: 45, sevenDayPct: 6, status: 'allowed', source: 'event' } });
-    await t.prisma.usageSnapshot.create({ data: { at: ago(24 * 20), fiveHourPct: 99, source: 'event' } });
-    await t.prisma.event.create({ data: { type: 'usage', message: 'Pipeline paused: 5-hour usage is at 45%', at: ago(1) } });
-    await t.prisma.event.create({ data: { type: 'usage', message: 'Usage gate ignored until x', at: ago(1) } });
-    const body = (await t.agent.get('/metrics/usage').expect(200)).body;
-    expect(body.thresholdPct).toBe(40);
-    expect(body.series.map((s: { fiveHourPct: number }) => s.fiveHourPct)).toEqual([20, 45]);
-    expect(body.pauses).toHaveLength(1);
-    expect(body.pauses[0].message).toContain('45%');
+  it('usage: credits per hour or day, and the pause events in range', async () => {
+    await run({ startedAt: ago(3), costUsd: 1.25 });
+    await run({ startedAt: ago(1), costUsd: 0.5 });
+    await run({ startedAt: ago(24 * 20), costUsd: 99 });
+    await t.prisma.event.create({ data: { type: 'usage', message: 'Pipeline paused: The daily budget of 1 credits is used up', at: ago(1) } });
+    await t.prisma.event.create({ data: { type: 'usage', message: 'Budgets ignored until x', at: ago(1) } });
+    const week = (await t.agent.get('/metrics/usage').expect(200)).body;
+    expect(week).toMatchObject({ range: '7d', unit: 'day', timezone: 'UTC' });
+    expect(week.series.at(-1)).toMatchObject({ at: '2026-11-12T00:00:00.000Z', credits: 1.75, cumulative: 1.75 });
+    expect(week.pauses).toHaveLength(1);
+    expect(week.pauses[0].message).toContain('daily budget');
+    const day = (await t.agent.get('/metrics/usage?range=24h').expect(200)).body;
+    expect(day.unit).toBe('hour');
+    expect(day.series).toHaveLength(24);
+    expect(day.series.at(-1).cumulative).toBe(1.75);
   });
 
   it('tickets by state: one count per internal state, including zeros', async () => {

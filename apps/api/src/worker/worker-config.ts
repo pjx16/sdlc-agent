@@ -6,7 +6,7 @@ export class WorkerConfig {
   readonly databaseUrl: string;
   readonly mirrorPollMs: number;
   readonly agentImage: string;
-  /** The LLM gateway: agents call it instead of holding the Claude token. */
+  /** The LLM gateway: agents call it instead of holding the Anthropic API key. */
   readonly llmGatewayPort: number;
   /** Docker runtime for agent containers: set to `runsc` (gVisor) or `sysbox-runc` when installed. Empty means Docker's default. */
   readonly agentRuntime: string;
