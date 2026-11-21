@@ -85,9 +85,9 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [@img/sharp-win32-x64](https://www.npmjs.com/package/@img/sharp-win32-x64) | 0.35.5 | Apache-2.0 AND LGPL-3.0-or-later |
 | [@js-sdsl/ordered-map](https://www.npmjs.com/package/@js-sdsl/ordered-map) | 4.4.2 | MIT |
 | [@lukeed/csprng](https://www.npmjs.com/package/@lukeed/csprng) | 1.1.0 | MIT |
-| [@nestjs/common](https://www.npmjs.com/package/@nestjs/common) | 12.4.2 | MIT |
-| [@nestjs/core](https://www.npmjs.com/package/@nestjs/core) | 12.4.2 | MIT |
-| [@nestjs/platform-express](https://www.npmjs.com/package/@nestjs/platform-express) | 12.4.2 | MIT |
+| [@nestjs/common](https://www.npmjs.com/package/@nestjs/common) | 12.5.0 | MIT |
+| [@nestjs/core](https://www.npmjs.com/package/@nestjs/core) | 12.5.0 | MIT |
+| [@nestjs/platform-express](https://www.npmjs.com/package/@nestjs/platform-express) | 12.5.0 | MIT |
 | [@next/env](https://www.npmjs.com/package/@next/env) | 16.4.6 | MIT |
 | [@next/swc-darwin-arm64](https://www.npmjs.com/package/@next/swc-darwin-arm64) | 16.4.6 | MIT |
 | [@next/swc-darwin-x64](https://www.npmjs.com/package/@next/swc-darwin-x64) | 16.4.6 | MIT |
@@ -99,7 +99,7 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [@next/swc-win32-x64-msvc](https://www.npmjs.com/package/@next/swc-win32-x64-msvc) | 16.4.6 | MIT |
 | [@phc/format](https://www.npmjs.com/package/@phc/format) | 1.0.0 | MIT |
 | [@pinojs/redact](https://www.npmjs.com/package/@pinojs/redact) | 0.4.0 | MIT |
-| [@playwright/test](https://www.npmjs.com/package/@playwright/test) | 1.65.0 | Apache-2.0 |
+| [@playwright/test](https://www.npmjs.com/package/@playwright/test) | 1.65.1 | Apache-2.0 |
 | [@prisma/adapter-pg](https://www.npmjs.com/package/@prisma/adapter-pg) | 7.10.1 | Apache-2.0 |
 | [@prisma/client](https://www.npmjs.com/package/@prisma/client) | 7.10.1 | Apache-2.0 |
 | [@prisma/client-runtime-utils](https://www.npmjs.com/package/@prisma/client-runtime-utils) | 7.10.1 | Apache-2.0 |
@@ -239,7 +239,7 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [dotenv](https://www.npmjs.com/package/dotenv) | 17.4.2 | BSD-2-Clause |
 | [dunder-proto](https://www.npmjs.com/package/dunder-proto) | 1.0.1 | MIT |
 | [ee-first](https://www.npmjs.com/package/ee-first) | 1.1.1 | MIT |
-| [effect](https://www.npmjs.com/package/effect) | 3.20.0 | MIT |
+| [effect](https://www.npmjs.com/package/effect) | 3.22.5 | MIT |
 | [elkjs](https://www.npmjs.com/package/elkjs) | 0.11.1 | EPL-2.0 |
 | [emoji-regex](https://www.npmjs.com/package/emoji-regex) | 8.0.0 | MIT |
 | [empathic](https://www.npmjs.com/package/empathic) | 2.0.0 | MIT |
@@ -346,8 +346,8 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [pino-http](https://www.npmjs.com/package/pino-http) | 11.0.0 | MIT |
 | [pino-std-serializers](https://www.npmjs.com/package/pino-std-serializers) | 7.1.0 | MIT |
 | [pkg-types](https://www.npmjs.com/package/pkg-types) | 2.4.0 | MIT |
-| [playwright](https://www.npmjs.com/package/playwright) | 1.65.0 | Apache-2.0 |
-| [playwright-core](https://www.npmjs.com/package/playwright-core) | 1.65.0 | Apache-2.0 |
+| [playwright](https://www.npmjs.com/package/playwright) | 1.65.1 | Apache-2.0 |
+| [playwright-core](https://www.npmjs.com/package/playwright-core) | 1.65.1 | Apache-2.0 |
 | [postcss](https://www.npmjs.com/package/postcss) | 8.5.23 | MIT |
 | [postgres](https://www.npmjs.com/package/postgres) | 3.4.7 | Unlicense |
 | [postgres-array](https://www.npmjs.com/package/postgres-array) | 2.0.0 | MIT |
