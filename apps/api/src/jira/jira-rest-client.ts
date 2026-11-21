@@ -187,7 +187,8 @@ export class JiraRestClient implements JiraClient {
       try {
         res = await this.fetchImpl(`${this.base}${path}`, {
           method,
-          headers: { Authorization: this.auth, Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+          // Pin English: Jira localises errorMessages, and these are shown verbatim in the dashboard.
+          headers: { Authorization: this.auth, Accept: 'application/json', 'Accept-Language': 'en', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
           body: body === undefined ? undefined : JSON.stringify(body),
         });
       } catch (err) {

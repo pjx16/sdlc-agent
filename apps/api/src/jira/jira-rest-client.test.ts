@@ -42,6 +42,7 @@ describe('JiraRestClient requests', () => {
     expect(calls[0]?.url).toBe('https://acme.atlassian.net/rest/api/3/search/jql');
     expect(calls[0]?.headers.Authorization).toBe(`Basic ${Buffer.from('me@acme.com:tok').toString('base64')}`);
     expect(calls[0]?.headers.Accept).toBe('application/json');
+    expect(calls[0]?.headers['Accept-Language']).toBe('en');
   });
 
   it('refuses to be built without credentials', () => {
