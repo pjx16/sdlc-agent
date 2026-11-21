@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CredentialValueSchemas, type CredentialKey } from '@sdlc/shared';
+import { JiraClients } from '../jira/jira-clients';
 import { CredentialsService } from './credentials.service';
 
 export interface TestResult {
@@ -10,6 +11,8 @@ export interface TestResult {
 export interface TesterOptions {
   githubApiUrl?: string;
   fetch?: typeof fetch;
+  /** What the Rovo MCP sign-in can see; tests replace it. */
+  describeMcp?: () => Promise<{ cloudId: string; site: string | null; tools: string[] }>;
 }
 
 export const TESTER_OPTIONS = Symbol('TESTER_OPTIONS');
@@ -21,6 +24,7 @@ const TIMEOUT_MS = 10_000;
 export class CredentialTester {
   private readonly githubApi: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly describeMcp: NonNullable<TesterOptions['describeMcp']>;
 
   constructor(
     private readonly creds: CredentialsService,
@@ -28,6 +32,8 @@ export class CredentialTester {
   ) {
     this.githubApi = (options.githubApiUrl ?? 'https://api.github.com').replace(/\/+$/, '');
     this.fetchImpl = options.fetch ?? fetch;
+    // A fresh client each time: the test must use the credentials as they are now.
+    this.describeMcp = options.describeMcp ?? (async () => (await new JiraClients(this.creds).mcpClient()).describe());
   }
 
   async test(key: CredentialKey): Promise<TestResult> {
@@ -96,8 +102,16 @@ export class CredentialTester {
       case 'jira_mcp_url':
       case 'jira_mcp_token':
       case 'jira_mcp_oauth':
-      case 'jira_cloud_id':
-        return c[key] && CredentialValueSchemas[key].safeParse(c[key]).success ? { ok: true, message: 'Format OK' } : { ok: false, message: 'Not set or invalid' };
+      case 'jira_cloud_id': {
+        if (!c.jira_mcp_oauth && !(c.jira_email && c.jira_mcp_token)) return { ok: false, message: 'Connect with OAuth, or set the Jira email and a scoped Rovo MCP API token first' };
+        try {
+          const seen = await this.describeMcp();
+          const jiraTools = seen.tools.filter((t) => /jira/i.test(t)).length;
+          return { ok: true, message: `Connected to ${seen.site ?? `cloud ${seen.cloudId}`} through the Rovo MCP server (${jiraTools} Jira tools)` };
+        } catch (err) {
+          return { ok: false, message: err instanceof Error ? err.message : String(err) };
+        }
+      }
       case 'git_author_name':
       case 'git_author_email':
         return CredentialValueSchemas[key].safeParse(c[key]).success ? { ok: true, message: 'OK' } : { ok: false, message: 'Not set or invalid' };
