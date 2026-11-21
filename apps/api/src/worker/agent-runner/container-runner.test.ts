@@ -14,7 +14,7 @@ const spec = (over: Partial<ContainerSpec> = {}): ContainerSpec => ({
   name: 'sdlc-run-abc',
   image: 'sdlc-agent/agent:latest',
   cmd: ['run-stage'],
-  env: { CLAUDE_CODE_OAUTH_TOKEN: 't', HTTPS_PROXY: 'http://proxy:3128' },
+  env: { ANTHROPIC_API_KEY: 't', HTTPS_PROXY: 'http://proxy:3128' },
   workspace: { path: '/data/workspaces/p/KEY-1', readOnly: false },
   contextDir: '/data/runs/abc',
   memory: '4g',
@@ -69,7 +69,7 @@ describe('buildCreateOptions', () => {
     expect(hc).toMatchObject({ ReadonlyRootfs: true, Init: true, Tmpfs: { '/tmp': expect.stringContaining('size='), '/home/node': expect.stringContaining('uid=1000') } });
     expect(hc?.Runtime).toBeUndefined();
     expect(buildCreateOptions({ ...spec(), runtime: 'runsc' }).HostConfig?.Runtime).toBe('runsc');
-    expect(buildCreateOptions(spec()).Env).toEqual(['CLAUDE_CODE_OAUTH_TOKEN=t', 'HTTPS_PROXY=http://proxy:3128']);
+    expect(buildCreateOptions(spec()).Env).toEqual(['ANTHROPIC_API_KEY=t', 'HTTPS_PROXY=http://proxy:3128']);
   });
 });
 
@@ -154,7 +154,7 @@ describe('ContainerRunner', () => {
 });
 
 describe('Verify.runCmd', () => {
-  const config = new WorkerConfig({ DATA_DIR: '/data', DATABASE_URL: 'x', CLAUDE_CODE_OAUTH_TOKEN: 'secret-token' } as NodeJS.ProcessEnv);
+  const config = new WorkerConfig({ DATA_DIR: '/data', DATABASE_URL: 'x', ANTHROPIC_API_KEY: 'secret-token' } as NodeJS.ProcessEnv);
 
   it('quotes file paths and substitutes {files}', () => {
     expect(shellQuote("it's")).toBe(`'it'\\''s'`);
@@ -163,7 +163,7 @@ describe('Verify.runCmd', () => {
     expect(() => shellQuote('a\0b')).toThrow();
   });
 
-  it('runs run-cmd without the Claude token, keeps the last 60 lines and flags success', async () => {
+  it('runs run-cmd without the Anthropic API key, keeps the last 60 lines and flags success', async () => {
     const lines = Array.from({ length: 100 }, (_, i) => `line ${i + 1}`);
     const engine = new FakeEngine({ lines, exitCode: 0 });
     const res = await new VerifyService(new ContainerRunner(engine), config).runCmd({ name: 'sdlc-verify-1', workspace: '/w', cmd: 'npx tsc --noEmit', timeoutSec: 60 });
@@ -176,7 +176,7 @@ describe('Verify.runCmd', () => {
     expect(created?.Env).toContain('HUSKY=0');
     expect(created?.Env).toContain('CMD=npx tsc --noEmit');
     expect(created?.Env).toContain('VERIFY_TIMEOUT=60');
-    expect(created?.Env?.join(' ')).not.toContain('CLAUDE_CODE_OAUTH_TOKEN');
+    expect(created?.Env?.join(' ')).not.toContain('ANTHROPIC_API_KEY');
     expect(created?.Env?.join(' ')).not.toContain('secret-token');
   });
 

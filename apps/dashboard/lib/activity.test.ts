@@ -61,9 +61,9 @@ describe('describeActivity: the pipeline', () => {
     expect(line(system(), 'pipeline')).toMatchObject({ tone: 'grey', text: expect.stringContaining('Idle') });
     expect(line(system({ running: true }), 'pipeline')).toMatchObject({ tone: 'green', text: 'Running plan with opus for 10s.', link: { href: '/runs/r1' } });
     expect(line(system({ paused: true, reason: 'manual' }), 'pipeline')).toMatchObject({ tone: 'amber', text: 'Paused. Paused by you.' });
-    const blocked = line(system({ worker: worker({ tickOutcome: 'not_configured', tickDetail: 'claude_token, github_token' }) }), 'pipeline');
+    const blocked = line(system({ worker: worker({ tickOutcome: 'not_configured', tickDetail: 'anthropic_api_key, github_token' }) }), 'pipeline');
     expect(blocked).toMatchObject({ tone: 'amber', link: { href: '/setup/connections' } });
-    expect(blocked?.text).toContain('claude_token, github_token');
+    expect(blocked?.text).toContain('anthropic_api_key, github_token');
     expect(line(system({ worker: worker({ tickOutcome: 'stepped', tickDetail: 'SDA-1 (PLANNING)' }) }), 'pipeline')?.text).toBe('Working on SDA-1 (PLANNING).');
     expect(line(system({ worker: worker({ tickDetail: 'Iteration failed: boom' }) }), 'pipeline')).toMatchObject({ tone: 'red', text: 'Iteration failed: boom' });
   });

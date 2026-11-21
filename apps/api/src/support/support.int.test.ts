@@ -300,7 +300,7 @@ describe('Support tickets', () => {
       await raiser.credentialFailed('claude', 'Claude rejected the token');
       await raiser.credentialFailed('github', 'GitHub refused');
       const creds = new CredentialsService(t.prisma);
-      await creds.markVerified('claude_token', null);
+      await creds.markVerified('anthropic_api_key', null);
       const open = await t.prisma.supportTicket.findMany({ where: { kind: 'credential', status: 'open' } });
       expect(open.map((x) => x.dedupeKey)).toEqual(['credential:github']);
       expect(await t.prisma.supportTicket.findFirst({ where: { dedupeKey: 'credential:claude' } })).toMatchObject({ status: 'resolved', resolvedBy: 'system', response: 'The credential test passed' });

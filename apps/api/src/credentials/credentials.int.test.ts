@@ -27,14 +27,14 @@ afterEach(async () => {
 });
 
 describe('CredentialsService', () => {
-  it('saving a new Claude token ends a pause caused by CLAUDE_AUTH, and only that pause', async () => {
+  it('saving a new Anthropic API key ends a pause caused by CLAUDE_AUTH, and only that pause', async () => {
     process.env.ENCRYPTION_KEY = randomBytes(32).toString('base64');
-    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    delete process.env.ANTHROPIC_API_KEY;
     await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'CLAUDE_USAGE_LIMIT', pausedReason: 'limit' }, create: { id: 'global', pipelinePaused: true, pausedCode: 'CLAUDE_USAGE_LIMIT', pausedReason: 'limit' } });
-    await svc.set('claude_token', 'sk-ant-oat01-' + 'a'.repeat(40));
+    await svc.set('anthropic_api_key', 'sk-ant-api03-' + 'a'.repeat(40));
     expect((await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).pipelinePaused).toBe(true);
     await prisma.globalSettings.update({ where: { id: 'global' }, data: { pausedCode: 'CLAUDE_AUTH' } });
-    await svc.set('claude_token', 'sk-ant-oat01-' + 'b'.repeat(40));
+    await svc.set('anthropic_api_key', 'sk-ant-api03-' + 'b'.repeat(40));
     expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: false, pausedCode: null });
     await prisma.globalSettings.deleteMany();
   });
@@ -89,8 +89,8 @@ describe('CredentialsService', () => {
   });
 
   it('reports what is missing', async () => {
-    for (const k of ['CLAUDE_CODE_OAUTH_TOKEN', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
+    for (const k of ['ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
     const status = await svc.status();
-    expect(status).toMatchObject({ adminCreated: false, ready: false, missing: ['claude_token', 'github_token', 'git_author_name', 'git_author_email'] });
+    expect(status).toMatchObject({ adminCreated: false, ready: false, missing: ['anthropic_api_key', 'github_token', 'git_author_name', 'git_author_email'] });
   });
 });

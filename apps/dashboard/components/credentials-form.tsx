@@ -42,15 +42,15 @@ const PERMISSIONS: { name: string; level: string; why: string }[] = [
 
 const CARDS: Card[] = [
   {
-    title: 'Claude',
+    title: 'Anthropic',
     help: (
       <>
-        Run <code>claude setup-token</code> on a machine logged in to your Claude account and paste the token (it starts with <code>sk-ant-</code>). It needs no other permissions.
+        Create an API key in the <a className="underline" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Anthropic Console</a> and paste it (it starts with <code>sk-ant-api</code>). Every stage is billed to the key's workspace, so also set a spend limit there.
       </>
     ),
-    keys: ['claude_token'],
+    keys: ['anthropic_api_key'],
     id: 'claude',
-    testKey: 'claude_token',
+    testKey: 'anthropic_api_key',
   },
   {
     title: 'GitHub',

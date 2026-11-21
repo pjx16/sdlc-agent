@@ -14,7 +14,7 @@ export default async function ConnectionsPage() {
       <h1 className="text-2xl font-semibold">Connections</h1>
       <p className="mb-6 mt-2 text-sm text-muted">
         Add the tokens the pipeline needs. They are stored encrypted in your local database. A value set in <code>.env</code> overrides the dashboard. You can skip any step and come back later,
-        but the pipeline stays blocked until the Claude token and the git identity are set, and either the GitHub token or sdlc-agent-bot is connected.
+        but the pipeline stays blocked until the Anthropic API key and the git identity are set, and either the GitHub token or sdlc-agent-bot is connected.
       </p>
       <div className="mb-6">
         <BotCard />

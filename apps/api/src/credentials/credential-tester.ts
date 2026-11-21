@@ -19,7 +19,7 @@ export const TESTER_OPTIONS = Symbol('TESTER_OPTIONS');
 
 const TIMEOUT_MS = 10_000;
 
-/** Connection tests run in the API (it has outbound internet); the Claude token can only be verified by a stage run in the worker. */
+/** Connection tests run in the API (it has outbound internet); the Anthropic API key can only be verified by a stage run in the worker. */
 @Injectable()
 export class CredentialTester {
   private readonly githubApi: string;
@@ -83,11 +83,11 @@ export class CredentialTester {
         if (res.status === 401 || res.status === 403) return { ok: false, message: 'Jira rejected the credentials' };
         return { ok: false, message: `Jira answered ${res.status}` };
       }
-      case 'claude_token': {
-        if (!c.claude_token) return { ok: false, message: 'No Claude token is set' };
-        return CredentialValueSchemas.claude_token.safeParse(c.claude_token).success
+      case 'anthropic_api_key': {
+        if (!c.anthropic_api_key) return { ok: false, message: 'No Anthropic API key is set' };
+        return CredentialValueSchemas.anthropic_api_key.safeParse(c.anthropic_api_key).success
           ? { ok: true, message: 'Format OK — verified on the first stage run' }
-          : { ok: false, message: 'The token does not look like a Claude token' };
+          : { ok: false, message: 'The value does not look like an Anthropic API key' };
       }
       case 'broker_url':
       case 'broker_key': {

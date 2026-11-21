@@ -6,13 +6,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WorkerConfig } from '../worker-config';
 import { FileLogSink } from './file-log-sink';
 
-const claude = 'sk-ant-oat01-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789';
+const claude = 'sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789';
 let tmp: string;
 let sink: FileLogSink;
 
 beforeAll(() => {
   tmp = mkdtempSync(path.join(tmpdir(), 'sdlc-logs-'));
-  sink = new FileLogSink(new WorkerConfig({ DATA_DIR: tmp, DATABASE_URL: 'x' } as NodeJS.ProcessEnv), staticCredentials({ claude_token: claude, github_token: 'gh-secret-token-123', jira_api_token: 'jira-secret-token-456' }));
+  sink = new FileLogSink(new WorkerConfig({ DATA_DIR: tmp, DATABASE_URL: 'x' } as NodeJS.ProcessEnv), staticCredentials({ anthropic_api_key: claude, github_token: 'gh-secret-token-123', jira_api_token: 'jira-secret-token-456' }));
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
@@ -20,12 +20,12 @@ describe('FileLogSink (F5)', () => {
   it('writes redacted lines to logs/<stageRunId>.log and returns the path', async () => {
     const log = sink.open('run-1');
     log.write('{"type":"system"}');
-    log.write(`env dump: CLAUDE_CODE_OAUTH_TOKEN=${claude} GITHUB_TOKEN=gh-secret-token-123`);
+    log.write(`env dump: ANTHROPIC_API_KEY=${claude} GITHUB_TOKEN=gh-secret-token-123`);
     log.write('jira jira-secret-token-456 done');
     const file = await log.close();
     expect(file).toBe(path.join(tmp, 'logs', 'run-1.log'));
     const text = readFileSync(file as string, 'utf8');
-    expect(text.split('\n')).toEqual(['{"type":"system"}', 'env dump: CLAUDE_CODE_OAUTH_TOKEN=[REDACTED] GITHUB_TOKEN=[REDACTED]', 'jira [REDACTED] done', '']);
+    expect(text.split('\n')).toEqual(['{"type":"system"}', 'env dump: ANTHROPIC_API_KEY=[REDACTED] GITHUB_TOKEN=[REDACTED]', 'jira [REDACTED] done', '']);
     for (const secret of [claude, 'gh-secret-token-123', 'jira-secret-token-456']) expect(text).not.toContain(secret);
   });
 

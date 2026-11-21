@@ -27,7 +27,7 @@ let config: WorkerConfig;
 beforeAll(() => {
   tmp = mkdtempSync(path.join(tmpdir(), 'sdlc-runner-'));
   mkdirSync(path.join(tmp, 'ws'), { recursive: true });
-  config = new WorkerConfig({ DATA_DIR: tmp, DATABASE_URL: 'x', CLAUDE_CODE_OAUTH_TOKEN: 'tok', GUIDELINES_DIR: path.join(tmp, 'guidelines') } as NodeJS.ProcessEnv);
+  config = new WorkerConfig({ DATA_DIR: tmp, DATABASE_URL: 'x', ANTHROPIC_API_KEY: 'tok', GUIDELINES_DIR: path.join(tmp, 'guidelines') } as NodeJS.ProcessEnv);
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
@@ -40,7 +40,7 @@ const request = (over: Partial<StageRequest> = {}): StageRequest => ({
 const setup = (behaviour: FakeBehaviour | FakeBehaviour[]) => {
   const engine = new FakeEngine(behaviour);
   const store = new MemoryStore();
-  return { engine, store, runner: new AgentRunner(new ContainerRunner(engine), config, staticCredentials({ claude_token: 'tok' }), store, new NullLogSink()) };
+  return { engine, store, runner: new AgentRunner(new ContainerRunner(engine), config, staticCredentials({ anthropic_api_key: 'tok' }), store, new NullLogSink()) };
 };
 
 describe('AgentRunner, Jira connector stage', () => {
@@ -54,15 +54,15 @@ describe('AgentRunner, Jira connector stage', () => {
     const env = created?.Env ?? [];
     expect(env).toContain('CLAUDE_CONFIG_DIR=/connector-home');
     expect(env).toContain('HTTPS_PROXY=http://proxy:3129');
-    for (const name of ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN']) expect(env.some((e) => e.startsWith(`${name}=`)), name).toBe(false);
+    for (const name of ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']) expect(env.some((e) => e.startsWith(`${name}=`)), name).toBe(false);
     expect(env.some((e) => e.endsWith('=tok'))).toBe(false);
     expect(created?.HostConfig?.Binds).toContain('sdlc_jira_connector_home:/connector-home:rw');
     expect(created?.HostConfig?.Binds?.some((b) => b.includes(':/workspace'))).toBe(false);
   });
 
-  it('a refused connector login does not mark the pipeline\'s Claude token as rejected', async () => {
+  it('a refused connector login does not mark the pipeline\'s Anthropic API key as rejected', async () => {
     const marks: unknown[] = [];
-    const creds = { ...staticCredentials({ claude_token: 'tok' }), markVerified: async (...a: unknown[]) => void marks.push(a) };
+    const creds = { ...staticCredentials({ anthropic_api_key: 'tok' }), markVerified: async (...a: unknown[]) => void marks.push(a) };
     const engine = new FakeEngine({ lines: [JSON.stringify({ type: 'result', subtype: 'success', is_error: true, api_error_status: 401, result: 'Invalid API key · Please run /login' })] });
     const runner = new AgentRunner(new ContainerRunner(engine), config, creds as never, new MemoryStore(), new NullLogSink());
     expect(await runner.run(connectorRequest())).toMatchObject({ kind: 'claude_auth' });
@@ -74,7 +74,7 @@ describe('AgentRunner', () => {
   it('gives each container its own gateway key, live only while the container runs', async () => {
     const engine = new FakeEngine([good, good]);
     const tokens = new GatewayTokens();
-    const runner = new AgentRunner(new ContainerRunner(engine), config, staticCredentials({ claude_token: 'tok' }), new MemoryStore(), new NullLogSink(), undefined, tokens);
+    const runner = new AgentRunner(new ContainerRunner(engine), config, staticCredentials({ anthropic_api_key: 'tok' }), new MemoryStore(), new NullLogSink(), undefined, tokens);
     await runner.run(request());
     await runner.run(request());
     const keys = engine.created.map((c) => c.Env?.find((e) => e.startsWith('ANTHROPIC_API_KEY='))?.split('=')[1]);
@@ -93,7 +93,7 @@ describe('AgentRunner', () => {
     expect(run?.finished?.usage).toMatchObject({ inputTokens: 5, outputTokens: 6, costUsd: 0.01, numTurns: 2, sessionId: 's', cliVersion: '2.1.322' });
     expect(run?.containerId).toBe('fake-1');
     expect(engine.created[0]?.name).toBe('sdlc-run-run-1');
-    // The Claude token is not in the container: the LLM gateway holds it.
+    // The Anthropic API key is not in the container: the LLM gateway holds it.
     expect(engine.created[0]?.Env?.join('\n')).not.toMatch(/OAUTH_TOKEN|=tok$/m);
     expect(engine.created[0]?.Env).toContain('ANTHROPIC_BASE_URL=http://llm-gateway:8080');
     expect(engine.created[0]?.Env).toContain('npm_config_registry=http://npm-mirror:4873/');

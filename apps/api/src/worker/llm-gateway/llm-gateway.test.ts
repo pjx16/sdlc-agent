@@ -26,7 +26,7 @@ async function start(token: string | null = 'sk-ant-oat-secret') {
   const config = new WorkerConfig({ DATA_DIR: '/tmp/x', DATABASE_URL: 'x', LLM_GATEWAY_UPSTREAM: `http://127.0.0.1:${(upstream.address() as AddressInfo).port}` } as NodeJS.ProcessEnv);
   tokens = new GatewayTokens();
   key = tokens.issue();
-  gateway = new LlmGateway(config, { resolve: async () => ({ claude_token: token }) } as unknown as CredentialsService, tokens);
+  gateway = new LlmGateway(config, { resolve: async () => ({ anthropic_api_key: token }) } as unknown as CredentialsService, tokens);
   return `http://127.0.0.1:${await gateway.start(0)}`;
 }
 
@@ -79,7 +79,7 @@ describe('LlmGateway', () => {
 });
 
 describe('agent environment', () => {
-  it('has no Claude token and points at the gateway and the mirror', () => {
+  it('has no Anthropic API key and points at the gateway and the mirror', () => {
     const config = new WorkerConfig({ DATA_DIR: '/tmp/x', DATABASE_URL: 'x' } as NodeJS.ProcessEnv);
     expect(config.llmGatewayUrl).toBe('http://llm-gateway:8080');
     expect(config.npmRegistryUrl).toBe('http://npm-mirror:4873/');

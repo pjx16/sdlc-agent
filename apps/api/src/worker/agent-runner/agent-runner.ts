@@ -163,7 +163,7 @@ export class AgentRunner {
       image: this.config.agentImage,
       cmd: ['run-stage'],
       env: connector ? this.connectorEnv() : {
-        // No Claude token in the container: the LLM gateway adds it. This key only opens the gateway, only while this run's container lives.
+        // No Anthropic API key in the container: the LLM gateway adds it. This key only opens the gateway, only while this run's container lives.
         ANTHROPIC_BASE_URL: this.config.llmGatewayUrl,
         ANTHROPIC_API_KEY: gatewayKey,
         HTTPS_PROXY: proxy,
@@ -239,14 +239,14 @@ export class AgentRunner {
     const claudeCode = classifyClaudeError(text, status);
 
     if (claudeCode === 'CLAUDE_AUTH' && connector) {
-      // The connector's own claude.ai login was refused: that is a Jira connection problem, not the pipeline's Claude token.
+      // The connector's own claude.ai login was refused: that is a Jira connection problem, not the pipeline's Anthropic API key.
       await this.store.finish(stageRunId, { ...base, status: 'failed', error: JIRA_CONNECTOR_LOGIN_EXPIRED, errorCode: 'JIRA_ERROR' });
       return { kind: 'claude_auth', stageRunId };
     }
     if (claudeCode === 'CLAUDE_AUTH') {
       const reason = describeError('CLAUDE_AUTH');
       await this.store.finish(stageRunId, { ...base, status: 'failed', error: reason, errorCode: 'CLAUDE_AUTH' });
-      await this.creds.markVerified('claude_token', 'Claude rejected the token').catch(() => undefined);
+      await this.creds.markVerified('anthropic_api_key', 'Claude rejected the API key').catch(() => undefined);
       return { kind: 'claude_auth', stageRunId };
     }
     if (isRateLimited(parsed) || claudeCode === 'CLAUDE_RATE_LIMIT' || claudeCode === 'CLAUDE_USAGE_LIMIT') {
@@ -267,11 +267,11 @@ export class AgentRunner {
     const envelope = parsed.envelope as StageEnvelope;
     if (envelope.status === 'needs_input') {
       await this.store.finish(stageRunId, { ...base, status: 'needs_input', errorCode: 'NEEDS_INPUT' });
-      await this.creds.markVerified('claude_token', null).catch(() => undefined);
+      await this.creds.markVerified('anthropic_api_key', null).catch(() => undefined);
       return { kind: 'needs_input', question: envelope.question as string, stageRunId };
     }
     await this.store.finish(stageRunId, { ...base, status: 'succeeded' });
-    if (!connector) await this.creds.markVerified('claude_token', null).catch(() => undefined); // a stage that ran proves the token works
+    if (!connector) await this.creds.markVerified('anthropic_api_key', null).catch(() => undefined); // a stage that ran proves the key works
     return { kind: 'done', envelope, stageRunId };
   }
 

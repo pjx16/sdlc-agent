@@ -47,9 +47,9 @@ describe('worker status', () => {
   });
 
   it('records a heartbeat with the outcome and detail', async () => {
-    await recordTick(prisma, 'not_configured', 'claude_token, github_token');
+    await recordTick(prisma, 'not_configured', 'anthropic_api_key, github_token');
     const row = await status();
-    expect(row).toMatchObject({ tickOutcome: 'not_configured', tickDetail: 'claude_token, github_token' });
+    expect(row).toMatchObject({ tickOutcome: 'not_configured', tickDetail: 'anthropic_api_key, github_token' });
     expect(Date.now() - row.heartbeatAt.getTime()).toBeLessThan(5000);
     await recordTick(prisma, 'idle');
     expect(await status()).toMatchObject({ tickOutcome: 'idle', tickDetail: null });

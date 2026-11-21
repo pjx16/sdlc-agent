@@ -18,7 +18,7 @@ const refuse = (res: ServerResponse, status: number, message: string): void => {
 };
 
 /**
- * The Claude token never enters an agent container. Agents call this gateway (ANTHROPIC_BASE_URL) on the agent network; it drops whatever
+ * The Anthropic API key never enters an agent container. Agents call this gateway (ANTHROPIC_BASE_URL) on the agent network; it drops whatever
  * credentials the agent sent, adds the subscription token itself and forwards `POST /v1/messages` to Anthropic, nothing else.
  * An agent that reads its own environment finds no token, and cannot use the gateway for anything but messages. Each request must carry
  * the per-run key from GatewayTokens, so nothing but a running stage can use it.
@@ -63,8 +63,8 @@ export class LlmGateway {
     const bearer = /^Bearer (.+)$/i.exec(String(req.headers.authorization ?? ''))?.[1];
     const key = typeof req.headers['x-api-key'] === 'string' ? req.headers['x-api-key'] : bearer;
     if (!this.tokens.isLive(key)) return refuse(res, 401, 'Unknown or expired gateway key');
-    const token = (await this.creds.resolve()).claude_token;
-    if (!token) return refuse(res, 503, 'No Claude token is set');
+    const token = (await this.creds.resolve()).anthropic_api_key;
+    if (!token) return refuse(res, 503, 'No Anthropic API key is set');
 
     const headers = new Headers();
     for (const [name, value] of Object.entries(req.headers)) {

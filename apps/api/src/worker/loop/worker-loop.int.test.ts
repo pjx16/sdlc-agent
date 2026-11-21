@@ -68,7 +68,7 @@ describe('worker loop', () => {
 
   it('runs no step and clones nothing while the required credentials are missing (setup incomplete)', async () => {
     const saved = { ...process.env };
-    for (const k of ['CLAUDE_CODE_OAUTH_TOKEN', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
+    for (const k of ['ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
     try {
       const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
       const creds = new CredentialsService(prisma);

@@ -34,7 +34,7 @@ export class VerifyService {
     private readonly config: WorkerConfig,
   ) {}
 
-  /** Runs one command (install, typecheck or tests) through `run-cmd` in a container without the Claude token. */
+  /** Runs one command (install, typecheck or tests) through `run-cmd` in a container without the Anthropic API key. */
   async runCmd(args: { name: string; workspace: string; cmd: string; timeoutSec: number; files?: readonly string[] }): Promise<CmdResult> {
     const command = args.files ? buildTestCommand(args.cmd, args.files) : args.cmd;
     const lines: string[] = [];

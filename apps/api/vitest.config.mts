@@ -24,7 +24,7 @@ export default defineConfig({
         },
       },
       {
-        // Needs Docker, the images, a network and a real Claude token: run with LIVE_CLAUDE=1 npm run test:live
+        // Needs Docker, the images, a network and a real Anthropic API key: run with LIVE_CLAUDE=1 npm run test:live
         extends: true,
         test: { name: 'live', environment: 'node', include: ['src/**/*.live.test.ts'], globalSetup: ['./src/testing/live-setup.ts'], testTimeout: 300_000, hookTimeout: 240_000 },
       },

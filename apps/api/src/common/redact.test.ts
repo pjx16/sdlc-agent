@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { REDACTED, createRedactor } from './redact';
 
-const claude = 'sk-ant-oat01-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789';
+const claude = 'sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789';
 const jira = 'ATATT3xFfGF0AbCdEfGhIjKlMnOpQrStUvWxYz0123456789=ABCD1234';
 
 describe('createRedactor', () => {

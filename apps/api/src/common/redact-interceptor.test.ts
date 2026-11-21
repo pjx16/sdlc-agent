@@ -9,10 +9,10 @@ describe('redactDeep', () => {
     const body = {
       events: [{ message: 'push failed for https://x-access-token:ghp_abcdefghijklmnopqrstuvwxyz0123456789@github.com/a/b', n: 1 }],
       error: 'Authorization: Basic dXNlcjpzdXBlcnNlY3JldHBhc3N3b3Jk failed with super-secret-value-123',
-      nested: { claude: 'token sk-ant-oat01-ABCDEFGHIJKLMNOPQRSTUV', jira: 'ATATT3xFfGF0abcdefghijklmnopqrstuvwxyz' },
+      nested: { claude: 'token sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUV', jira: 'ATATT3xFfGF0abcdefghijklmnopqrstuvwxyz' },
     };
     const text = JSON.stringify(redactDeep(body, redact));
-    for (const leaked of ['ghp_abcdef', 'dXNlcjpzdXBlcnNlY3JldHBhc3N3b3Jk', 'super-secret-value-123', 'sk-ant-oat01', 'ATATT3xFfGF0']) expect(text).not.toContain(leaked);
+    for (const leaked of ['ghp_abcdef', 'dXNlcjpzdXBlcnNlY3JldHBhc3N3b3Jk', 'super-secret-value-123', 'sk-ant-api03', 'ATATT3xFfGF0']) expect(text).not.toContain(leaked);
     expect(text).toContain('[REDACTED]');
   });
   it('keeps structure, numbers, booleans, null and dates', () => {

@@ -15,7 +15,7 @@ export async function adminCreated(): Promise<boolean> {
 
 /** Human label for each missing credential, for the banner. */
 export const MISSING_LABELS: Record<string, string> = {
-  claude_token: 'the Claude token',
+  anthropic_api_key: 'the Anthropic API key',
   github_token: 'the GitHub token',
   broker_url: 'the broker URL',
   broker_key: 'the broker key',

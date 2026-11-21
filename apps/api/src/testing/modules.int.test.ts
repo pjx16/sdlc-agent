@@ -37,7 +37,7 @@ describe('application wiring', () => {
 
   it('the worker loop is wired to the credentials, so it blocks until setup is complete', async () => {
     const saved = { ...process.env };
-    for (const k of ['CLAUDE_CODE_OAUTH_TOKEN', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
+    for (const k of ['ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
     const app = await Test.createTestingModule({ imports: [WorkerModule] }).compile();
     try {
       await app.init();

@@ -42,7 +42,7 @@ export interface ErrorPolicy {
 const hold: Recovery = { kind: 'hold' };
 
 export const ERROR_POLICY: Record<ErrorCode, ErrorPolicy> = {
-  CLAUDE_AUTH: { source: 'claude', badge: 'Claude', recovery: { kind: 'pause_global' }, message: 'Claude rejected the credential. Update it in Settings → Connections.', action: 'Update the Claude token in Settings → Connections. The pipeline resumes by itself.' },
+  CLAUDE_AUTH: { source: 'claude', badge: 'Claude', recovery: { kind: 'pause_global' }, message: 'Claude rejected the credential. Update it in Settings → Connections.', action: 'Update the Anthropic API key in Settings → Connections. The pipeline resumes by itself.' },
   CLAUDE_RATE_LIMIT: { source: 'claude', badge: 'Claude', recovery: { kind: 'pause_until_reset' }, message: 'Claude rate limit reached. Resuming at {time}.', action: 'Nothing: the pipeline resumes at the reset time.' },
   CLAUDE_USAGE_LIMIT: { source: 'claude', badge: 'Claude', recovery: { kind: 'pause_until_reset' }, message: 'Claude usage limit reached. Resuming at {time}.', action: 'Nothing: the pipeline resumes at the reset time.' },
   CLAUDE_API_ERROR: { source: 'claude', badge: 'Claude', recovery: { kind: 'retry', retries: 3, backoffMin: [1, 4, 10], then: 'hold' }, message: 'Claude API error ({detail}). Retry {n}/3 at {time}.', action: 'Nothing while retries remain. After the third, resume the ticket when Claude is back.' },

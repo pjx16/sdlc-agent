@@ -125,7 +125,7 @@ describe('commitAll', () => {
 
 describe('minimalGitEnv', () => {
   it('passes the few variables git needs and the operator\'s GIT_CONFIG_* settings, and nothing else', () => {
-    const env = minimalGitEnv({ GITHUB_TOKEN: 't' }, { PATH: '/bin', HOME: '/h', ENCRYPTION_KEY: 'k', DATABASE_URL: 'd', CLAUDE_CODE_OAUTH_TOKEN: 'c', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'a.b', GIT_CONFIG_VALUE_0: 'v' });
+    const env = minimalGitEnv({ GITHUB_TOKEN: 't' }, { PATH: '/bin', HOME: '/h', ENCRYPTION_KEY: 'k', DATABASE_URL: 'd', ANTHROPIC_API_KEY: 'c', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'a.b', GIT_CONFIG_VALUE_0: 'v' });
     expect(env).toMatchObject({ PATH: '/bin', HOME: '/h', GITHUB_TOKEN: 't', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'a.b', GIT_CONFIG_VALUE_0: 'v', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' });
     expect(Object.keys(env)).not.toEqual(expect.arrayContaining(['ENCRYPTION_KEY']));
     expect(JSON.stringify(env)).not.toMatch(/ENCRYPTION_KEY|DATABASE_URL|CLAUDE_CODE/);

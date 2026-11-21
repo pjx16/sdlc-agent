@@ -53,15 +53,15 @@ test('save and test the GitHub token; the banner stays until every required cred
   await card(page, 'github').getByRole('button', { name: 'Test' }).click();
   await expect(card(page, 'github')).toContainText('Connected as octo-e2e');
 
-  // The Claude token (and the git identity) are still missing.
+  // The Anthropic API key (and the git identity) are still missing.
   await page.goto('/');
-  await expect(page.getByRole('alert').filter({ hasText: 'Setup incomplete' })).toContainText('the Claude token');
+  await expect(page.getByRole('alert').filter({ hasText: 'Setup incomplete' })).toContainText('the Anthropic API key');
 });
 
 test('finishing the setup removes the banner', async ({ page }) => {
   await login(page);
   await page.goto('/setup/connections');
-  await saveCard(page, 'claude', { 'Claude token': 'sk-ant-oat01-e2eFakeClaudeToken' });
+  await saveCard(page, 'claude', { 'Anthropic API key': 'sk-ant-api03-e2eFakeAnthropicKey' });
   await saveCard(page, 'github', { 'Git author name': 'E2E Bot', 'Git author email': 'e2e@example.com' });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();

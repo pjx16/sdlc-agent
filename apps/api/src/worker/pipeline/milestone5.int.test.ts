@@ -80,7 +80,7 @@ describe('pipeline end to end (real containers, fake-claude)', () => {
     sh(source, 'commit', '-q', '-m', 'init');
 
     const config = new WorkerConfig({
-      DATA_DIR: dataDir, DATABASE_URL: db.url, CLAUDE_CODE_OAUTH_TOKEN: 'fake-token', GUIDELINES_DIR: path.join(ROOT, 'guidelines'),
+      DATA_DIR: dataDir, DATABASE_URL: db.url, ANTHROPIC_API_KEY: 'fake-token', GUIDELINES_DIR: path.join(ROOT, 'guidelines'),
       TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com',
       AGENT_EXTRA_BINDS: `${ROOT}/test/fake-claude/claude:/usr/local/bin/claude:ro,${ROOT}/test/fake-claude:/fake-claude:ro`,
       AGENT_EXTRA_ENV: 'FAKE_SCENARIO=kb-new,FAKE_SCENARIOS_DIR=/fake-claude/scenarios',
@@ -95,7 +95,7 @@ describe('pipeline end to end (real containers, fake-claude)', () => {
     const containers = new ContainerRunner(new DockerodeEngine(docker));
     const git = new GitRunner({ token: async () => '' });
     const workspaces = new WorkspaceService(prisma, config, git, new VerifyService(containers, config), staticCredentials());
-    const agent = new AgentRunner(containers, config, staticCredentials({ claude_token: 'fake-token' }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ claude_token: 'fake-token' })));
+    const agent = new AgentRunner(containers, config, staticCredentials({ anthropic_api_key: 'fake-token' }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ anthropic_api_key: 'fake-token' })));
     const launcher = new StageLauncher(prisma, config, agent);
     const outcomes = new StageOutcomes(prisma);
     const kbBuild = new KbBuildService(prisma, launcher, outcomes, workspaces, git);

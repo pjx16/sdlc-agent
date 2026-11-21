@@ -16,7 +16,7 @@ import { FileLogSink } from './file-log-sink';
 import { PrismaStageRunStore } from './stage-run-store';
 
 const ROOT = path.resolve(__dirname, '../../../../..');
-const FAKE_TOKEN = 'sk-ant-oat01-FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01234567';
+const FAKE_TOKEN = 'sk-ant-api03-FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE01234567';
 
 let db: TestDatabase;
 let prisma: PrismaService;
@@ -28,11 +28,11 @@ let n = 0;
 /** A runner wired like the worker: real Docker, real database, real log files; only the model is the stub. */
 function runnerFor(scenario: string, env: Record<string, string> = {}) {
   const config = new WorkerConfig({
-    DATA_DIR: dataDir, DATABASE_URL: db.url, CLAUDE_CODE_OAUTH_TOKEN: FAKE_TOKEN, GUIDELINES_DIR: path.join(ROOT, 'guidelines'),
+    DATA_DIR: dataDir, DATABASE_URL: db.url, ANTHROPIC_API_KEY: FAKE_TOKEN, GUIDELINES_DIR: path.join(ROOT, 'guidelines'),
     AGENT_EXTRA_BINDS: `${ROOT}/test/fake-claude/claude:/usr/local/bin/claude:ro,${ROOT}/test/fake-claude:/fake-claude:ro`,
     AGENT_EXTRA_ENV: `FAKE_SCENARIO=${scenario},FAKE_SCENARIOS_DIR=/fake-claude/scenarios`, ...env,
   } as NodeJS.ProcessEnv);
-  return new AgentRunner(new ContainerRunner(new DockerodeEngine(docker)), config, staticCredentials({ claude_token: FAKE_TOKEN }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ claude_token: FAKE_TOKEN })));
+  return new AgentRunner(new ContainerRunner(new DockerodeEngine(docker)), config, staticCredentials({ anthropic_api_key: FAKE_TOKEN }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ anthropic_api_key: FAKE_TOKEN })));
 }
 
 function workspace(): string {
@@ -155,12 +155,11 @@ describe('fake stage end to end, in a real container', () => {
     expect((limited as { resetsAt: Date }).resetsAt.getTime()).toBe(1794418200 * 1000);
   }, 180_000);
 
-  it('never puts the Claude token in the container, so a process that prints its whole environment leaks nothing', async () => {
+  it('never puts the Anthropic API key in the container, only its per-run gateway key, so a process that prints its whole environment leaks nothing', async () => {
     const res = await runnerFor('leak').run(request());
     expect(res.kind).toBe('done');
     const run = await prisma.stageRun.findUniqueOrThrow({ where: { id: (res as { stageRunId: string }).stageRunId } });
     const log = readFileSync(run.logPath as string, 'utf8');
-    expect(log).not.toMatch(/CLAUDE_CODE_OAUTH_TOKEN=[^"\\\s]/); // the variable is not set in the container, whatever the process prints
     expect(log).not.toContain(FAKE_TOKEN);
     expect(log).not.toContain('FAKEFAKEFAKE');
   }, 120_000);
@@ -196,14 +195,14 @@ describe('container hardening, as seen from inside the agent container', () => {
 
 describe('Verify.runCmd through run-cmd, in a real container', () => {
   const verify = () => {
-    const config = new WorkerConfig({ DATA_DIR: dataDir, DATABASE_URL: db.url, CLAUDE_CODE_OAUTH_TOKEN: FAKE_TOKEN } as NodeJS.ProcessEnv);
+    const config = new WorkerConfig({ DATA_DIR: dataDir, DATABASE_URL: db.url, ANTHROPIC_API_KEY: FAKE_TOKEN } as NodeJS.ProcessEnv);
     return new VerifyService(new ContainerRunner(new DockerodeEngine(docker)), config);
   };
 
-  it('runs a command in the workspace, passes exit codes through, and never sees the Claude token', async () => {
+  it('runs a command in the workspace, passes exit codes through, and never sees the Anthropic API key', async () => {
     const ws = workspace();
     writeFileSync(path.join(ws, 'a.txt'), 'content');
-    const ok = await verify().runCmd({ name: `sdlc-verify-${++n}`, workspace: ws, cmd: 'cat a.txt && echo "token=[${CLAUDE_CODE_OAUTH_TOKEN:-none}]"', timeoutSec: 60 });
+    const ok = await verify().runCmd({ name: `sdlc-verify-${++n}`, workspace: ws, cmd: 'cat a.txt && echo "token=[${ANTHROPIC_API_KEY:-none}]"', timeoutSec: 60 });
     expect(ok).toMatchObject({ ok: true, exitCode: 0 });
     expect(ok.output).toContain('content');
     expect(ok.output).toContain('token=[none]');
