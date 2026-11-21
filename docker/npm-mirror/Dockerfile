@@ -1,4 +1,4 @@
-FROM verdaccio/verdaccio:7.1.0@sha256:c1b1b86154b43a4e1861bc7a4496d4977aa43c8bdb5db49b68445f8a9273729f
+FROM verdaccio/verdaccio:7.1.1@sha256:c826ec44b4f7bf6512b0362c5f6f199bbdc8c4348410ced7fdb7fc62f52f477e
 LABEL org.opencontainers.image.source="https://github.com/pjx16/sdlc-agent" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.description="SDLC agent read-only npm mirror (Verdaccio)"

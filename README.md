@@ -150,7 +150,7 @@ Releases are published on [GitHub Releases](https://github.com/pjx16/sdlc-agent/
 
 ```bash
 # Download sdlc-agent-<version>.tar.gz and SHA256SUMS from the release page, then:
-shasum -a 256 -c SHA256SUMS            # macOS; on Linux: sha256sum -c SHA256SUMS
+shasum -a 256 -c --ignore-missing SHA256SUMS   # macOS; on Linux: sha256sum -c --ignore-missing SHA256SUMS
 tar -xzf sdlc-agent-<version>.tar.gz
 cd sdlc-agent-<version>
 cp .env.example .env                   # set POSTGRES_PASSWORD, ENCRYPTION_KEY (openssl rand -base64 32) and DATA_DIR; SDLC_VERSION is already set
@@ -160,10 +160,10 @@ docker compose up -d
 
 `sdlc-agent up` builds the agent image on your machine before starting the stack, so the first run takes a few minutes longer. The agent image is never published because it contains Claude Code, which is Anthropic's software (release installs build it from `docker/agent`; a source checkout builds it with `npm run up:prod`). Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
 
-The images are published to GHCR with provenance attestations. To verify one (needs the GitHub CLI):
+The images on GHCR are signed. To verify one, use [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) and the `cosign.pub` attached to every GitHub release:
 
 ```bash
-gh attestation verify oci://ghcr.io/pjx16/sdlc-agent-api:<version> --owner pjx16
+cosign verify --key cosign.pub ghcr.io/pjx16/sdlc-agent-api:<version>
 ```
 
 ### Run from source
@@ -310,7 +310,7 @@ Known limitations:
 
 ## Releases and versioning
 
-Versions follow [semantic versioning](https://semver.org/). Releases are tags on `dev`, and each one also publishes the `sdlc-subagents` plugin at the same version (`scripts/bump-version.sh` sets both); until `1.0`, breaking changes (database migrations, configuration, API) can happen in any minor release and are marked **Breaking** in [`CHANGELOG.md`](./CHANGELOG.md), so read it before upgrading. Release images are signed and attested; [`SECURITY.md`](./SECURITY.md#verifying-a-release) shows how to verify them. Third-party licences are listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+Versions follow [semantic versioning](https://semver.org/). Releases are tags on `dev`, and each one also publishes the `sdlc-subagents` plugin at the same version (`scripts/bump-version.sh` sets both); until `1.0`, breaking changes (database migrations, configuration, API) can happen in any minor release and are marked **Breaking** in [`CHANGELOG.md`](./CHANGELOG.md), so read it before upgrading. Releases are cut by a maintainer with `scripts/release.sh` (see [`CONTRIBUTING.md`](./CONTRIBUTING.md#cutting-a-release)). Release images are signed and carry an SBOM and build provenance; [`SECURITY.md`](./SECURITY.md#verifying-a-release) shows how to verify them. Third-party licences are listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
 ## Contributing
 

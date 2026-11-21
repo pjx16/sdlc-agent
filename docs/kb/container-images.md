@@ -44,7 +44,7 @@ The `api` and `worker` services are built from two Dockerfiles that share the sa
 - The base image digest is pinned in every `FROM`; changing it is a supply-chain decision — `apps/api/Dockerfile:1`
 - `.dockerignore` excludes `*.md`, so any file the build needs must not be a markdown file — `.dockerignore:8`
 - `docker-compose.yml:1` documents that the agent image is built separately with `docker compose --profile build build`; the release compose builds it the same way from the shipped `docker/agent` folder (never published, because it contains Claude Code) — `deploy/docker-compose.yml:1`
-- The pull size of published images is set by the release workflow, which builds these Dockerfiles (`.github/workflows/release.yml`, content not verified)
+- Published images are built from these Dockerfiles by `scripts/release.sh` (the `IMAGES` list), for amd64 and arm64, without cache; a new published image must be added there and to `deploy/docker-compose.yml`, which `packages/cli/src/compose-exposure.test.ts` checks
 
 ## Tests
 

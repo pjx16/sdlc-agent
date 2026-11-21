@@ -93,6 +93,6 @@ sdlc-agent uninstall --purge    # also removes the folder
 
 ## Security
 
-The package has no install scripts and no runtime dependencies, and is published from CI with provenance. See [SECURITY.md](https://github.com/pjx16/sdlc-agent/blob/main/SECURITY.md) for the threat model and how to report a vulnerability.
+The package has no install scripts and no runtime dependencies, and is published by a maintainer with `scripts/release.sh`. See [SECURITY.md](https://github.com/pjx16/sdlc-agent/blob/main/SECURITY.md) for the threat model and how to report a vulnerability.
 
 License: MIT.

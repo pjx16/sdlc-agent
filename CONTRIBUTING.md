@@ -52,13 +52,40 @@ npm run test:e2e    # browser tests: needs Docker (first run: npx playwright ins
 
 ## Branches, commits and pull requests
 
-- `dev` is the default branch and where all work lands. Releases are tags (`vX.Y.Z`) on `dev`; there is no separate release branch.
+- `dev` is the default branch and where all work lands. Releases are tags (`vX.Y.Z`) on `dev`, made by `scripts/release.sh`; there is no separate release branch.
 - Branch from `dev` and give the branch a type prefix: `feat/`, `fix/`, `chore/`, `docs/`.
 - Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`, `build:`, `ci:`, `chore:`). Keep one logical change per commit.
 - **Sign off every commit** (`git commit -s`). See [Developer Certificate of Origin](#developer-certificate-of-origin) below. A CI check refuses pull requests with unsigned commits.
 - Open the pull request against `dev` and fill in the template. Keep it small: one concern per pull request.
 - Add an entry under `## [Unreleased]` in [`CHANGELOG.md`](./CHANGELOG.md) for anything a user would notice.
 - A maintainer reviews every pull request (see [`CODEOWNERS`](./.github/CODEOWNERS)). CI must pass before merge.
+
+## Cutting a release
+
+Maintainers only. Releases are cut from a maintainer's machine with `scripts/release.sh`; no pipeline publishes anything. It builds and pushes the images to GHCR, pushes the `vX.Y.Z` tag, creates the GitHub release with the install bundle, and publishes the `sdlc-agent` npm package.
+
+One-time setup:
+
+```bash
+brew install cosign trivy                                    # plus git, gh, jq, Node and Docker
+mkdir -p ~/.config/sdlc-agent && cd ~/.config/sdlc-agent
+cosign generate-key-pair                                     # pick a strong password; keep cosign.key private and backed up
+cp cosign.pub <repo>/cosign.pub                              # commit it: users verify images against it
+gh auth refresh -s write:packages,delete:packages            # push and delete GHCR images (or set GH_TOKEN to a classic token)
+npm login                                                    # an npm account that can publish sdlc-agent
+```
+
+The GitHub account needs write access to the repository and admin access to the `ghcr.io/pjx16/sdlc-agent-*` packages. The signing key is read from `COSIGN_KEY` (default `~/.config/sdlc-agent/cosign.key`); set `COSIGN_PASSWORD` to skip the password prompt.
+
+Each release:
+
+1. `scripts/release.sh prepare X.Y.Z`: sets every workspace version, moves the `[Unreleased]` changelog entries under `[X.Y.Z]` (they become the release notes), and opens a pull request from `release/vX.Y.Z`. Review the notes and merge it once CI passes.
+2. `git switch dev && git pull && scripts/release.sh check X.Y.Z` (optional): a dry run of every check, plus the install bundle in `.release/vX.Y.Z/dist`. Nothing is published.
+3. `scripts/release.sh publish X.Y.Z`: runs the checks, asks once, then builds the images for amd64 and arm64 without cache and pushes them by digest. It scans every image with Trivy, signs them, and only then tags them `X.Y.Z` and `sha-<commit>`. Next it pushes the git tag and creates the GitHub release (marked pre-release while the version is `0.x`). It publishes to npm last and asks first (`next` dist-tag for `-rc.N` versions, `latest` otherwise).
+
+The checks need a clean `dev` equal to `origin/dev`, a green CI run on that commit (`--ignore-ci` runs lint, typecheck and unit tests locally instead), versions matching `X.Y.Z`, changelog notes for it, and no existing tag, release or npm version. `--yes` skips the prompts.
+
+**Rollback.** If any step of `publish` fails or you press Ctrl-C, it undoes what it already published (`--no-rollback` leaves it for inspection). To withdraw a finished release, run `scripts/release.sh rollback X.Y.Z`. It unpublishes the npm version, or deprecates it if npm refuses (after 72 hours or once something depends on it), and moves the dist-tag back. It then deletes the GitHub release, the tag on origin and locally, and the release's image versions and signatures on GHCR. The release commit on `dev` stays, so you can publish the same version again, unless it already reached npm: npm never accepts a version number twice, so prepare the next patch instead.
 
 ## Developer Certificate of Origin
 
