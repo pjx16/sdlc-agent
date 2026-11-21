@@ -146,9 +146,12 @@ describe('MirrorStatus', () => {
     expect(within(screen.getByRole('status')).getByText('Cloning…')).toBeInTheDocument();
   });
 
-  it('shows Ready when ok', () => {
+  it('shows Ready when ok, and can clone a ready mirror again', async () => {
+    fetchMock.mockResolvedValue(ok({}));
     render(<MirrorStatus project={existing} />);
     expect(screen.getByRole('status')).toHaveTextContent('Ready');
+    await userEvent.click(screen.getByRole('button', { name: 'Clone again' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/mirror/retry', { method: 'POST' }));
   });
 
   it('shows the error and retries a failed mirror', async () => {

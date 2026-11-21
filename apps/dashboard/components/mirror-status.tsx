@@ -6,7 +6,7 @@ import type { ProjectView } from '@/lib/types';
 
 const POLL_MS = 3000;
 
-/** Cloning / Ready / Failed, refreshing while the worker clones, with a retry button on failure. */
+/** Cloning / Ready / Failed, refreshing while the worker clones, with Retry on failure and Clone again when ready. */
 export function MirrorStatus({ project }: { project: ProjectView }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -44,6 +44,17 @@ export function MirrorStatus({ project }: { project: ProjectView }) {
             Retry
           </button>
         </>
+      )}
+      {project.mirrorStatus === 'ok' && (
+        <button
+          type="button"
+          onClick={retry}
+          disabled={busy}
+          title="Delete the local mirror and clone the repository again"
+          className="rounded-md border border-border px-3 py-1 text-muted hover:text-text disabled:opacity-60"
+        >
+          Clone again
+        </button>
       )}
       {project.mirrorStatus === 'pending' && <span className="text-muted">Tickets are accepted once the mirror is ready.</span>}
     </div>

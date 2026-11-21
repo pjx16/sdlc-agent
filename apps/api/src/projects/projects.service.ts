@@ -109,8 +109,9 @@ export class ProjectsService {
 
   async retryMirror(id: string): Promise<ProjectDto> {
     const project = await this.get(id);
-    if (project.mirrorStatus !== 'failed') {
-      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The mirror can only be retried when its status is failed');
+    // A ready mirror can be cloned again too (its folder may be gone); only one that is already cloning is refused.
+    if (project.mirrorStatus === 'pending') {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The mirror is already being cloned');
     }
     return toDto(await this.prisma.project.update({ where: { id }, data: { mirrorStatus: 'pending', mirrorError: null } }));
   }

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable, Logger, Optional } from '@nestjs/common';
@@ -63,6 +64,24 @@ export class MirrorService {
       data: error ? { mirrorStatus: 'failed', mirrorError: error } : { mirrorStatus: 'ok', mirrorError: null },
     });
     if (count > 0) this.logger.log(error ? `Mirror for "${project.name}" failed: ${error}` : `Mirror for "${project.name}" is ready`);
+  }
+
+  /**
+   * A mirror recorded as ready whose folder is gone (data cleaned up by hand, a new DATA_DIR) would fail every stage with "not a git
+   * repository" and never be cloned again. Queue each one to be cloned again; returns how many were queued.
+   */
+  async requeueMissing(): Promise<number> {
+    const ready = await this.prisma.project.findMany({ where: { mirrorStatus: 'ok', enabled: true }, select: { id: true, name: true } });
+    let queued = 0;
+    for (const p of ready) {
+      if (existsSync(path.join(this.config.mirrorPath(p.id), 'HEAD'))) continue;
+      const { count } = await this.prisma.project.updateMany({ where: { id: p.id, mirrorStatus: 'ok' }, data: { mirrorStatus: 'pending', mirrorError: null } });
+      if (count === 0) continue;
+      queued++;
+      this.logger.warn(`Mirror for "${p.name}" is missing on disk; cloning it again`);
+      await this.prisma.event.create({ data: { type: 'git', message: `The mirror of ${p.name} was missing on disk: cloning it again` } }).catch(() => undefined);
+    }
+    return queued;
   }
 
   /** `git remote update --prune`, run before every workspace preparation. */

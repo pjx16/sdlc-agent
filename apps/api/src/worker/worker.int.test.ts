@@ -2,7 +2,7 @@ import { CredentialsModule } from '../credentials/credentials.module';
 import { staticCredentials } from '../testing/static-credentials';
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Test } from '@nestjs/testing';
@@ -106,12 +106,24 @@ describe('worker skeleton', () => {
     expect(row.mirrorError).toMatch(/does not appear to be a git repository|does not exist|Could not read/i);
   });
 
-  it('does not touch disabled projects or projects that are not pending', async () => {
+  it('does not touch disabled projects, or a ready project whose mirror is there', async () => {
     const disabled = await newProject('disabled', { enabled: false });
-    const done = await newProject('done', { mirrorStatus: 'ok' });
+    const ready = await newProject('ready');
+    await loop.tick();
+    const head = statSync(path.join(config.mirrorPath(ready.id), 'HEAD')).mtimeMs;
     await loop.tick();
     expect((await prisma.project.findUniqueOrThrow({ where: { id: disabled.id } })).mirrorStatus).toBe('pending');
-    expect(existsSync(config.mirrorPath(done.id))).toBe(false);
+    expect(statSync(path.join(config.mirrorPath(ready.id), 'HEAD')).mtimeMs).toBe(head); // not cloned again
+  });
+
+  it('clones again a ready project whose mirror is missing on disk, and logs it', async () => {
+    const p = await newProject('vanished');
+    await loop.tick();
+    rmSync(config.mirrorPath(p.id), { recursive: true, force: true });
+    await loop.tick();
+    expect(await prisma.project.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ mirrorStatus: 'ok', mirrorError: null });
+    expect(existsSync(path.join(config.mirrorPath(p.id), 'HEAD'))).toBe(true);
+    expect(await prisma.event.findFirst({ where: { type: 'git', message: { contains: 'missing on disk' } } })).not.toBeNull();
   });
 
   it('retries a failed project after it is re-queued', async () => {
