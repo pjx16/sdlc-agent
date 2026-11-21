@@ -47,6 +47,10 @@ services:
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      JIRA_MCP_URL: ${JIRA_MCP_URL:-}
+      JIRA_MCP_TOKEN: ${JIRA_MCP_TOKEN:-}
+      JIRA_MCP_OAUTH: ${JIRA_MCP_OAUTH:-}
+      JIRA_CLOUD_ID: ${JIRA_CLOUD_ID:-}
       DATA_DIR: ${DATA_DIR:?set DATA_DIR in .env}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
@@ -84,6 +88,10 @@ services:
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      JIRA_MCP_URL: ${JIRA_MCP_URL:-}
+      JIRA_MCP_TOKEN: ${JIRA_MCP_TOKEN:-}
+      JIRA_MCP_OAUTH: ${JIRA_MCP_OAUTH:-}
+      JIRA_CLOUD_ID: ${JIRA_CLOUD_ID:-}
       DATA_DIR: ${DATA_DIR:?set DATA_DIR in .env}
       # Not the Docker socket: a filtering proxy that refuses privileged containers, host mounts and anything but the calls the worker needs.
       DOCKER_HOST: tcp://docker-proxy:2375
