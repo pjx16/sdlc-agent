@@ -45,7 +45,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - **Three ways to reach Jira.** A project's Jira mode is now REST API (recommended, no Claude tokens), **Atlassian Rovo MCP** (the Rovo MCP server's Jira tools called by code, no Claude tokens), or **Claude Jira connector** (a Haiku agent drives the Jira connector added in claude.ai; spends Claude usage on every Jira call). For organisations that turn off Atlassian API tokens. See [docs/TRACKER.md](docs/TRACKER.md).
 - Rovo MCP sign-in: **Connect with Atlassian** in Settings → Connections (OAuth 2.1, dynamic client registration, PKCE; refreshed by itself), or a scoped API token. New credentials `jira_mcp_url`, `jira_mcp_token`, `jira_mcp_oauth`, `jira_cloud_id` (env `JIRA_MCP_URL`, `JIRA_MCP_TOKEN`, `JIRA_MCP_OAUTH`, `JIRA_CLOUD_ID`).
 - Connector mode: the `jiraConnector` stage and `jira-connector` agent, `scripts/jira-connector-login.sh` to sign it in to claude.ai once, project settings `jiraConnector.serverName` and `jiraConnector.pollIntervalMin` (connector projects are polled at most this often), and proxy port 3129 for that stage only.
-- `scripts/spike/jira-mcp-oauth.mjs`: checks whether your organisation lets a client sign in to the Rovo MCP server and use its Jira tools, and writes a report without tokens.
+- `scripts/spike/jira-mcp-oauth.mjs`: checks whether your organisation lets a client sign in to the Rovo MCP server and use its Jira tools, and prints a report without tokens.
 - Intake keeps one status row and one backoff per Jira mode, and the approval check keeps going for the other modes when one mode's Jira is down.
 - Migration `20261121100000_jira_mcp_connector_modes` adds the `mcp` and `connector` values to `JiraMode`.
 

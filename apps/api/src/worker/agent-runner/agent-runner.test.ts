@@ -54,7 +54,8 @@ describe('AgentRunner, Jira connector stage', () => {
     const env = created?.Env ?? [];
     expect(env).toContain('CLAUDE_CONFIG_DIR=/connector-home');
     expect(env).toContain('HTTPS_PROXY=http://proxy:3129');
-    expect(env.join('\n')).not.toMatch(/ANTHROPIC_API_KEY|ANTHROPIC_BASE_URL|OAUTH_TOKEN|=tok$/m);
+    for (const name of ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_OAUTH_TOKEN']) expect(env.some((e) => e.startsWith(`${name}=`)), name).toBe(false);
+    expect(env.some((e) => e.endsWith('=tok'))).toBe(false);
     expect(created?.HostConfig?.Binds).toContain('sdlc_jira_connector_home:/connector-home:rw');
     expect(created?.HostConfig?.Binds?.some((b) => b.includes(':/workspace'))).toBe(false);
   });

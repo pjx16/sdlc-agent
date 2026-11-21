@@ -34,7 +34,7 @@ In Settings → Connections, card **Jira through Atlassian Rovo MCP**, either:
 
 Optional: `JIRA_MCP_URL` (default: Atlassian's server, `mcp.atlassian.com/v2/mcp`) and `JIRA_CLOUD_ID` (only when the sign-in sees several sites and `JIRA_BASE_URL` is not set; otherwise the site matching `JIRA_BASE_URL`, or the only one, is used).
 
-To check what your organisation allows before setting a project up, run the spike: `node scripts/spike/jira-mcp-oauth.mjs --project KEY`. It signs in, lists the tools and runs one search, and writes a report without tokens.
+To check what your organisation allows before setting a project up, run the spike: `node scripts/spike/jira-mcp-oauth.mjs --project KEY > jira-mcp-spike.json`. It signs in, lists the tools and runs one search, and prints a report without tokens.
 
 ### Claude Jira connector
 

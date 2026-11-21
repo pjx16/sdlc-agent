@@ -10,11 +10,12 @@
  *   5. Opens an MCP session with the bearer token, lists the tools, reads the accessible sites (cloudId) and runs one bounded JQL search.
  *   6. With --write-issue KEY: posts one comment on that issue and lists its transitions (nothing else is written).
  *
- * Tokens are never printed or saved. The report (tool names and schemas, sites, results) is written to --out.
+ * Tokens are never printed or saved. Progress goes to stderr; the report (tool names and schemas, sites, results) is printed to stdout
+ * as JSON at the end, so redirect it to keep it.
  *
  * Usage:
  *   node scripts/spike/jira-mcp-oauth.mjs [--url https://mcp.atlassian.com/v2/mcp] [--port 33418] [--project KEY]
- *                                         [--write-issue KEY-123] [--out ./jira-mcp-spike.json] [--no-open]
+ *                                         [--write-issue KEY-123] [--no-open] > jira-mcp-spike.json
  *
  * If the consent page says your organisation blocks the app, an org admin must allow the redirect domain (localhost) for the
  * Rovo MCP server: Atlassian Administration → Rovo → Rovo MCP server.
@@ -22,13 +23,11 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
 
 const args = parseArgs(process.argv.slice(2));
 const MCP_URL = args.url ?? 'https://mcp.atlassian.com/v2/mcp';
 const PORT = Number(args.port ?? 33418);
 const REDIRECT_URI = `http://localhost:${PORT}/callback`;
-const OUT = args.out ?? './jira-mcp-spike.json';
 // Only what Jira needs: who the user is (to find the site), a refresh token, and the Jira agent-interface scopes.
 const JIRA_SCOPES = ['read:me', 'read:account', 'offline_access', 'read:jira:agent-interface', 'write:jira:agent-interface', 'search:jira:agent-interface'];
 const report = { mcpUrl: MCP_URL, redirectUri: REDIRECT_URI, startedAt: new Date().toISOString(), steps: [] };
@@ -67,7 +66,7 @@ async function main() {
     code_challenge: b64url(createHash('sha256').update(verifier).digest()), code_challenge_method: 'S256',
     ...(prm?.scopes_supported?.length ? { scope: JIRA_SCOPES.filter((sc) => prm.scopes_supported.includes(sc)).join(' ') } : {}),
   }).toString();
-  console.log(`\nOpen this URL and approve access:\n\n${authUrl}\n`);
+  console.error(`\nOpen this URL and approve access:\n\n${authUrl}\n`);
   if (!args['no-open']) openBrowser(authUrl.toString());
   const code = await waitForCode(state);
   step('consent', { ok: true });
@@ -254,12 +253,12 @@ function summarize(value) {
 
 function step(name, data) {
   report.steps.push({ step: name, ...data });
-  console.log(`[${name}]`, JSON.stringify(data));
+  console.error(`[${name}]`, JSON.stringify(data));
 }
 
 async function save() {
-  await writeFile(OUT, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`\nReport written to ${OUT} (no tokens in it). Share it to finish the mcp-mode mapping.`);
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  console.error('\nReport printed to stdout (no tokens in it). Share it to finish the mcp-mode mapping.');
 }
 
 const b64url = (buf) => Buffer.from(buf).toString('base64url');
