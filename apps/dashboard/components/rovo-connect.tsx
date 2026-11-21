@@ -12,6 +12,12 @@ export function RovoConnect({ view, onChanged }: { view?: CredentialView; onChan
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const connected = view !== undefined && view.source !== 'unset';
+  // Read in an effect, not during render: the server has no window, and a different first render would break hydration.
+  const [isLoopback, setIsLoopback] = useState(true);
+
+  useEffect(() => {
+    setIsLoopback(/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname));
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -48,7 +54,6 @@ export function RovoConnect({ view, onChanged }: { view?: CredentialView; onChan
     onChanged();
   }
 
-  const isLoopback = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
   return (
     <div data-testid="rovo-connect" className="mt-4 rounded-md border border-border p-3">
       <div className="flex flex-wrap items-center gap-2">
