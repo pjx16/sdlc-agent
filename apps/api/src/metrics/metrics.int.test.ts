@@ -55,7 +55,7 @@ describe('Metrics API', () => {
   describe('with no data every endpoint answers with empty values, not errors', () => {
     it('summary, usage, tokens, quality, durations, tickets-by-state', async () => {
       expect((await t.agent.get('/metrics/summary').expect(200)).body).toEqual({ range: '7d', ticketsDone: 0, firstPassRate: null, tokensInWindow: 0, queueLength: 0 });
-      expect((await t.agent.get('/metrics/usage').expect(200)).body).toMatchObject({ series: [], pauses: [], thresholdPct: 50, thresholdWeeklyPct: 80 });
+      expect((await t.agent.get('/metrics/usage').expect(200)).body).toMatchObject({ series: [], pauses: [] });
       const tokens = (await t.agent.get('/metrics/tokens').expect(200)).body;
       expect(tokens).toMatchObject({ groupBy: 'stage', keys: [] });
       expect(tokens.days.every((d: { total: number }) => d.total === 0)).toBe(true);
@@ -118,15 +118,13 @@ describe('Metrics API', () => {
     expect((await t.agent.get('/metrics/tokens?range=24h').expect(200)).body.days.length).toBeLessThanOrEqual(2);
   });
 
-  it('usage: the series, the thresholds and the pause events in range', async () => {
-    await t.prisma.globalSettings.upsert({ where: { id: 'global' }, update: { usageThresholdPct: 40 }, create: { id: 'global', usageThresholdPct: 40 } });
+  it('usage: the series and the pause events in range', async () => {
     await t.prisma.usageSnapshot.create({ data: { at: ago(3), fiveHourPct: 20, sevenDayPct: 5, status: 'allowed', source: 'event' } });
     await t.prisma.usageSnapshot.create({ data: { at: ago(1), fiveHourPct: 45, sevenDayPct: 6, status: 'allowed', source: 'event' } });
     await t.prisma.usageSnapshot.create({ data: { at: ago(24 * 20), fiveHourPct: 99, source: 'event' } });
     await t.prisma.event.create({ data: { type: 'usage', message: 'Pipeline paused: 5-hour usage is at 45%', at: ago(1) } });
     await t.prisma.event.create({ data: { type: 'usage', message: 'Usage gate ignored until x', at: ago(1) } });
     const body = (await t.agent.get('/metrics/usage').expect(200)).body;
-    expect(body.thresholdPct).toBe(40);
     expect(body.series.map((s: { fiveHourPct: number }) => s.fiveHourPct)).toEqual([20, 45]);
     expect(body.pauses).toHaveLength(1);
     expect(body.pauses[0].message).toContain('45%');

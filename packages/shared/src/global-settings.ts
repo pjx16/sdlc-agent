@@ -1,6 +1,10 @@
 import { z } from 'zod';
+import { isValidTimeZone } from './budgets';
 import { MODEL_ALIASES, STAGE_NAMES } from './enums';
 import { ProjectSettingsSchema } from './project-settings';
+
+/** A budget in credits (1 credit = 1 USD of Anthropic credit balance); null means no limit. */
+const credits = () => z.number({ error: 'must be a number' }).positive('must be more than 0').max(1_000_000, 'must be at most 1000000').nullable().default(null);
 
 const int = (def: number, min: number, max: number) =>
   z.number({ error: 'must be a number' }).int('must be a whole number').min(min, `must be at least ${min}`).max(max, `must be at most ${max}`).default(def);
@@ -15,11 +19,15 @@ const stageDefault = (stage: (typeof STAGE_NAMES)[number]) =>
     })
     .prefault({ model: builtInStages[stage].model, maxTurns: builtInStages[stage].maxTurns });
 
-/** The user-editable part of GlobalSettings (pause state and usage-gate bookkeeping have their own endpoints). */
+/** The user-editable part of GlobalSettings (pause state and budget-gate bookkeeping have their own endpoints). */
 export const GlobalSettingsSchema = z.object({
-  usageThresholdPct: int(50, 1, 100),
-  usageThresholdWeeklyPct: int(80, 1, 100),
-  calibratedWindowTokens: z.number().int().min(1, 'must be at least 1').nullable().default(null),
+  budgetDailyCredits: credits(),
+  budgetWeeklyCredits: credits(),
+  budgetMonthlyCredits: credits(),
+  /** The dashboard warns when a budget is this far used. */
+  budgetWarnPct: int(80, 1, 100),
+  /** Budget days, weeks (from Monday) and months are counted in this IANA timezone. */
+  timezone: z.string().trim().refine(isValidTimeZone, 'must be an IANA timezone like Asia/Kolkata').default('UTC'),
   pollIntervalSec: int(120, 5, 3600),
   stageTimeoutMin: int(20, 1, 240),
   verifyTimeoutSec: int(600, 10, 7200),

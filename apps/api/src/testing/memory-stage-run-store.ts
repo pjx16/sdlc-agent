@@ -1,10 +1,8 @@
-import type { RateLimit } from '../worker/agent-runner/result-parser';
 import type { FinishStageRun, NewStageRun, StageRunStore } from '../worker/agent-runner/stage-run-store';
 
 /** StageRun persistence in memory, for tests that must not need a database. */
 export class MemoryStore implements StageRunStore {
   runs = new Map<string, NewStageRun & { status: string; containerId?: string; finished?: FinishStageRun }>();
-  rateLimits: RateLimit[] = [];
   killRequested = new Set<string>();
   async create(run: NewStageRun) {
     const id = `run-${this.runs.size + 1}`;
@@ -23,8 +21,5 @@ export class MemoryStore implements StageRunStore {
   retryAt = new Map<string, Date>();
   async setRetryAt(id: string, at: Date) {
     this.retryAt.set(id, at);
-  }
-  async saveRateLimit(l: RateLimit) {
-    this.rateLimits.push(l);
   }
 }

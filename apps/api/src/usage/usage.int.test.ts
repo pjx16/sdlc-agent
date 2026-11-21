@@ -111,8 +111,7 @@ describe('Usage analytics API', () => {
     expect(body.models[0].runs).toBe(1);
   });
 
-  it('returns the rate series split at a reset, with a projection to the thresholds from Settings', async () => {
-    await t.prisma.globalSettings.create({ data: { id: 'global', usageThresholdPct: 60 } });
+  it('returns the rate series split at a reset, with a projection to the limit', async () => {
     const reset1 = ago(-120);
     const reset2 = ago(-400);
     await snap(200, 40, 10, { resetsAt: reset1 });
@@ -120,10 +119,10 @@ describe('Usage analytics API', () => {
     await snap(60, 5, 14, { resetsAt: reset2 });
     await snap(30, 10, 15, { resetsAt: reset2 });
     const body = (await t.agent.get('/usage/rate').expect(200)).body;
-    expect(body.thresholds).toEqual({ fiveHourPct: 60, weeklyPct: 80 });
+    expect(body.thresholds).toEqual({ fiveHourPct: 100, weeklyPct: 100 });
     expect(body.fiveHour.segments.map((s: { startedBy: string }) => s.startedBy)).toEqual(['first', 'reset']);
     expect(body.fiveHour.latest.pct).toBe(10);
-    expect(body.fiveHour.projection.thresholdPct).toBe(60);
+    expect(body.fiveHour.projection.thresholdPct).toBe(100);
     expect(body.fiveHour.projection.reachesAt).not.toBeNull();
     expect(body.weekly.unit).toBe('pts/day');
   });

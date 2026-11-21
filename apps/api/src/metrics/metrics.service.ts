@@ -49,8 +49,6 @@ export class MetricsService {
     ]);
     return {
       range,
-      thresholdPct: settings?.usageThresholdPct ?? 50,
-      thresholdWeeklyPct: settings?.usageThresholdWeeklyPct ?? 80,
       series: snapshots.map((s) => ({ at: s.at.toISOString(), fiveHourPct: s.fiveHourPct, sevenDayPct: s.sevenDayPct, status: s.status })),
       pauses: pauses.map((e) => ({ at: e.at.toISOString(), message: e.message })),
     };

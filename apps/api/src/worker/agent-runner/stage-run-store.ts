@@ -3,7 +3,7 @@ import { errorSourceOf, events, type ErrorCode } from '@sdlc/shared';
 import { logEvent } from '../../common/event-log';
 import type { FixReason, Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import type { RateLimit, StageUsage } from './result-parser';
+import type { StageUsage } from './result-parser';
 
 export type StageRunFinalStatus = 'succeeded' | 'failed' | 'needs_input' | 'killed';
 
@@ -34,7 +34,6 @@ export interface StageRunStore {
   markRunning(id: string, containerId: string): Promise<void>;
   isKillRequested(id: string): Promise<boolean>;
   finish(id: string, result: FinishStageRun): Promise<void>;
-  saveRateLimit(limit: RateLimit): Promise<void>;
   /** When the next automatic retry of a failed run is due. */
   setRetryAt(id: string, at: Date): Promise<void>;
 }
@@ -140,15 +139,9 @@ export class PrismaStageRunStore implements StageRunStore {
   async setRetryAt(id: string, at: Date): Promise<void> {
     const run = await this.prisma.stageRun.update({ where: { id }, data: { retryAt: at } });
     // "Claude API error (529). Retry 1/3 at 14:32."
-    if (run.errorCode === 'CLAUDE_API_ERROR') {
-      await logEvent(this.prisma, events.error({ code: 'CLAUDE_API_ERROR', vars: { detail: (run.error ?? '').slice(0, 80) }, retry: { n: run.attempt, of: 3 }, retryAt: at }), { ticketId: run.ticketId, stageRunId: id });
+    if (run.errorCode === 'CLAUDE_API_ERROR' || run.errorCode === 'CLAUDE_RATE_LIMIT') {
+      await logEvent(this.prisma, events.error({ code: run.errorCode, vars: { detail: (run.error ?? '').slice(0, 80) }, retry: { n: run.attempt, of: 3 }, retryAt: at }), { ticketId: run.ticketId, stageRunId: id });
     }
   }
 
-  /** Keeps the latest rate_limit_event for the usage gate. */
-  async saveRateLimit(limit: RateLimit): Promise<void> {
-    await this.prisma.usageSnapshot.create({
-      data: { fiveHourPct: limit.fiveHourPct, sevenDayPct: limit.sevenDayPct, status: limit.status, resetsAt: limit.resetsAt, source: 'event' },
-    });
-  }
 }

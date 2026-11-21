@@ -101,11 +101,14 @@ describe('AgentRunner', () => {
     expect(engine.created[0]?.HostConfig?.Binds?.[0]).toBe(`${path.join(tmp, 'ws')}:/workspace:ro`); // plan is read-only
   });
 
-  it('keeps the latest rate_limit_event', async () => {
-    const rate = { type: 'rate_limit_event', rate_limit_info: { status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.5 }, seven_day: { utilization: 0.2 } } } };
-    const { runner, store } = setup({ lines: stream({ status: 'done', summary: 'ok', data: planData }, {}, rate) });
-    await runner.run(request());
-    expect(store.rateLimits).toEqual([expect.objectContaining({ fiveHourPct: 50, sevenDayPct: 20 })]);
+  it('checks the spend budgets after every attempt, once its cost is stored', async () => {
+    const engine = new FakeEngine([badOutput, good]);
+    const store = new MemoryStore();
+    const finishedAtCheck: number[] = [];
+    const gate = { check: async () => (finishedAtCheck.push([...store.runs.values()].filter((r) => r.finished).length), false) };
+    const runner = new AgentRunner(new ContainerRunner(engine), config, staticCredentials({ anthropic_api_key: 'tok' }), store, new NullLogSink(), gate);
+    expect(await runner.run(request())).toMatchObject({ kind: 'done', attempts: 2 });
+    expect(finishedAtCheck).toEqual([1, 2]);
   });
 
   it('retries a schema failure once with a fresh run, then succeeds', async () => {

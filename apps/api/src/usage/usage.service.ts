@@ -65,8 +65,8 @@ export class UsageService {
   async rate(query: { from?: string; to?: string }): Promise<{ thresholds: { fiveHourPct: number; weeklyPct: number }; fiveHour: RateSeries; weekly: RateSeries }> {
     const to = parseDate(query.to) ?? new Date();
     const from = parseDate(query.from) ?? new Date(to.getTime() - 7 * 86_400_000);
-    const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-    const thresholds = { fiveHourPct: settings?.usageThresholdPct ?? 50, weeklyPct: settings?.usageThresholdWeeklyPct ?? 80 };
+    // The thresholds are gone with the subscription windows: project to the limit itself.
+    const thresholds = { fiveHourPct: 100, weeklyPct: 100 };
     return { thresholds, ...usageRate(await this.snapshotsAround(from, to), thresholds, new Date()) };
   }
 

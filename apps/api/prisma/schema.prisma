@@ -196,9 +196,16 @@ model Project {
 /// One row (id "global").
 model GlobalSettings {
   id                      String    @id @default("global")
-  usageThresholdPct       Int       @default(50)
-  usageThresholdWeeklyPct Int       @default(80)
-  calibratedWindowTokens  BigInt?
+  /// Spend budgets in credits (1 credit = 1 USD); null means no limit.
+  budgetDailyCredits      Float?
+  budgetWeeklyCredits     Float?
+  budgetMonthlyCredits    Float?
+  budgetWarnPct           Int       @default(80)
+  /// IANA timezone the budget periods are counted in.
+  timezone                String    @default("UTC")
+  /// When the owner approved the budgets (or chose no limits); null shows the approval banner.
+  budgetsApprovedAt       DateTime? @db.Timestamptz(6)
+  /// Budgets are not enforced until then.
   usageIgnoredUntil       DateTime? @db.Timestamptz(6)
   pipelinePaused          Boolean   @default(false)
   pausedReason            String?
@@ -380,6 +387,7 @@ model StageRun {
 
   @@index([status])
   @@index([ticketId, startedAt])
+  @@index([startedAt])
 }
 
 model ReviewFinding {

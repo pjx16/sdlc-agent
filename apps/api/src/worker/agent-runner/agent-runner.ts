@@ -5,7 +5,7 @@ import { CredentialsService } from '../../credentials/credentials.service';
 import { ERROR_POLICY, classifyClaudeError, describeError, nextBackoffMin, stageJsonSchema, type ClaudeMdMode, type ErrorCode, type ModelAlias, type ProjectStack, type StageEnvelope, type StageName } from '@sdlc/shared';
 import type { FixReason } from '../../generated/prisma/client';
 import { logLine } from '../../common/log-context';
-import { USAGE_GATE, type UsageGatePort } from '../usage/usage-gate';
+import { BUDGET_GATE, type BudgetGatePort } from '../usage/budget-gate';
 import { WorkerConfig } from '../worker-config';
 import { buildStageContext, type StageInputs } from './context-builder';
 import type { ContainerSpec } from './container-options';
@@ -87,7 +87,7 @@ export class AgentRunner {
     private readonly creds: CredentialsService,
     @Inject(STAGE_RUN_STORE) private readonly store: StageRunStore,
     @Inject(LOG_SINK) private readonly logs: LogSink,
-    @Optional() @Inject(USAGE_GATE) private readonly gate?: UsageGatePort,
+    @Optional() @Inject(BUDGET_GATE) private readonly gate?: BudgetGatePort,
     // Shared with the LLM gateway in the worker module. Tests that build the runner by hand get their own (no gateway runs there).
     @Optional() private readonly gatewayTokens: GatewayTokens = new GatewayTokens(),
   ) {}
@@ -108,6 +108,8 @@ export class AgentRunner {
     for (let attempt = 1; attempt <= MAX_TOTAL_ATTEMPTS; attempt++) {
       const outcome = await this.runAttempt(req, attempt, { turnFactor, retryNote });
       last = outcome;
+      // Every attempt that ended has its cost stored: check the spend budgets (the gate pauses the pipeline when one is used up).
+      await this.gate?.check().catch((e: unknown) => this.logger.warn(`Budget gate failed: ${String(e)}`));
       if (outcome.kind !== 'failed' && outcome.kind !== 'turn_limit') return { ...outcome, attempts: attempt } as StageResult;
 
       const code = outcome.errorCode;
@@ -211,8 +213,6 @@ export class AgentRunner {
       const logPath = await log.close();
       const reason = `Container error: ${err instanceof Error ? err.message : String(err)}`;
       await this.store.finish(stageRunId, { status: 'failed', error: reason, errorCode: 'CONTAINER_ERROR', logPath });
-      // A container error is still a run that ended: it leaves a snapshot too.
-      await this.gate?.afterStage({ limit: null, stageRunId, ownTokens: 0 }).catch((e: unknown) => this.logger.warn(`Usage gate failed: ${String(e)}`));
       return { kind: 'failed', reason, errorCode: 'CONTAINER_ERROR', stageRunId };
     } finally {
       this.gatewayTokens.revoke(gatewayKey);
@@ -220,12 +220,6 @@ export class AgentRunner {
     const logPath = await log.close();
 
     const parsed = parseStream(lines, req.stage);
-    const ownTokens = parsed.usage.inputTokens + parsed.usage.outputTokens + parsed.usage.cacheWriteTokens;
-    if (this.gate) {
-      await this.gate.afterStage({ limit: parsed.rateLimit, rateLimitError: isRateLimited(parsed), stageRunId, ownTokens }).catch((e: unknown) => this.logger.warn(`Usage gate failed: ${String(e)}`));
-    } else if (parsed.rateLimit) {
-      await this.store.saveRateLimit(parsed.rateLimit).catch((e: unknown) => this.logger.warn(`saveRateLimit failed: ${String(e)}`));
-    }
     const base = { usage: parsed.usage, resultJson: this.resultJson(parsed), logPath };
 
     if (container.killed) {

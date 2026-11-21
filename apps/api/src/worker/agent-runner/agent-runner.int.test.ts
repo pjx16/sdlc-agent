@@ -85,11 +85,10 @@ describe('fake stage end to end, in a real container', () => {
     expect(readFileSync(run.logPath as string, 'utf8')).toContain('"type":"result"');
   }, 120_000);
 
-  it('keeps the latest rate_limit_event as a usage snapshot', async () => {
-    await prisma.usageSnapshot.deleteMany();
-    await runnerFor('ok').run(request());
-    const snapshot = await prisma.usageSnapshot.findFirstOrThrow();
-    expect(snapshot).toMatchObject({ fiveHourPct: 25, sevenDayPct: 5, status: 'allowed', source: 'event' });
+  it('stores the cost the CLI reports, which the spend budgets add up', async () => {
+    const res = await runnerFor('ok').run(request());
+    const run = await prisma.stageRun.findUniqueOrThrow({ where: { id: (res as { stageRunId: string }).stageRunId } });
+    expect(Number(run.costUsd)).toBeGreaterThan(0);
   }, 120_000);
 
   it('a read-only stage cannot change the workspace', async () => {

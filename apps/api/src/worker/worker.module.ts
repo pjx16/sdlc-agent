@@ -10,7 +10,7 @@ import { ApprovalPoller } from '../jira/approval-poller';
 import { StateMachine } from '../state/state-machine.service';
 import { SubtasksService } from '../subtasks/subtasks.service';
 import { StateModule } from '../state/state.module';
-import { USAGE_GATE, UsageGate } from './usage/usage-gate';
+import { BUDGET_GATE, BudgetGate } from './usage/budget-gate';
 import { AgentRunner } from './agent-runner/agent-runner';
 import { JiraConnectorClient } from './jira-connector/jira-connector-client';
 import { FileLogSink } from './agent-runner/file-log-sink';
@@ -79,7 +79,7 @@ import { WorkerRunner } from './worker-runner';
     ContainerRunner,
     { provide: STAGE_RUN_STORE, useClass: PrismaStageRunStore },
     { provide: LOG_SINK, useClass: FileLogSink },
-    { provide: USAGE_GATE, useFactory: (prisma: PrismaService) => new UsageGate(prisma), inject: [PrismaService] },
+    { provide: BUDGET_GATE, useFactory: (prisma: PrismaService) => new BudgetGate(prisma), inject: [PrismaService] },
     AgentRunner,
     // Connector mode: Jira calls run the jiraConnector stage, so the client lives here and is plugged into the shared JiraClients.
     {
@@ -139,8 +139,8 @@ import { WorkerRunner } from './worker-runner';
     RestartRecovery,
     {
       provide: WorkerLoop,
-      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier, creds: CredentialsService, prep: RerunPrep, orchestrator: OrchestratorService, recovery: RecoveryService) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds, creds, prep, orchestrator, recovery),
-      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier, CredentialsService, RerunPrep, OrchestratorService, RecoveryService],
+      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier, creds: CredentialsService, prep: RerunPrep, orchestrator: OrchestratorService, recovery: RecoveryService, budgets: BudgetGate) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds, creds, prep, orchestrator, recovery, budgets),
+      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier, CredentialsService, RerunPrep, OrchestratorService, RecoveryService, BUDGET_GATE],
     },
     WorkerRunner,
   ],
