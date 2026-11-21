@@ -52,7 +52,8 @@ export async function seed(databaseUrl: string): Promise<void> {
     await prisma.stageRun.updateMany({ data: { costUsd: 0.42 } });
     await prisma.event.create({ data: { type: 'usage', message: 'Pipeline paused: The daily budget of 2 credits is used up (2.1 spent)', at: hoursAgo(1) } });
     await prisma.stateTransition.create({ data: { ticketId: review.id, fromStatus: 'AWAITING_CI', toStatus: 'IN_HUMAN_REVIEW', actor: 'system', at: hoursAgo(1.5) } });
-    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: {}, create: { id: 'global' } });
+    // Budgets approved, so the approval banner (and its Approve button) stays out of the other flows; its own test clears this.
+    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { budgetsApprovedAt: new Date() }, create: { id: 'global', budgetsApprovedAt: new Date() } });
   } finally {
     await prisma.$disconnect();
   }
