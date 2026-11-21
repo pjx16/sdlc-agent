@@ -18,10 +18,12 @@ let app: INestApplication;
 let cookie = '';
 let ghStatus = 200;
 let jiraStatus = 200;
+let anthropicStatus = 200;
 const calls: { url: string; headers: Record<string, string> }[] = [];
 
 const fakeFetch = (async (url: string, init: { headers: Record<string, string> }) => {
   calls.push({ url, headers: init.headers });
+  if (url.includes('/v1/models')) return new Response(JSON.stringify({ data: [] }), { status: anthropicStatus });
   if (url.includes('/user')) return new Response(JSON.stringify({ login: 'octo' }), { status: ghStatus });
   return new Response(JSON.stringify({ displayName: 'Jira Dev' }), { status: jiraStatus });
 }) as unknown as typeof fetch;
@@ -32,7 +34,7 @@ beforeAll(async () => {
   for (const k of ['GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL']) delete process.env[k];
   const moduleRef = await Test.createTestingModule({ imports: [PrismaModule, AuthModule] })
     .overrideProvider(TESTER_OPTIONS)
-    .useValue({ githubApiUrl: 'https://github.test', fetch: fakeFetch })
+    .useValue({ githubApiUrl: 'https://github.test', anthropicApiUrl: 'https://anthropic.test', fetch: fakeFetch })
     .compile();
   app = moduleRef.createNestApplication();
   configureApp(app);
@@ -114,9 +116,13 @@ describe('credentials API', () => {
     expect((await api().post('/credentials/jira_email/test').expect(200)).body).toEqual({ ok: false, message: 'Jira rejected the credentials' });
   });
 
-  it('checks only the format of the Anthropic API key and deletes credentials', async () => {
+  it('tests the Anthropic API key against /v1/models and deletes credentials', async () => {
     await api().put('/credentials/anthropic_api_key', 'sk-ant-api03-abcdefghij').expect(200);
-    expect((await api().post('/credentials/anthropic_api_key/test').expect(200)).body.message).toContain('verified on the first stage run');
+    expect((await api().post('/credentials/anthropic_api_key/test').expect(200)).body).toEqual({ ok: true, message: 'Anthropic accepted the API key' });
+    expect(calls.at(-1)).toMatchObject({ url: 'https://anthropic.test/v1/models?limit=1', headers: { 'x-api-key': 'sk-ant-api03-abcdefghij' } });
+    anthropicStatus = 401;
+    expect((await api().post('/credentials/anthropic_api_key/test').expect(200)).body).toEqual({ ok: false, message: 'Anthropic rejected the API key' });
+    anthropicStatus = 200;
     await api().del('/credentials/anthropic_api_key').expect(204);
     expect((await api().post('/credentials/anthropic_api_key/test').expect(200)).body.ok).toBe(false);
     expect(await app.get(CredentialsService).resolve()).toMatchObject({ anthropic_api_key: '' });

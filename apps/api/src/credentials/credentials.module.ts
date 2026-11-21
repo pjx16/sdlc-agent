@@ -11,7 +11,7 @@ import { JiraOAuthController } from './jira-oauth.controller';
   providers: [
     CredentialsService,
     // GITHUB_API_URL exists for the end-to-end tests, which point it at a local fake GitHub.
-    { provide: TESTER_OPTIONS, useFactory: () => ({ githubApiUrl: process.env.GITHUB_API_URL || undefined }) },
+    { provide: TESTER_OPTIONS, useFactory: () => ({ githubApiUrl: process.env.GITHUB_API_URL || undefined, anthropicApiUrl: process.env.LLM_GATEWAY_UPSTREAM || undefined }) },
     { provide: CredentialTester, useFactory: (creds: CredentialsService, options: object) => new CredentialTester(creds, options), inject: [CredentialsService, TESTER_OPTIONS] },
   ],
   exports: [CredentialsService, CredentialTester],
