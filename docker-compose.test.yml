@@ -8,3 +8,7 @@ services:
       AGENT_EXTRA_BINDS: "${PWD}/test/fake-claude/claude:/usr/local/bin/claude:ro,${PWD}/test/fake-claude:/fake-claude:ro"
       AGENT_EXTRA_ENV: "FAKE_SCENARIO=${FAKE_SCENARIO:-ok},FAKE_SCENARIOS_DIR=/fake-claude/scenarios"
       ANTHROPIC_API_KEY: "sk-ant-api03-fake-key-for-tests"
+  # The data folder is a volume (no host folders): fake-claude's folder in the checkout is the one host path agents may mount.
+  docker-proxy:
+    environment:
+      ALLOWED_BIND_ROOTS: "${PWD}/test/fake-claude"

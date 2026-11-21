@@ -53,11 +53,12 @@ services:
       JIRA_CLOUD_ID: ${JIRA_CLOUD_ID:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       LLM_GATEWAY_UPSTREAM: ${LLM_GATEWAY_UPSTREAM:-}
-      DATA_DIR: ${DATA_DIR:?set DATA_DIR in .env}
+      # The data folder is the sdlc_data volume, not a host folder: no repository code is written to the host disk.
+      DATA_DIR: /data
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - ./guidelines:/app/guidelines
-      - ${DATA_DIR}:${DATA_DIR}:ro
+      - data:/data:ro
     networks: [internal]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -95,7 +96,9 @@ services:
       JIRA_MCP_TOKEN: ${JIRA_MCP_TOKEN:-}
       JIRA_MCP_OAUTH: ${JIRA_MCP_OAUTH:-}
       JIRA_CLOUD_ID: ${JIRA_CLOUD_ID:-}
-      DATA_DIR: ${DATA_DIR:?set DATA_DIR in .env}
+      # Mirrors, workspaces and run logs live in the sdlc_data volume; agent containers mount sub-paths of it.
+      DATA_DIR: /data
+      DATA_VOLUME: sdlc_data
       # Not the Docker socket: a filtering proxy that refuses privileged containers, host mounts and anything but the calls the worker needs.
       DOCKER_HOST: tcp://docker-proxy:2375
       # Optional stronger sandbox for agent containers, once installed on the Docker host: runsc (gVisor) or sysbox-runc.
@@ -106,7 +109,7 @@ services:
       AGENT_CPUS: ${AGENT_CPUS:-2}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - ${DATA_DIR}:${DATA_DIR}
+      - data:/data
       - ./guidelines:/app/guidelines:ro
     # On the agent network the worker answers as `llm-gateway` (port 8080): agents send their model calls there instead of holding the Claude token.
     networks:
@@ -124,7 +127,8 @@ services:
     restart: unless-stopped
     user: root
     environment:
-      ALLOWED_BIND_ROOTS: ${DATA_DIR:?set DATA_DIR in .env}
+      # Agents may mount sub-paths of the data volume and nothing from the host.
+      ALLOWED_DATA_VOLUME: sdlc_data
       # Only the agent image can be pulled, inspected or run.
       ALLOWED_IMAGES: ${AGENT_IMAGE:-sdlc-agent/agent:${SDLC_VERSION}}
     volumes:
@@ -158,11 +162,12 @@ services:
       - npm_mirror:/verdaccio/storage
     networks: [agent_net, egress]
 
-  # Build only: `docker compose --profile build build agent-image` produces sdlc-agent/agent:${SDLC_VERSION}.
+  # Build only: `docker compose --profile build build agent-image` produces sdlc-agent/agent:${SDLC_VERSION}. Docker fetches the build
+  # files from the release's git tag itself, so they never land on the host.
   agent-image:
     profiles: [build]
     build:
-      context: ./docker/agent
+      context: https://github.com/pjx16/sdlc-agent.git#v${SDLC_VERSION}:docker/agent
     image: ${AGENT_IMAGE:-sdlc-agent/agent:${SDLC_VERSION:?set SDLC_VERSION in .env}}
     network_mode: none
     command: ["true"]
@@ -180,6 +185,9 @@ networks:
 
 volumes:
   pgdata: {}
+  # Repository mirrors, ticket workspaces and run logs. Inside Docker (its VM on macOS and Windows), never on the host disk.
+  data:
+    name: sdlc_data
   npm_mirror:
     name: sdlc_npm_mirror
   # npm cache (mounted at /npm-cache) for agent containers outside a project folder. Each project gets its own sdlc_npm_cache_<id> volume, created on first use.
