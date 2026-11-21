@@ -182,7 +182,7 @@ Who pushes and opens pull requests is chosen per project: your own personal toke
 Other shortcuts, from the repository root:
 
 ```bash
-npm run up:dev    # development mode: Docker project sdlc-agent-dev (Postgres on 5433, its own database) plus the proxy; API, worker and dashboard on your machine with hot reload (Ctrl+C stops them)
+npm run up:dev    # development mode: Docker project sdlc-agent-dev (Postgres on 5433, its own database) plus the proxy, the npm mirror and a relay that lets agents reach the worker's LLM gateway; API, worker and dashboard on your machine with hot reload (Ctrl+C stops them)
 npm run down      # stops the production containers (project sdlc-agent)
 npm run down:dev  # stops the development containers (project sdlc-agent-dev)
 ```

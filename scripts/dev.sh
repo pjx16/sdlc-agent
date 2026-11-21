@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Development mode: Postgres and the egress proxy run in Docker; the API, worker and dashboard run on this machine
+# Development mode: Postgres, the egress proxy, the npm mirror and the LLM gateway relay run in Docker; the API, worker and dashboard run on this machine
 # with hot reload. Ctrl+C stops the three of them (Postgres and the proxy keep running; `npm run down:dev` stops those).
 # Usage: npm run up:dev
 set -euo pipefail
@@ -29,9 +29,10 @@ docker_housekeeping
 echo "==> Stopping the production api, worker and dashboard if they run (they use the same ports 3000 and 4000)"
 docker compose -p sdlc-agent stop api worker dashboard >/dev/null 2>&1 || true
 
-echo "==> Building the agent image and starting Postgres and the proxy"
+echo "==> Building the agent image and starting Postgres, the egress proxy, the npm mirror and the LLM gateway relay"
 docker compose --profile build build agent-image
-docker compose up -d --build --wait --wait-timeout 120 postgres proxy
+# Agents reach the npm mirror and, through the relay, the worker's LLM gateway on this machine.
+docker compose up -d --build --wait --wait-timeout 120 postgres proxy npm-mirror llm-gateway-relay
 
 export DATABASE_URL="postgresql://sdlc:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT}/sdlc"
 export GIT_ASKPASS="$ROOT/docker/worker/git-askpass-token" GIT_TERMINAL_PROMPT=0

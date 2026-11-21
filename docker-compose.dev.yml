@@ -5,3 +5,27 @@ services:
   postgres:
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+
+  # The worker runs on the host in development, so nothing on the agent network answers to `llm-gateway` (in production the worker
+  # container does, under that alias). This relay does, and passes connections on to the worker's gateway on the host. It reuses
+  # the agent image that dev.sh builds, so no extra image is pulled.
+  llm-gateway-relay:
+    image: ${AGENT_IMAGE:-sdlc-agent/agent:latest}
+    command: ["node", "/relay/relay.mjs"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      LISTEN_PORT: ${LLM_GATEWAY_PORT:-8080}
+      TARGET_HOST: host.docker.internal
+      TARGET_PORT: ${LLM_GATEWAY_PORT:-8080}
+    # Docker Desktop resolves host.docker.internal by itself; on Linux this maps it to the host.
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - ./docker/dev-relay/relay.mjs:/relay/relay.mjs:ro
+    networks:
+      agent_net:
+        aliases: [llm-gateway]
+      # The agent network is internal: the relay needs this one to reach the host.
+      egress: {}
