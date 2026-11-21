@@ -93,6 +93,11 @@ export class CredentialTester {
         }
         return res.status === 401 ? { ok: false, message: 'The broker does not know this key' } : { ok: false, message: `The broker answered ${res.status}` };
       }
+      case 'jira_mcp_url':
+      case 'jira_mcp_token':
+      case 'jira_mcp_oauth':
+      case 'jira_cloud_id':
+        return c[key] && CredentialValueSchemas[key].safeParse(c[key]).success ? { ok: true, message: 'Format OK' } : { ok: false, message: 'Not set or invalid' };
       case 'git_author_name':
       case 'git_author_email':
         return CredentialValueSchemas[key].safeParse(c[key]).success ? { ok: true, message: 'OK' } : { ok: false, message: 'Not set or invalid' };

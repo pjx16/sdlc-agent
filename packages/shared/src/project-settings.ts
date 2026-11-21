@@ -77,6 +77,16 @@ export const ProjectSettingsSchema = z.object({
     })
     .prefault({}),
   jiraSubtaskTypeName: z.string().trim().min(1, 'required').default('Sub-task'),
+  /**
+   * Connector mode only. `serverName` is the connector's name as Claude Code lists it (`mcp__claude_ai_<serverName>__*`). Each poll runs a
+   * Claude agent, so connector projects are polled every `pollIntervalMin` minutes instead of on every worker tick.
+   */
+  jiraConnector: z
+    .object({
+      serverName: z.string().trim().regex(/^[A-Za-z0-9_-]{1,64}$/, 'must be letters, digits, _ or -').default('Atlassian'),
+      pollIntervalMin: count(15, 5, 1440),
+    })
+    .prefault({}),
   /** What each Jira issue type becomes: feature, bug, chore, or ignore. */
   jiraIssueTypeRouting: z.record(z.string(), z.enum(['feature', 'bug', 'chore', 'ignore'])).default({}),
   /** Where plans are published. Null: plans go to Jira comments. */
