@@ -93,6 +93,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- **Development mode can run stages.** With `npm run up:dev` the worker runs on the host, so agent containers could not resolve `llm-gateway` and every stage failed with "Can't reach the API server" (`EAI_AGAIN`). A dev-only relay (`llm-gateway-relay` in `docker-compose.dev.yml`, built from the agent image) now answers to that name on the agent network and passes connections on to the worker's gateway on the host. `up:dev` also starts the npm mirror, which agents install from.
 - Security workflow: CodeQL and dependency review run only on public repositories or when the repository variable `ADVANCED_SECURITY` is `true` (they fail on private repositories without Advanced Security); CodeQL gets `actions: read` and gitleaks gets `pull-requests: read`; gitleaks no longer flags the Atlassian tool names in `global-settings.ts`.
 - A successful agent answer that mentioned rate or usage limits no longer pauses the pipeline (error phrases are only searched for in real errors).
 - The CI fixer gets a report of every failing check (workflow logs, a check such as CodeQL with its summary and annotations, and the PR's open code-scanning alerts) instead of "no log was available".
