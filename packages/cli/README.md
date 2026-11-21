@@ -17,7 +17,7 @@ This package is only a launcher. The application is the Docker images published 
 
 ## Requirements
 
-- Docker with Compose v2.20 or newer, on macOS or Linux (on Windows, use WSL2)
+- Docker with Engine 26 or newer and Compose v2.20 or newer, on macOS or Linux (on Windows, use WSL2)
 - Node.js 20 or newer
 - An Anthropic API key (from the Anthropic Console) and either a GitHub token or a connection to sdlc-agent-bot (see [`docs/BOT.md`](../../docs/BOT.md)), which you enter in the browser
 
@@ -39,26 +39,35 @@ npx sdlc-agent init
 | `sdlc-agent status` | Version, containers and setup state |
 | `sdlc-agent logs [service] [-f]` | Show logs |
 | `sdlc-agent upgrade` | Move to this CLI's version (`--yes`, `--skip-backup`) |
-| `sdlc-agent doctor` | Check Docker, the socket, port 3000, the data folder and disk space (at least 5 GB free is required, 10 GB recommended; measured on `DATA_DIR` if set, else the install folder) |
+| `sdlc-agent backup` | Write an encrypted database backup to `backups/` now (one is also written every day) |
+| `sdlc-agent restore <file>` | Replace the database with a backup (`--yes`); works after the database volume was deleted |
+| `sdlc-agent files <TICKET> [dest]` | Copy a ticket's workspace out of Docker into a folder, when you want to look at it |
+| `sdlc-agent doctor` | Check Docker (Engine 26 or later, and volume sub-path mounts), the socket, port 3000 and disk space (at least 5 GB free is required, 10 GB recommended) |
 | `sdlc-agent reset-admin` | Forgot the password |
 | `sdlc-agent uninstall` | Stop the stack and delete its database (`--purge` also removes the folder) |
 
-`init`, `up` and `upgrade` run the same checks. They stop when less than 5 GB is free and warn between 5 GB and 10 GB (10 GB is recommended). The space is measured on `DATA_DIR` when it is set, otherwise on the install folder.
+`init`, `up` and `upgrade` run the same checks. They stop when less than 5 GB is free and warn between 5 GB and 10 GB (10 GB is recommended). The space is measured on the install folder; images and the data volume live in Docker's disk, which Docker Desktop shows under Settings → Resources.
 
 All commands accept `--dir <path>`; the default folder is `$SDLC_AGENT_HOME` or `~/.sdlc-agent`.
 
 ## Where things live
+
+On your machine, only the install folder:
 
 ```text
 ~/.sdlc-agent/
   docker-compose.yml   the release compose file
   .env                 secrets and settings (mode 0600)
   guidelines/          agent instructions; edit them here or in the dashboard
-  data/                mirrors, workspaces, run folders and logs
-  backups/             database dumps made by `upgrade`
+  backup.sh            the daily backup script, run inside Docker
+  backups/             encrypted database backups: daily, before each upgrade, and `sdlc-agent backup`
 ```
 
-**Back up `.env` separately from the database.** It holds `ENCRYPTION_KEY`, which encrypts the tokens you enter in the dashboard. If you lose it, the saved tokens cannot be read and must be entered again.
+Inside Docker (its Linux VM on macOS and Windows): the containers, the database volume, the npm mirror and caches, and the **`sdlc_data`** volume with every repository mirror, ticket workspace and run log. No repository code is written to your disk, and agent containers mount only their own ticket's folder of that volume. The agent image is built inside Docker from the release's git tag.
+
+**Back up `.env` separately.** Its `ENCRYPTION_KEY` encrypts the tokens you enter in the dashboard and every database backup. Without it a backup cannot be opened, and the saved tokens cannot be read.
+
+Backups are gzipped `pg_dump` files encrypted with AES-256 (OpenSSL, a PBKDF2 key from `ENCRYPTION_KEY` with a fresh salt per file); the newest 7 daily ones are kept (`BACKUP_KEEP`). Repositories are not backed up: they are cloned again from GitHub. Work that was never pushed lives only in its workspace.
 
 ## Upgrading
 
@@ -68,7 +77,7 @@ Install the new CLI and run `upgrade`:
 npx sdlc-agent@latest upgrade        # or: npm i -g sdlc-agent@latest && sdlc-agent upgrade
 ```
 
-It prints the changelog between your version and the new one, asks for confirmation if the change may break things, writes a database backup to `backups/`, replaces the compose file, updates your guidelines, and restarts the stack. A guideline you edited is never overwritten: the new version is written beside it as `<file>.new` for you to review. Downgrades are not supported. Until `0.1.0`, read the changelog before upgrading.
+It prints the changelog between your version and the new one, asks for confirmation if the change may break things, writes an encrypted database backup to `backups/`, replaces the compose file, updates your guidelines, and restarts the stack. A guideline you edited is never overwritten: the new version is written beside it as `<file>.new` for you to review. Upgrading from 0.0.1 also moves your old `data/` folder into the `sdlc_data` volume (the stack is stopped while it copies) and comments `DATA_DIR` out of `.env`; delete the old folder once you are happy. Downgrades are not supported. Until `0.1.0`, read the changelog before upgrading.
 
 ## Forgot the password
 
