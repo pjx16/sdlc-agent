@@ -1,26 +1,23 @@
 import { Injectable } from '@nestjs/common';
+import { BUDGET_PERIODS, budgetPeriod, type BudgetPeriod } from '@sdlc/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { usageByModel, usageRate, type ModelUsage, type RateSeries } from './usage-analytics';
+import { SystemSettingsService, type SpendView } from '../system/system-settings.service';
+import { BILLED_RUNS, budgetsOf, spentSince } from './spend';
+import { monthProjection, periodBurn, ticketCosts, type MonthProjection, type PeriodBurn, type TicketCosts } from './spend-analytics';
+import { usageByModel, type ModelUsage } from './usage-analytics';
 
-export interface UsageSnapshotDto {
-  id: string;
-  at: string;
-  fiveHourPct: number | null;
-  sevenDayPct: number | null;
-  status: string | null;
-  resetsAt: string | null;
-  source: string;
-  windowTokens: number;
+export interface SpendOverviewDto extends Omit<SpendView, 'suggested'> {
+  projection: MonthProjection;
+  burn: Record<BudgetPeriod, PeriodBurn>;
 }
 
 export interface UsageSummaryDto {
-  /** Tokens (input + output + cache write) per stage and model, most first. */
-  tokens: { stage: string; model: string; tokens: number; runs: number }[];
-  /** `windowTokens` at the last `rejected` snapshot: a good `calibratedWindowTokens`. Null if there was none. */
-  suggestedCalibration: number | null;
+  /** Tokens (input + output + cache write) and credits per stage and model, last 30 days, most credits first. */
+  rows: { stage: string; model: string; tokens: number; credits: number; runs: number }[];
 }
 
-const MAX_ROWS = 2000;
+const DAY_MS = 86_400_000;
+const TICKET_DAYS = 30;
 
 const parseDate = (v?: string): Date | undefined => {
   if (!v) return undefined;
@@ -28,67 +25,67 @@ const parseDate = (v?: string): Date | undefined => {
   return Number.isNaN(d.getTime()) ? undefined : d;
 };
 
+/** The usage page, in credits (1 credit = 1 USD of Anthropic credit balance, the CLI's `total_cost_usd`). */
 @Injectable()
 export class UsageService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly system: SystemSettingsService,
+  ) {}
 
-  /** GET /usage/snapshots: oldest first, optionally limited to `from` and `to` (ISO dates). */
-  async snapshots(query: { from?: string; to?: string }): Promise<UsageSnapshotDto[]> {
-    const from = parseDate(query.from);
-    const to = parseDate(query.to);
-    const rows = await this.prisma.usageSnapshot.findMany({
-      where: from || to ? { at: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {},
-      orderBy: { at: 'desc' },
-      take: MAX_ROWS,
-    });
-    return rows.reverse().map((r) => ({ id: r.id, at: r.at.toISOString(), fiveHourPct: r.fiveHourPct, sevenDayPct: r.sevenDayPct, status: r.status, resetsAt: r.resetsAt?.toISOString() ?? null, source: r.source, windowTokens: r.windowTokens }));
+  /** GET /usage/spend: each budget period with its spend, how it is burning, and the projection for the month. */
+  async spend(now = new Date()): Promise<SpendOverviewDto> {
+    const settings = await this.system.settings();
+    const { suggested: _suggested, ...view } = await this.system.spend(now); // eslint-disable-line @typescript-eslint/no-unused-vars
+    const tz = settings.timezone;
+    const monthStart = budgetPeriod('monthly', now, tz).start;
+    const weekStart = budgetPeriod('weekly', now, tz).start;
+    const since = monthStart < weekStart ? monthStart : weekStart;
+    const runs = (await this.prisma.stageRun.findMany({ where: { ...BILLED_RUNS, startedAt: { gte: since } }, select: { startedAt: true, costUsd: true } })).map((r) => ({ startedAt: r.startedAt as Date, costUsd: Number(r.costUsd) }));
+    const budgets = budgetsOf({ budgetDailyCredits: settings.budgetDailyCredits, budgetWeeklyCredits: settings.budgetWeeklyCredits, budgetMonthlyCredits: settings.budgetMonthlyCredits });
+    const burn = Object.fromEntries(BUDGET_PERIODS.map((p) => [p, periodBurn(runs, p, budgets[p], now, tz)])) as Record<BudgetPeriod, PeriodBurn>;
+    const last7Days = await spentSince(this.prisma, new Date(now.getTime() - 7 * DAY_MS));
+    return { ...view, projection: monthProjection({ monthToDate: burn.monthly.spent, last7Days, budget: budgets.monthly, now, timeZone: tz }), burn };
   }
 
-  /** GET /usage/models: tokens by kind, cost, runs and share per model, the split by stage and day, and the estimated share of each window. */
-  async models(query: { from?: string; to?: string }): Promise<{ from: string; to: string; models: ModelUsage[]; estimateNote: string }> {
-    const to = parseDate(query.to) ?? new Date();
-    const from = parseDate(query.from) ?? new Date(to.getTime() - 7 * 86_400_000);
-    const [runs, snaps] = await Promise.all([
-      this.prisma.stageRun.findMany({ where: { startedAt: { gte: from, lte: to } } }),
-      // One snapshot before the period, so the first rise inside it has something to start from.
-      this.snapshotsAround(from, to),
+  /** GET /usage/tickets: credits per ticket that reached DONE in the last 30 days, overall and per kind, and the most expensive. */
+  async tickets(now = new Date()): Promise<TicketCosts & { days: number }> {
+    const done = await this.prisma.stateTransition.findMany({ where: { toStatus: 'DONE', at: { gte: new Date(now.getTime() - TICKET_DAYS * DAY_MS) } }, select: { ticketId: true }, distinct: ['ticketId'] });
+    const ids = done.map((d) => d.ticketId);
+    const [tickets, costs] = await Promise.all([
+      this.prisma.ticket.findMany({ where: { id: { in: ids } }, select: { id: true, key: true, title: true, kind: true } }),
+      this.prisma.stageRun.groupBy({ by: ['ticketId'], where: { ...BILLED_RUNS, ticketId: { in: ids } }, _sum: { costUsd: true } }),
     ]);
-    return {
-      from: from.toISOString(),
-      to: to.toISOString(),
-      models: usageByModel(runs.map((r) => ({ ...r, costUsd: Number(r.costUsd) })), snaps),
-      estimateNote: 'Tokens, cost and runs are exact. The share of the 5-hour and weekly percentage is an estimate: each rise between two snapshots is split across the runs in that interval by their tokens.',
-    };
+    const byTicket = new Map(costs.map((c) => [c.ticketId, Number(c._sum.costUsd ?? 0)]));
+    return { days: TICKET_DAYS, ...ticketCosts(tickets.map((t) => ({ ...t, credits: byTicket.get(t.id) ?? 0 }))) };
   }
 
-  /** GET /usage/rate: how fast the 5-hour (points per hour) and weekly (points per day) percentages rise, with a projection to the thresholds. */
-  async rate(query: { from?: string; to?: string }): Promise<{ thresholds: { fiveHourPct: number; weeklyPct: number }; fiveHour: RateSeries; weekly: RateSeries }> {
+  /** GET /usage/models: tokens by kind, credits, runs and share per model, with the split by stage and day. */
+  async models(query: { from?: string; to?: string }): Promise<{ from: string; to: string; models: ModelUsage[] }> {
     const to = parseDate(query.to) ?? new Date();
-    const from = parseDate(query.from) ?? new Date(to.getTime() - 7 * 86_400_000);
-    // The thresholds are gone with the subscription windows: project to the limit itself.
-    const thresholds = { fiveHourPct: 100, weeklyPct: 100 };
-    return { thresholds, ...usageRate(await this.snapshotsAround(from, to), thresholds, new Date()) };
+    const from = parseDate(query.from) ?? new Date(to.getTime() - 7 * DAY_MS);
+    const runs = await this.prisma.stageRun.findMany({ where: { ...BILLED_RUNS, startedAt: { gte: from, lte: to } } });
+    return { from: from.toISOString(), to: to.toISOString(), models: usageByModel(runs.map((r) => ({ ...r, costUsd: Number(r.costUsd) }))) };
   }
 
-  private async snapshotsAround(from: Date, to: Date) {
-    const inside = await this.prisma.usageSnapshot.findMany({ where: { at: { gte: from, lte: to } }, orderBy: { at: 'asc' }, take: MAX_ROWS });
-    const before = await this.prisma.usageSnapshot.findFirst({ where: { at: { lt: from } }, orderBy: { at: 'desc' } });
-    return (before ? [before, ...inside] : inside).map((s) => ({ at: s.at, fiveHourPct: s.fiveHourPct, sevenDayPct: s.sevenDayPct, resetsAt: s.resetsAt }));
-  }
-
-  /** GET /usage/summary: tokens by stage and model over the last 30 days, and the suggested calibration. */
+  /** GET /usage/summary: tokens and credits by stage and model over the last 30 days. */
   async summary(): Promise<UsageSummaryDto> {
-    const since = new Date(Date.now() - 30 * 86_400_000);
+    const since = new Date(Date.now() - 30 * DAY_MS);
     const groups = await this.prisma.stageRun.groupBy({
       by: ['stage', 'model'],
-      where: { startedAt: { gte: since } },
-      _sum: { inputTokens: true, outputTokens: true, cacheWriteTokens: true },
+      where: { ...BILLED_RUNS, startedAt: { gte: since } },
+      _sum: { inputTokens: true, outputTokens: true, cacheWriteTokens: true, costUsd: true },
       _count: true,
     });
-    const tokens = groups
-      .map((g) => ({ stage: g.stage, model: g.model, tokens: (g._sum.inputTokens ?? 0) + (g._sum.outputTokens ?? 0) + (g._sum.cacheWriteTokens ?? 0), runs: g._count }))
-      .sort((a, b) => b.tokens - a.tokens);
-    const rejected = await this.prisma.usageSnapshot.findFirst({ where: { status: 'rejected', windowTokens: { gt: 0 } }, orderBy: { at: 'desc' } });
-    return { tokens, suggestedCalibration: rejected?.windowTokens ?? null };
+    const rows = groups
+      .map((g) => ({
+        stage: g.stage,
+        model: g.model,
+        tokens: (g._sum.inputTokens ?? 0) + (g._sum.outputTokens ?? 0) + (g._sum.cacheWriteTokens ?? 0),
+        credits: Math.round(Number(g._sum.costUsd ?? 0) * 100) / 100,
+        runs: g._count,
+      }))
+      .sort((a, b) => b.credits - a.credits || b.tokens - a.tokens);
+    return { rows };
   }
 }

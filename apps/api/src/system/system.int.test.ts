@@ -19,7 +19,6 @@ describe('System and global settings API', () => {
   beforeEach(async () => {
     await t.prisma.globalSettings.deleteMany();
     await t.prisma.stageRun.deleteMany();
-    await t.prisma.usageSnapshot.deleteMany();
     await t.prisma.project.deleteMany();
   });
 

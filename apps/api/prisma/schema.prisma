@@ -151,11 +151,6 @@ enum SupportPriority {
   fyi
 }
 
-enum UsageSource {
-  event
-  estimate
-}
-
 // ---------------------------------------------------------------- models
 
 model Project {
@@ -493,24 +488,6 @@ model StageArtifact {
 
   @@unique([ticketId, stage, version])
   @@index([ticketId, stage])
-}
-
-model UsageSnapshot {
-  id           String      @id @default(uuid())
-  at           DateTime    @default(now()) @db.Timestamptz(6)
-  fiveHourPct  Float?
-  sevenDayPct  Float?
-  status       String?
-  resetsAt     DateTime?   @db.Timestamptz(6)
-  source       UsageSource
-  windowTokens Int         @default(0)
-  /// The run that ended just before this snapshot (null for idle samples).
-  stageRunId   String?
-  model        String?
-  /// Every window the rate_limit_event carried (five_hour, seven_day, per-model weekly, ...), as sent.
-  windows      Json?
-
-  @@index([at])
 }
 
 /// Audit log. type: intake | state | stage | usage | jira | git | settings | support | error

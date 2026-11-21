@@ -5,19 +5,19 @@ import { UsageService } from './usage.service';
 export class UsageController {
   constructor(private readonly usage: UsageService) {}
 
-  @Get('snapshots')
-  snapshots(@Query('from') from?: string, @Query('to') to?: string) {
-    return this.usage.snapshots({ from, to });
+  @Get('spend')
+  spend() {
+    return this.usage.spend();
+  }
+
+  @Get('tickets')
+  tickets() {
+    return this.usage.tickets();
   }
 
   @Get('models')
   models(@Query('from') from?: string, @Query('to') to?: string) {
     return this.usage.models({ from, to });
-  }
-
-  @Get('rate')
-  rate(@Query('from') from?: string, @Query('to') to?: string) {
-    return this.usage.rate({ from, to });
   }
 
   @Get('summary')

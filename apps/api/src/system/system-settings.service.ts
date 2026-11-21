@@ -1,11 +1,11 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { DEFAULT_GLOBAL_SETTINGS, ErrorCodes, GlobalSettingsSchema, budgetPeriod, deepMerge, type GlobalSettingsInput } from '@sdlc/shared';
+import { DEFAULT_GLOBAL_SETTINGS, DEFAULT_SUGGESTED_BUDGETS, ErrorCodes, GlobalSettingsSchema, budgetPeriod, deepMerge, type GlobalSettingsInput } from '@sdlc/shared';
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
 import type { GlobalSettings, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { budgetDecision } from '../usage/spend';
+import { budgetDecision, spentSince } from '../usage/spend';
 
 const GLOBAL_ID = 'global';
 const BUDGET_KEYS = ['budgetDailyCredits', 'budgetWeeklyCredits', 'budgetMonthlyCredits'] as const;
@@ -28,6 +28,8 @@ export interface SpendView {
   timezone: string;
   warnPct: number;
   periods: { period: 'daily' | 'weekly' | 'monthly'; spent: number; budget: number | null; pct: number | null; resetsAt: string }[];
+  /** What the approval banner suggests: 1.5 times the average day of the last 30 days, rounded up, or the defaults with no spend. */
+  suggested: Record<'daily' | 'weekly' | 'monthly', number>;
 }
 
 /** What the worker last reported (see worker/status). `online` is derived from the heartbeat. */
@@ -104,6 +106,13 @@ export interface SystemView {
   onboarding: { projectId: string; name: string; status: 'profiling' | 'proposed' }[];
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
   spend: SpendView;
+}
+
+/** Room above an average day, so a busy day does not pause the pipeline: weekly is five such days, monthly about four weeks. */
+export function suggestBudgets(avgDaily: number): Record<'daily' | 'weekly' | 'monthly', number> {
+  if (avgDaily <= 0) return { ...DEFAULT_SUGGESTED_BUDGETS };
+  const daily = Math.max(1, Math.ceil(avgDaily * 1.5));
+  return { daily, weekly: daily * 5, monthly: daily * 20 };
 }
 
 const IgnoreBody = z.object({ until: z.coerce.date({ error: 'must be a date' }).optional() });
@@ -216,7 +225,8 @@ export class SystemSettingsService {
   async spend(now = new Date()): Promise<SpendView> {
     const row = await this.row();
     const decision = await budgetDecision(this.prisma, row, now);
-    return { timezone: row.timezone, warnPct: row.budgetWarnPct, periods: decision.statuses.map((s) => ({ ...s, resetsAt: s.resetsAt.toISOString() })) };
+    const last30 = await spentSince(this.prisma, new Date(now.getTime() - 30 * 86_400_000));
+    return { timezone: row.timezone, warnPct: row.budgetWarnPct, periods: decision.statuses.map((s) => ({ ...s, resetsAt: s.resetsAt.toISOString() })), suggested: suggestBudgets(last30 / 30) };
   }
 
   /**

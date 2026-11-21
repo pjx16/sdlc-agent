@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { TICKET_STATUSES, ACTIONABLE_STATUSES } from '@sdlc/shared';
+import { TICKET_STATUSES, ACTIONABLE_STATUSES, budgetPeriod } from '@sdlc/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { firstPassRate, mean, median, mergedPerDay, parseRange, round2, tokensOf, tokensPerDay } from './aggregate';
+import { BILLED_RUNS, spentSince } from '../usage/spend';
+import { bucketSpend } from '../usage/spend-analytics';
+import { firstPassRate, mean, median, mergedPerDay, parseRange, round2, tokensPerDay } from './aggregate';
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const;
 
@@ -25,31 +27,38 @@ export class MetricsService {
   async summary(rangeInput?: string) {
     const now = this.now();
     const { range, since } = parseRange(rangeInput, now);
-    const [done, finished, window, queue] = await Promise.all([
+    const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
+    const [done, finished, today, queue] = await Promise.all([
       this.prisma.stateTransition.count({ where: { toStatus: 'DONE', at: { gte: since } } }),
       this.finishedSubtasks(since),
-      this.prisma.stageRun.aggregate({ where: { startedAt: { gte: new Date(now.getTime() - 5 * 3600_000) } }, _sum: { inputTokens: true, outputTokens: true, cacheWriteTokens: true } }),
+      spentSince(this.prisma, budgetPeriod('daily', now, settings?.timezone ?? 'UTC').start),
       this.prisma.ticket.count({ where: { OR: [{ status: { in: [...ACTIONABLE_STATUSES] } }, { status: 'AWAITING_CI', ciFixPending: true }] } }),
     ]);
     return {
       range,
       ticketsDone: done,
       firstPassRate: firstPassRate(finished),
-      tokensInWindow: tokensOf({ inputTokens: window._sum.inputTokens ?? 0, outputTokens: window._sum.outputTokens ?? 0, cacheWriteTokens: window._sum.cacheWriteTokens ?? 0 }),
+      creditsToday: round2(today),
       queueLength: queue,
     };
   }
 
+  /** Credits per local hour (24h) or local day (7d, 30d) in the timezone from Settings, and the pauses in range. */
   async usage(rangeInput?: string) {
-    const { range, since } = parseRange(rangeInput, this.now());
-    const [snapshots, settings, pauses] = await Promise.all([
-      this.prisma.usageSnapshot.findMany({ where: { at: { gte: since } }, orderBy: { at: 'asc' }, take: 5000 }),
+    const now = this.now();
+    const { range, since } = parseRange(rangeInput, now);
+    const [runs, settings, pauses] = await Promise.all([
+      this.prisma.stageRun.findMany({ where: { ...BILLED_RUNS, startedAt: { gte: since } }, select: { startedAt: true, costUsd: true } }),
       this.prisma.globalSettings.findUnique({ where: { id: 'global' } }),
       this.prisma.event.findMany({ where: { type: 'usage', at: { gte: since }, message: { startsWith: 'Pipeline paused' } }, orderBy: { at: 'asc' } }),
     ]);
+    const timezone = settings?.timezone ?? 'UTC';
+    const unit = range === '24h' ? 'hour' : 'day';
     return {
       range,
-      series: snapshots.map((s) => ({ at: s.at.toISOString(), fiveHourPct: s.fiveHourPct, sevenDayPct: s.sevenDayPct, status: s.status })),
+      timezone,
+      unit,
+      series: bucketSpend(runs.map((r) => ({ startedAt: r.startedAt as Date, costUsd: Number(r.costUsd) })), since, now, unit, timezone),
       pauses: pauses.map((e) => ({ at: e.at.toISOString(), message: e.message })),
     };
   }
