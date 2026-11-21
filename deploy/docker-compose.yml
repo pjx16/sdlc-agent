@@ -1,6 +1,7 @@
 # Release install: runs the published images. Set SDLC_VERSION in .env.
-# The agent image is not published (it bundles Claude Code, which is not ours to redistribute): `sdlc-agent up` builds it from ./docker/agent,
-# or run `docker compose --profile build build agent-image` yourself.
+# The agent image is not published (it bundles Claude Code, which is not ours to redistribute): `sdlc-agent up` builds it inside Docker from
+# the release's git tag, or run `docker compose --profile build build agent-image` yourself.
+# Repository code stays inside Docker (the sdlc_data volume); the host keeps only this folder's files and the encrypted backups.
 # Only docker-proxy touches the Docker socket; agents reach the model through the worker's LLM gateway and npm through the read-only mirror.
 # The services and security properties match the root docker-compose.yml, which builds from source.
 name: sdlc-agent
@@ -30,6 +31,29 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # Daily encrypted database backup into ./backups on the host (pg_dump | gzip | openssl, see ./backup.sh). Only ciphertext leaves Docker;
+  # `sdlc-agent restore <file>` brings one back, even after the database volume was deleted. It runs as the installing user.
+  backup:
+    <<: *unprivileged
+    image: postgres:17.12@sha256:0d938e975177bef9f1f61f3f9dbcf2e0aa0a139568f66d3415ed8892eb97f6ac
+    restart: unless-stopped
+    user: "${SDLC_UID:-0}:${SDLC_GID:-0}"
+    read_only: true
+    entrypoint: ["bash", "/usr/local/bin/sdlc-backup"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGHOST: postgres
+      PGUSER: sdlc
+      PGDATABASE: sdlc
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      BACKUP_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+    volumes:
+      - ./backup.sh:/usr/local/bin/sdlc-backup:ro
+      - ./backups:/backups
+    networks: [internal]
 
   api:
     <<: *unprivileged
