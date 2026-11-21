@@ -217,9 +217,9 @@ describe('OnboardingWorker', () => {
       await worker.check();
       expect((await reload(p.id)).onboardingError).toContain('Which package manager?');
       const q = await project();
-      agent = () => ({ kind: 'rate_limited', errorCode: 'CLAUDE_USAGE_LIMIT', resetsAt: null, stageRunId: 'r', attempts: 1 });
+      agent = () => ({ kind: 'out_of_credits', stageRunId: 'r', attempts: 1 });
       await worker.check();
-      expect((await reload(q.id)).onboardingError).toContain('usage limit');
+      expect((await reload(q.id)).onboardingError).toContain('credit balance is too low');
     });
 
     it('output that does not fit the schema is refused by the runner, so the error is plain', async () => {
@@ -245,7 +245,7 @@ describe('OnboardingWorker', () => {
 
   it('waits while the pipeline is paused for limits, but not when paused by hand', async () => {
     const p = await project();
-    await prisma.globalSettings.create({ data: { id: 'global', pipelinePaused: true, pausedReason: 'Claude usage limit', pausedCode: 'CLAUDE_USAGE_LIMIT' } });
+    await prisma.globalSettings.create({ data: { id: 'global', pipelinePaused: true, pausedReason: 'Credits', pausedCode: 'CLAUDE_CREDITS' } });
     await worker.check();
     expect((await reload(p.id)).onboardingStatus).toBe('profiling');
     await prisma.globalSettings.update({ where: { id: 'global' }, data: { pausedReason: 'manual', pausedCode: null } });

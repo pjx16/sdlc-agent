@@ -202,7 +202,7 @@ model GlobalSettings {
   usageIgnoredUntil       DateTime? @db.Timestamptz(6)
   pipelinePaused          Boolean   @default(false)
   pausedReason            String?
-  /// The ERROR_CODES value behind the pause, when there is one (CLAUDE_AUTH, CLAUDE_USAGE_LIMIT, ...).
+  /// The ERROR_CODES value behind the pause, when there is one (CLAUDE_AUTH, CLAUDE_CREDITS, SPEND_BUDGET_REACHED, ...).
   pausedCode              String?
   resetsAt                DateTime? @db.Timestamptz(6)
   intakePaused            Boolean   @default(false)

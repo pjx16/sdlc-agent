@@ -145,5 +145,5 @@ export function isRateLimited(parsed: ParsedStream): boolean {
   if (parsed.rateLimit?.status === 'rejected') return true;
   const r = parsed.result;
   if (r?.api_error_status === 429) return true;
-  return parsed.kind === 'error' && /usage limit|rate.?limit/i.test(parsed.error ?? '');
+  return parsed.kind === 'error' && /rate.?limit/i.test(parsed.error ?? '');
 }

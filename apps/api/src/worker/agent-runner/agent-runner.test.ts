@@ -162,11 +162,20 @@ describe('AgentRunner', () => {
       expect(store.runs.get('run-1')?.finished).toMatchObject({ errorCode: 'CLAUDE_AUTH' });
     });
 
-    it('CLAUDE_USAGE_LIMIT and CLAUDE_RATE_LIMIT: pause-and-requeue results with their own code', async () => {
-      const usage = await setup({ exitCode: 1, lines: errorLines('Claude usage limit reached') }).runner.run(request());
-      expect(usage).toMatchObject({ kind: 'rate_limited', errorCode: 'CLAUDE_USAGE_LIMIT' });
-      const rate = await setup({ exitCode: 1, lines: errorLines('too many requests', { api_error_status: 429 }) }).runner.run(request());
-      expect(rate).toMatchObject({ kind: 'rate_limited', errorCode: 'CLAUDE_RATE_LIMIT' });
+    it('CLAUDE_CREDITS: no retry; an out-of-credits result the caller pauses on', async () => {
+      const { runner, engine, store } = setup({ exitCode: 1, lines: errorLines('Your credit balance is too low to access the Anthropic API.', { api_error_status: 400 }) });
+      expect(await runner.run(request())).toMatchObject({ kind: 'out_of_credits', attempts: 1 });
+      expect(engine.created).toHaveLength(1);
+      expect(store.runs.get('run-1')?.finished).toMatchObject({ errorCode: 'CLAUDE_CREDITS' });
+    });
+
+    it('CLAUDE_RATE_LIMIT: retries three times with 1, 2 and 5 minute waits, then gives up without pausing', async () => {
+      const { runner, engine } = setup({ exitCode: 1, lines: errorLines('too many requests', { api_error_status: 429 }) });
+      const waits: number[] = [];
+      runner.sleep = async (ms) => void waits.push(ms);
+      expect(await runner.run(request())).toMatchObject({ kind: 'failed', errorCode: 'CLAUDE_RATE_LIMIT', attempts: 4 });
+      expect(engine.created).toHaveLength(4);
+      expect(waits).toEqual([60_000, 120_000, 300_000]);
     });
 
     it('a successful answer that talks about rate limits or usage limits is not a rate limit', async () => {
@@ -212,13 +221,10 @@ describe('AgentRunner', () => {
     expect(res).toMatchObject({ kind: 'failed', errorCode: 'CONTAINER_ERROR', attempts: 2 });
   });
 
-  it('reports a rate-limit rejection without retrying, so the caller can pause and re-queue', async () => {
-    const rejected = { type: 'rate_limit_event', rate_limit_info: { status: 'rejected', resetsAt: 1794418200 } };
-    const { runner, engine } = setup({ exitCode: 1, lines: [JSON.stringify(rejected), JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['usage limit'] })] });
-    const res = await runner.run(request());
-    expect(res).toMatchObject({ kind: 'rate_limited', attempts: 1 });
-    expect((res as { resetsAt: Date }).resetsAt.getTime()).toBe(1794418200 * 1000);
-    expect(engine.created).toHaveLength(1);
+  it('a rate-limit error with no other wording is still retried as CLAUDE_RATE_LIMIT', async () => {
+    const { runner } = setup([{ exitCode: 1, lines: [JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['x'], api_error_status: 429 })] }, good]);
+    runner.sleep = async () => undefined;
+    expect(await runner.run(request())).toMatchObject({ kind: 'done', attempts: 2 });
   });
 
   it('returns needs_input with the question', async () => {

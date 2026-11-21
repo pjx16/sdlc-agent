@@ -73,15 +73,17 @@ describe('JiraConnectorClient', () => {
     await expect(client.readStatus('ACME-1')).rejects.toSatisfy((e: unknown) => e instanceof JiraHttpError && e.status === 401 && /jira-connector-login/.test(e.message));
   });
 
-  it('usage limits and container errors back intake off instead of failing', async () => {
-    const limited = make([{ kind: 'rate_limited', resetsAt: null, stageRunId: 'r', attempts: 1 }]);
+  it('low credits, rate limits and container errors back intake off instead of failing', async () => {
+    const limited = make([{ kind: 'out_of_credits', stageRunId: 'r', attempts: 1 }]);
     await expect(limited.client.readStatus('ACME-1')).rejects.toBeInstanceOf(JiraUnavailableError);
+    const rate = make([{ kind: 'failed', reason: 'rate limited', errorCode: 'CLAUDE_RATE_LIMIT', stageRunId: 'r', attempts: 4 }]);
+    await expect(rate.client.readStatus('ACME-1')).rejects.toBeInstanceOf(JiraUnavailableError);
     const broken = make([{ kind: 'failed', reason: 'no docker', errorCode: 'CONTAINER_ERROR', stageRunId: 'r', attempts: 2 }]);
     await expect(broken.client.readStatus('ACME-1')).rejects.toBeInstanceOf(JiraUnavailableError);
   });
 
-  it('does not run while Claude usage is paused', async () => {
-    const { client, requests } = make([], { global: { pipelinePaused: true, pausedCode: 'CLAUDE_USAGE_LIMIT' } });
+  it('does not run while Claude is paused for credits', async () => {
+    const { client, requests } = make([], { global: { pipelinePaused: true, pausedCode: 'CLAUDE_CREDITS' } });
     await expect(client.readStatus('ACME-1')).rejects.toBeInstanceOf(JiraUnavailableError);
     expect(requests).toHaveLength(0);
   });

@@ -167,9 +167,9 @@ describe('worker loop', () => {
     await prisma.stageRun.deleteMany({ where: { id: { in: [chat.id, stage.id] } } });
   });
 
-  it('ends a pause caused by Claude\'s limit at the reset time, but never one the user chose', async () => {
+  it('ends a budget pause when the next period starts, but never one the user chose', async () => {
     const loop = loopWith([]);
-    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'CLAUDE_RATE_LIMIT', pausedReason: 'limit', resetsAt: new Date(clock + 60_000) }, create: { id: 'global', pipelinePaused: true, pausedCode: 'CLAUDE_RATE_LIMIT', pausedReason: 'limit', resetsAt: new Date(clock + 60_000) } });
+    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'SPEND_BUDGET_REACHED', pausedReason: 'budget', resetsAt: new Date(clock + 60_000) }, create: { id: 'global', pipelinePaused: true, pausedCode: 'SPEND_BUDGET_REACHED', pausedReason: 'budget', resetsAt: new Date(clock + 60_000) } });
     expect(await loop.tick()).toBe('paused'); // before the reset
     clock += 120_000;
     expect(await loop.tick()).not.toBe('paused');

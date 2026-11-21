@@ -153,12 +153,12 @@ export class JiraConnectorClient implements JiraClient {
       }
       case 'claude_auth':
         throw new JiraHttpError(401, JIRA_CONNECTOR_LOGIN_EXPIRED);
-      case 'rate_limited':
+      case 'out_of_credits':
         throw new JiraUnavailableError('Jira (connector): Claude usage is limited right now', result.attempts);
       case 'needs_input':
         throw new JiraHttpError(400, `Jira (connector): ${result.question}`);
       case 'failed':
-        if (result.errorCode === 'CONTAINER_ERROR' || result.errorCode === 'TIMEOUT') throw new JiraUnavailableError(`Jira (connector): ${result.reason}`, result.attempts);
+        if (result.errorCode === 'CONTAINER_ERROR' || result.errorCode === 'TIMEOUT' || result.errorCode === 'CLAUDE_RATE_LIMIT') throw new JiraUnavailableError(`Jira (connector): ${result.reason}`, result.attempts);
         throw new JiraHttpError(502, `Jira (connector): ${result.reason}`);
       default:
         throw new JiraHttpError(502, `Jira (connector): the agent stopped (${result.kind})`);
@@ -176,10 +176,10 @@ export class JiraConnectorClient implements JiraClient {
     return project;
   }
 
-  /** While Claude usage is paused, connector calls wait too (they spend the same usage). */
+  /** While Claude is paused, connector calls wait too. */
   private async refuseWhenPaused(): Promise<void> {
     const g = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-    if (g?.pipelinePaused && (g.pausedCode === 'CLAUDE_USAGE_LIMIT' || g.pausedCode === 'CLAUDE_RATE_LIMIT' || g.pausedCode === 'CLAUDE_AUTH')) {
+    if (g?.pipelinePaused && (g.pausedCode === 'CLAUDE_CREDITS' || g.pausedCode === 'SPEND_BUDGET_REACHED' || g.pausedCode === 'CLAUDE_AUTH')) {
       throw new JiraUnavailableError(`Jira (connector): waiting while Claude is paused (${g.pausedCode})`, 0);
     }
   }

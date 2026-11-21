@@ -168,7 +168,7 @@ describe('assistant runner and context packs', () => {
     it('is refused while the pipeline is paused for limits, and the message waits', async () => {
       const t = await ticket();
       const c = await conversation(await support(t.id));
-      await prisma.globalSettings.create({ data: { id: 'global', pipelinePaused: true, pausedReason: 'Claude usage limit', pausedCode: 'CLAUDE_USAGE_LIMIT' } });
+      await prisma.globalSettings.create({ data: { id: 'global', pipelinePaused: true, pausedReason: 'The Anthropic credit balance is too low.', pausedCode: 'CLAUDE_CREDITS' } });
       expect(await runner.tick()).toBe('paused');
       expect(requests).toHaveLength(0);
       expect((await prisma.assistantConversation.findUniqueOrThrow({ where: { id: c.id } })).pendingAt).not.toBeNull();

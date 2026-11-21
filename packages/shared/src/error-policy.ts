@@ -10,7 +10,7 @@ export type ErrorSource = (typeof ERROR_SOURCES)[number];
 export type ErrorBadge = 'Claude' | 'Agent' | 'Workspace' | 'Jira' | 'Confluence' | 'GitHub' | 'Git' | 'User';
 
 export const ERROR_CODES = [
-  'CLAUDE_AUTH', 'CLAUDE_RATE_LIMIT', 'CLAUDE_USAGE_LIMIT', 'CLAUDE_API_ERROR', 'CLAUDE_CONTEXT_TOO_LONG',
+  'CLAUDE_AUTH', 'CLAUDE_RATE_LIMIT', 'CLAUDE_CREDITS', 'CLAUDE_API_ERROR', 'CLAUDE_CONTEXT_TOO_LONG', 'SPEND_BUDGET_REACHED',
   'TURN_LIMIT', 'INVALID_OUTPUT', 'NEEDS_INPUT', 'BLOCKED', 'GUARD_VIOLATION',
   'TESTS_STILL_FAILING', 'CONTAINER_ERROR', 'TIMEOUT',
   'GIT_ERROR', 'GITHUB_ERROR', 'JIRA_ERROR', 'CONFLUENCE_ERROR', 'KILLED',
@@ -18,9 +18,9 @@ export const ERROR_CODES = [
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
 export type Recovery =
-  /** Pause every Claude stage until the credential works again; the ticket does not fail. */
+  /** Pause every Claude stage until the credential works again, or someone resumes; the ticket does not fail. */
   | { kind: 'pause_global' }
-  /** Pause until Claude's reset time, then carry on. */
+  /** Pause until the reset time (the start of the next budget period), then carry on by itself. */
   | { kind: 'pause_until_reset' }
   /** Retry automatically, waiting `backoffMin[n]` minutes before attempt n+1, then do `then`. */
   | { kind: 'retry'; retries: number; backoffMin: readonly number[]; then: 'hold' | 'fail'; turnFactor?: number; withErrors?: boolean }
@@ -43,8 +43,10 @@ const hold: Recovery = { kind: 'hold' };
 
 export const ERROR_POLICY: Record<ErrorCode, ErrorPolicy> = {
   CLAUDE_AUTH: { source: 'claude', badge: 'Claude', recovery: { kind: 'pause_global' }, message: 'Claude rejected the credential. Update it in Settings → Connections.', action: 'Update the Anthropic API key in Settings → Connections. The pipeline resumes by itself.' },
-  CLAUDE_RATE_LIMIT: { source: 'claude', badge: 'Claude', recovery: { kind: 'pause_until_reset' }, message: 'Claude rate limit reached. Resuming at {time}.', action: 'Nothing: the pipeline resumes at the reset time.' },
-  CLAUDE_USAGE_LIMIT: { source: 'claude', badge: 'Claude', recovery: { kind: 'pause_until_reset' }, message: 'Claude usage limit reached. Resuming at {time}.', action: 'Nothing: the pipeline resumes at the reset time.' },
+  // Claude Code already retries a 429 itself, honouring retry-after. A stage that still ends rate limited waits a little longer here, then holds.
+  CLAUDE_RATE_LIMIT: { source: 'claude', badge: 'Claude', recovery: { kind: 'retry', retries: 3, backoffMin: [1, 2, 5], then: 'hold' }, message: 'Anthropic rate limit reached. Retry {n}/3 at {time}.', action: 'Nothing while retries remain. If it keeps happening, run fewer projects at once or raise the rate limits of your Anthropic organization.' },
+  CLAUDE_CREDITS: { source: 'claude', badge: 'Claude', recovery: { kind: 'pause_global' }, message: 'The Anthropic credit balance is too low.', action: 'Add credits in the Anthropic Console (Billing), then resume the pipeline.' },
+  SPEND_BUDGET_REACHED: { source: 'user', badge: 'User', recovery: { kind: 'pause_until_reset' }, message: 'The {period} budget of {budget} credits is used up. Resuming at {time}.', action: 'Nothing: the pipeline resumes when the next period starts. Or raise the budget in Settings → Usage.' },
   CLAUDE_API_ERROR: { source: 'claude', badge: 'Claude', recovery: { kind: 'retry', retries: 3, backoffMin: [1, 4, 10], then: 'hold' }, message: 'Claude API error ({detail}). Retry {n}/3 at {time}.', action: 'Nothing while retries remain. After the third, resume the ticket when Claude is back.' },
   CLAUDE_CONTEXT_TOO_LONG: { source: 'claude', badge: 'Claude', recovery: hold, message: 'The input for {stage} was too large ({sizes}).', action: 'Shrink the input (a smaller plan or diff) and resume.' },
   TURN_LIMIT: { source: 'agent', badge: 'Agent', recovery: { kind: 'retry', retries: 1, backoffMin: [0], then: 'hold', turnFactor: 1.5 }, message: '{agent} ran out of turns.', action: 'Rerun with a note, or raise the stage turn limit in Advanced settings.' },
@@ -80,19 +82,19 @@ export function nextBackoffMin(code: ErrorCode, attempt: number): number | null 
 }
 
 const AUTH = /authentication_error|invalid bearer token|oauth token (has )?(expired|revoked)|invalid api key|failed to authenticate|401 unauthorized/i;
-const USAGE = /usage limit|limit reached|out of (extra )?usage|credit balance is too low/i;
+const CREDITS = /credit balance is too low|insufficient (credit|balance)|billing_error/i;
 const RATE = /rate.?limit|too many requests|\b429\b/i;
 const CONTEXT = /prompt is too long|context (length|window)|maximum context|input is too long|too many tokens/i;
 const API = /overloaded|\b529\b|\b5\d\d\b (error|internal)|internal server error|service unavailable|bad gateway|gateway timeout|econnreset|etimedout|enotfound|socket hang up|network error|fetch failed|api error/i;
 
 /**
  * Names a Claude-side failure from the CLI's result text or stderr (and the HTTP status when the result had one).
- * Order matters: a usage limit also contains "limit", and an auth failure can be a 401.
+ * Order matters: an auth failure can be a 401, and a low credit balance can come back as a 400.
  */
 export function classifyClaudeError(text: string, status?: number | null): ErrorCode | null {
   if (status === 401 || AUTH.test(text)) return 'CLAUDE_AUTH';
   if (CONTEXT.test(text)) return 'CLAUDE_CONTEXT_TOO_LONG';
-  if (USAGE.test(text)) return 'CLAUDE_USAGE_LIMIT';
+  if (CREDITS.test(text)) return 'CLAUDE_CREDITS';
   if (status === 429 || RATE.test(text)) return 'CLAUDE_RATE_LIMIT';
   if ((typeof status === 'number' && status >= 500) || API.test(text)) return 'CLAUDE_API_ERROR';
   return null;

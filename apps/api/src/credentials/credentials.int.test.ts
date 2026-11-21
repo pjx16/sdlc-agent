@@ -30,7 +30,7 @@ describe('CredentialsService', () => {
   it('saving a new Anthropic API key ends a pause caused by CLAUDE_AUTH, and only that pause', async () => {
     process.env.ENCRYPTION_KEY = randomBytes(32).toString('base64');
     delete process.env.ANTHROPIC_API_KEY;
-    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'CLAUDE_USAGE_LIMIT', pausedReason: 'limit' }, create: { id: 'global', pipelinePaused: true, pausedCode: 'CLAUDE_USAGE_LIMIT', pausedReason: 'limit' } });
+    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'CLAUDE_CREDITS', pausedReason: 'limit' }, create: { id: 'global', pipelinePaused: true, pausedCode: 'CLAUDE_CREDITS', pausedReason: 'limit' } });
     await svc.set('anthropic_api_key', 'sk-ant-api03-' + 'a'.repeat(40));
     expect((await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).pipelinePaused).toBe(true);
     await prisma.globalSettings.update({ where: { id: 'global' }, data: { pausedCode: 'CLAUDE_AUTH' } });

@@ -96,7 +96,7 @@ export function holdGuidance(info: HoldInfo): Guidance {
         );
         actions.push('redo-tests');
       }
-      steps.push('If the cause was outside the code (a token or repository access, Docker, a usage limit), fix that first, then press Retry. The stage runs again from a fresh start.');
+      steps.push('If the cause was outside the code (a token or repository access, Docker, Anthropic credits), fix that first, then press Retry. The stage runs again from a fresh start.');
       actions.push('retry');
       steps.push('Press Resume only if you changed something yourself and want to continue without resetting the counters.');
       actions.push('resume');

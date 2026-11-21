@@ -82,7 +82,7 @@ describe('Assistant chat API', () => {
 
   it('is refused while the pipeline is paused for limits, but not when paused by hand', async () => {
     const { q } = await question();
-    await t.prisma.globalSettings.create({ data: { id: 'global', pipelinePaused: true, pausedReason: 'Claude usage limit reached', pausedCode: 'CLAUDE_USAGE_LIMIT' } });
+    await t.prisma.globalSettings.create({ data: { id: 'global', pipelinePaused: true, pausedReason: 'The Anthropic credit balance is too low.', pausedCode: 'CLAUDE_CREDITS' } });
     const res = await send(q.id).expect(409);
     expect(res.body.message).toContain('paused');
     expect((await t.agent.get(`/support-tickets/${q.id}/assistant`).expect(200)).body).toMatchObject({ canSend: false, blockedReason: expect.stringContaining('paused') });

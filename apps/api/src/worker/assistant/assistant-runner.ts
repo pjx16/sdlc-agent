@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { Injectable, Logger } from '@nestjs/common';
-import { DEFAULT_GLOBAL_SETTINGS, GlobalSettingsSchema, ProjectSettingsSchema, describeError, type ErrorCode, type ModelAlias } from '@sdlc/shared';
+import { DEFAULT_GLOBAL_SETTINGS, ERROR_POLICY, GlobalSettingsSchema, ProjectSettingsSchema, describeError, type ErrorCode, type ModelAlias } from '@sdlc/shared';
 import type { AssistantConversation, AssistantMessage, Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AgentRunner, type StageResult } from '../agent-runner/agent-runner';
@@ -154,8 +154,8 @@ export class AssistantRunner {
       }
       case 'needs_input':
         return this.reply(conversation.id, result.question, keep);
-      case 'rate_limited':
-        return this.reply(conversation.id, describeError(result.errorCode ?? 'CLAUDE_USAGE_LIMIT', { time: result.resetsAt?.toLocaleTimeString() }), keep);
+      case 'out_of_credits':
+        return this.reply(conversation.id, `${describeError('CLAUDE_CREDITS')} ${ERROR_POLICY.CLAUDE_CREDITS.action}`, keep);
       case 'claude_auth':
         return this.reply(conversation.id, describeError('CLAUDE_AUTH'), keep);
       case 'turn_limit':

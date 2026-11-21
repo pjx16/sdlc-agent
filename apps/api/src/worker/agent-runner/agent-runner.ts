@@ -50,8 +50,8 @@ export type StageResult =
   | { kind: 'failed'; reason: string; errorCode?: ErrorCode; stageRunId: string; attempts: number }
   /** Reached the turn limit, also after the retry with more turns. */
   | { kind: 'turn_limit'; errorCode?: 'TURN_LIMIT'; stageRunId: string; attempts: number }
-  /** Pause the pipeline until `resetsAt` and re-queue the stage; not counted as an attempt. */
-  | { kind: 'rate_limited'; errorCode?: 'CLAUDE_RATE_LIMIT' | 'CLAUDE_USAGE_LIMIT'; resetsAt: Date | null; stageRunId: string; attempts: number }
+  /** The Anthropic credit balance is too low: pause the pipeline until someone resumes it, and re-queue the stage. Not counted as an attempt. */
+  | { kind: 'out_of_credits'; stageRunId: string; attempts: number }
   /** Claude rejected the credential: pause every Claude stage until it is replaced. The ticket does not fail. */
   | { kind: 'claude_auth'; stageRunId: string; attempts: number }
   /** Killed from the dashboard: the ticket goes on hold (manual). */
@@ -62,7 +62,7 @@ type AttemptResult =
   | { kind: 'needs_input'; question: string; stageRunId: string }
   | { kind: 'failed'; reason: string; errorCode: ErrorCode; stageRunId: string }
   | { kind: 'turn_limit'; errorCode: 'TURN_LIMIT'; stageRunId: string }
-  | { kind: 'rate_limited'; errorCode: 'CLAUDE_RATE_LIMIT' | 'CLAUDE_USAGE_LIMIT'; resetsAt: Date | null; stageRunId: string }
+  | { kind: 'out_of_credits'; stageRunId: string }
   | { kind: 'claude_auth'; stageRunId: string }
   | { kind: 'killed'; errorCode: 'KILLED'; stageRunId: string };
 
@@ -232,11 +232,11 @@ export class AgentRunner {
       await this.store.finish(stageRunId, { ...base, status: 'killed', error: 'Killed from the dashboard', errorCode: 'KILLED' });
       return { kind: 'killed', errorCode: 'KILLED', stageRunId };
     }
-    // Error phrases ("rate limit", "usage limit", ...) are looked for in what Claude says went wrong, never in a successful answer:
+    // Error phrases ("rate limit", "credit balance", ...) are looked for in what Claude says went wrong, never in a successful answer:
     // a plan or a doc that merely talks about rate limits must not pause the pipeline.
     const text = [parsed.error ?? '', parsed.result?.is_error === true && typeof parsed.result.result === 'string' ? parsed.result.result : '', lines.filter((l) => !l.startsWith('{')).join('\n')].join('\n');
     const status = typeof parsed.result?.api_error_status === 'number' ? parsed.result.api_error_status : null;
-    const claudeCode = classifyClaudeError(text, status);
+    const claudeCode = classifyClaudeError(text, status) ?? (isRateLimited(parsed) ? 'CLAUDE_RATE_LIMIT' : null);
 
     if (claudeCode === 'CLAUDE_AUTH' && connector) {
       // The connector's own claude.ai login was refused: that is a Jira connection problem, not the pipeline's Anthropic API key.
@@ -249,10 +249,9 @@ export class AgentRunner {
       await this.creds.markVerified('anthropic_api_key', 'Claude rejected the API key').catch(() => undefined);
       return { kind: 'claude_auth', stageRunId };
     }
-    if (isRateLimited(parsed) || claudeCode === 'CLAUDE_RATE_LIMIT' || claudeCode === 'CLAUDE_USAGE_LIMIT') {
-      const errorCode = claudeCode === 'CLAUDE_RATE_LIMIT' ? 'CLAUDE_RATE_LIMIT' : 'CLAUDE_USAGE_LIMIT';
-      await this.store.finish(stageRunId, { ...base, status: 'failed', error: describeError(errorCode, { time: parsed.rateLimit?.resetsAt?.toISOString() }), errorCode });
-      return { kind: 'rate_limited', errorCode, resetsAt: parsed.rateLimit?.resetsAt ?? null, stageRunId };
+    if (claudeCode === 'CLAUDE_CREDITS') {
+      await this.store.finish(stageRunId, { ...base, status: 'failed', error: describeError('CLAUDE_CREDITS'), errorCode: 'CLAUDE_CREDITS' });
+      return { kind: 'out_of_credits', stageRunId };
     }
     if (parsed.kind === 'turn_limit') {
       await this.store.finish(stageRunId, { ...base, status: 'failed', error: 'Reached the turn limit', errorCode: 'TURN_LIMIT' });
@@ -278,6 +277,7 @@ export class AgentRunner {
   /** Why an attempt failed, with its error code, or null if it succeeded. */
   private failureReason(container: { exitCode: number; timedOut: boolean }, parsed: ParsedStream, req: StageRequest, claudeCode: ErrorCode | null): { reason: string; code: ErrorCode } | null {
     if (container.timedOut) return { reason: describeError('TIMEOUT', { stage: req.stage, limit: `${req.stageTimeoutMin} minutes` }), code: 'TIMEOUT' };
+    if (claudeCode === 'CLAUDE_RATE_LIMIT') return { reason: describeError('CLAUDE_RATE_LIMIT', { n: '', time: '' }).replace(/ Retry\s*\/3 at\.?$/, ''), code: claudeCode };
     if (claudeCode === 'CLAUDE_CONTEXT_TOO_LONG') return { reason: describeError('CLAUDE_CONTEXT_TOO_LONG', { stage: req.stage, sizes: parsed.error ?? 'see the run log' }), code: claudeCode };
     if (claudeCode === 'CLAUDE_API_ERROR') return { reason: describeError('CLAUDE_API_ERROR', { detail: (parsed.error ?? 'no detail').slice(0, 120), n: '', time: '' }).replace(/ Retry\s*\/3 at\.?$/, ''), code: claudeCode };
     if (container.exitCode !== 0) return { reason: `The stage exited with code ${container.exitCode}${parsed.error ? `: ${parsed.error}` : ''}`, code: 'CONTAINER_ERROR' };

@@ -147,12 +147,10 @@ describe('fake stage end to end, in a real container', () => {
     expect(await prisma.stageRun.findUniqueOrThrow({ where: { id: runId } })).toMatchObject({ status: 'killed', killRequested: true });
   }, 120_000);
 
-  it('retries once at the turn limit, and reports needs_input and rate limits', async () => {
+  it('retries once at the turn limit, and reports needs_input and a low credit balance', async () => {
     expect(await runnerFor('turn-limit').run(request())).toMatchObject({ kind: 'turn_limit', attempts: 2 });
     expect(await runnerFor('needs-input').run(request())).toMatchObject({ kind: 'needs_input', question: 'Which database should be used?' });
-    const limited = await runnerFor('rate-limit').run(request());
-    expect(limited).toMatchObject({ kind: 'rate_limited', attempts: 1 });
-    expect((limited as { resetsAt: Date }).resetsAt.getTime()).toBe(1794418200 * 1000);
+    expect(await runnerFor('out-of-credits').run(request())).toMatchObject({ kind: 'out_of_credits', attempts: 1 });
   }, 180_000);
 
   it('never puts the Anthropic API key in the container, only its per-run gateway key, so a process that prints its whole environment leaks nothing', async () => {

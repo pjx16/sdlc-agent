@@ -86,10 +86,10 @@ export class WorkerLoop {
       }
 
       let settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-      // A pause caused by Claude's rate or usage limit ends by itself at the reset time.
-      if (settings?.pipelinePaused && (settings.pausedCode === 'CLAUDE_RATE_LIMIT' || settings.pausedCode === 'CLAUDE_USAGE_LIMIT') && settings.resetsAt && settings.resetsAt.getTime() <= this.now()) {
+      // A pause for a spent budget ends by itself when the next budget period starts.
+      if (settings?.pipelinePaused && settings.pausedCode === 'SPEND_BUDGET_REACHED' && settings.resetsAt && settings.resetsAt.getTime() <= this.now()) {
         settings = await this.prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null } });
-        await this.prisma.event.create({ data: { type: 'usage', message: 'Claude limit reset: the pipeline resumes' } }).catch(() => undefined);
+        await this.prisma.event.create({ data: { type: 'usage', message: 'A new budget period started: the pipeline resumes' } }).catch(() => undefined);
       }
       if (settings?.pipelinePaused) {
         await phase('paused');

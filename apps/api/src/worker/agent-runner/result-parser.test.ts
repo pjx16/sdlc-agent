@@ -71,11 +71,11 @@ describe('parseStream', () => {
 });
 
 describe('rate limits', () => {
-  it('detects a rejected status, a 429, and a usage-limit error', () => {
+  it('detects a rejected status, a 429 and a rate-limit error', () => {
     const rejected = { ...rate, rate_limit_info: { ...rate.rate_limit_info, status: 'rejected' } };
     expect(isRateLimited(parseStream(lines(init, rejected, result()), 'solutionDesign'))).toBe(true);
     expect(isRateLimited(parseStream(lines(init, { type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, errors: ['x'] }), 'solutionDesign'))).toBe(true);
-    expect(isRateLimited(parseStream(lines(init, { type: 'result', subtype: 'error', is_error: true, result: 'Claude usage limit reached' }), 'solutionDesign'))).toBe(true);
+    expect(isRateLimited(parseStream(lines(init, { type: 'result', subtype: 'error', is_error: true, result: 'Rate limit exceeded' }), 'solutionDesign'))).toBe(true);
     expect(isRateLimited(parseStream(lines(init, rate, result()), 'solutionDesign'))).toBe(false);
   });
   it('scales utilization: fractions to percent, larger values kept', () => {

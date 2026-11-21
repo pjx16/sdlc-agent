@@ -53,17 +53,10 @@ export class StageOutcomes {
       }
       case 'killed':
         return { kind: 'hold', reason: 'manual', note: `The ${stage} stage was killed from the dashboard`, stageRunId: result.stageRunId };
-      case 'rate_limited': {
-        // The usage gate treats a rate-limit error as `rejected` and has usually paused the pipeline already (6.7); the stage is re-queued,
-        // not counted as an attempt. If the gate was not running (tests, or it failed), make sure the pause is in place.
-        const code = result.errorCode ?? 'CLAUDE_USAGE_LIMIT';
-        const current = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-        if (!current?.pipelinePaused) {
-          await this.pause(code, 'Claude rejected the request: the usage limit is reached', result.resetsAt, ticketId);
-        } else if (!current.pausedCode) {
-          await this.prisma.globalSettings.update({ where: { id: 'global' }, data: { pausedCode: code } });
-        }
-        await this.prisma.event.create({ data: { ticketId, type: 'usage', message: `The ${stage} stage was rate limited: the pipeline is paused` } });
+      case 'out_of_credits': {
+        // Every stage would fail the same way: pause until someone adds credits and resumes. The stage is re-queued, not counted as an attempt.
+        await this.pause('CLAUDE_CREDITS', describeError('CLAUDE_CREDITS'), null, ticketId);
+        await this.prisma.event.create({ data: { ticketId, type: 'usage', message: `The ${stage} stage stopped: the Anthropic credit balance is too low, so the pipeline is paused` } });
         return { kind: 'stay' };
       }
     }

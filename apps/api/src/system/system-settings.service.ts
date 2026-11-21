@@ -12,7 +12,7 @@ const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
 export interface GlobalSettingsView extends GlobalSettingsInput {
   pipelinePaused: boolean;
   pausedReason: string | null;
-  /** The ERROR_CODES value behind the pause (CLAUDE_AUTH, CLAUDE_USAGE_LIMIT, ...), or null for a manual or threshold pause. */
+  /** The ERROR_CODES value behind the pause (CLAUDE_AUTH, CLAUDE_CREDITS, SPEND_BUDGET_REACHED, ...), or null for a manual or threshold pause. */
   pausedCode: string | null;
   resetsAt: string | null;
   usageIgnoredUntil: string | null;
