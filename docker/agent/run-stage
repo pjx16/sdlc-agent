@@ -29,8 +29,14 @@ args=(
   --dangerously-skip-permissions
   # The repository must not configure the agent: its .claude/settings.json (hooks, env, apiKeyHelper) and .mcp.json are ignored.
   --setting-sources user
-  --strict-mcp-config
 )
+
+# The Jira connector stage (connector mode) needs the claude.ai connectors, which --strict-mcp-config would drop. Every other stage loads
+# no MCP server at all.
+CONNECTOR="$(jq -r '.connector.serverName // empty' "$CONTEXT_DIR/stage.json")"
+if [ -z "$CONNECTOR" ]; then
+  args+=(--strict-mcp-config)
+fi
 
 # The assistant continues its conversation's CLI session.
 RESUME="$(jq -r '.resumeSession // empty' "$CONTEXT_DIR/stage.json")"

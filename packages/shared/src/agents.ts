@@ -41,6 +41,7 @@ export const AGENTS: readonly AgentSpec[] = [
   { name: 'quality-reviewer', stages: ['qualityReview'], job: 'Review a diff for readability and the repository’s standards.', workspace: 'read-only', model: 'haiku', plugin: true },
   { name: 'security-reviewer', stages: ['securityReview'], job: 'Review a diff for security problems only.', workspace: 'read-only', model: 'sonnet', plugin: true },
   { name: 'orchestrator', stages: ['orchestrate'], job: 'Choose one of the legal moves for a ticket at a decision point, and say why.', workspace: 'none', model: 'haiku', plugin: false },
+  { name: 'jira-connector', stages: ['jiraConnector'], job: 'Do one Jira operation through the claude.ai Jira connector and return the result as JSON.', workspace: 'none', model: 'haiku', plugin: false },
   { name: 'ci-triager', stages: ['ciTriage'], job: 'Classify a failed CI run as a code problem, a flaky test or an infrastructure problem.', workspace: 'none', model: 'haiku', plugin: true, pluginWorkspace: 'read-only' },
 ];
 

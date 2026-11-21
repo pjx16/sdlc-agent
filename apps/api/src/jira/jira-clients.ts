@@ -18,14 +18,13 @@ export class JiraNotConfiguredError extends Error {
   }
 }
 
-/** The modes whose client is plain code. Connector mode runs a Claude agent and is served by the worker (see JiraConnectorClients). */
-export type CodeJiraMode = 'rest' | 'mcp';
-
 /** Gives out the Jira client for a mode, rebuilt whenever its credentials change. Tests replace this provider with a fake. */
 @Injectable()
 export class JiraClients {
   private readonly logger = new Logger(JiraClients.name);
   private readonly cache = new Map<string, { key: string; client: JiraClient }>();
+  /** Connector mode runs Claude agents, which only the worker can start: the worker module plugs its client in here. */
+  private connector: JiraClient | null = null;
 
   constructor(private readonly creds: CredentialsService) {}
 
@@ -33,7 +32,15 @@ export class JiraClients {
   async forMode(mode: string = 'rest'): Promise<JiraClient> {
     if (mode === 'mcp') return this.forMcp();
     if (mode === 'rest') return this.forRest();
+    if (mode === 'connector') {
+      if (!this.connector) throw new JiraNotConfiguredError('The Claude Jira connector runs in the worker only; this step needs the worker');
+      return this.connector;
+    }
     throw new JiraNotConfiguredError(`Jira mode "${mode}" has no client here`);
+  }
+
+  useConnector(client: JiraClient): void {
+    this.connector = client;
   }
 
   async forRest(): Promise<JiraClient> {

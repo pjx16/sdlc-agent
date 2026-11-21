@@ -58,6 +58,7 @@ export const ProjectSettingsSchema = z.object({
       assist: stage('sonnet', 8),
       repoProfile: stage('sonnet', 25),
       onboardAdvise: stage('haiku', 5),
+      jiraConnector: stage('haiku', 8),
     })
     .prefault({}),
   // The plan is the only approval gate: it lists the subtasks, so there is no breakdown gate (settings saved earlier that ask for one are ignored).

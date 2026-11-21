@@ -24,7 +24,7 @@ const cap = (s: string): string => (s ? (s[0] ?? '').toUpperCase() + s.slice(1) 
 /** The display name of the agent behind a stage key. */
 export const AGENT_LABEL: Record<string, string> = {
   kbBuild: 'Documentor', kbUpdate: 'Documentor', plan: 'Planner', breakdown: 'Breakdown', tests: 'Test writer', implement: 'Coder', fix: 'Fixer', review: 'Reviewer',
-  orchestrate: 'Orchestrator', assist: 'Assistant', repoProfile: 'Repo profiler', onboardAdvise: 'Onboarding advisor', featureMap: 'Feature mapper',
+  orchestrate: 'Orchestrator', assist: 'Assistant', repoProfile: 'Repo profiler', onboardAdvise: 'Onboarding advisor', jiraConnector: 'Jira connector', featureMap: 'Feature mapper',
   solutionDesign: 'Solution architect', bugInvestigation: 'Bug investigator', technicalDesign: 'Technical architect', prReview: 'PR reviewer',
   qualityReview: 'Quality reviewer', securityReview: 'Security reviewer', ciTriage: 'CI triager',
 };

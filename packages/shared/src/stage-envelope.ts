@@ -57,6 +57,12 @@ export const PrReviewData = ReviewData.extend({ criteria: z.array(z.object({ cri
 
 /** `ci-triager`: what kind of failure it is. */
 export const CI_TRIAGE_KINDS = ['code', 'flaky', 'infra'] as const;
+/**
+ * Connector mode: the agent ran one Jira operation through the claude.ai Jira connector. `result` has the operation's own shape (the
+ * worker checks it); `error` is set, with `result` null, when the operation could not be done.
+ */
+export const JiraConnectorData = z.object({ result: z.union([z.record(z.string(), z.unknown()), z.array(z.unknown())]).nullable(), error: z.string().nullable().default(null) });
+
 export const CiTriageData = z.object({ kind: z.enum(CI_TRIAGE_KINDS), failingCommand: z.string().optional(), summary: text });
 
 export const KbBuildData = z.object({ featureKey: text, isNew: z.boolean(), docPath: text, globs: textList });
@@ -95,6 +101,7 @@ export const STAGE_DATA = {
   assist: AssistData,
   repoProfile: RepoProfileData,
   onboardAdvise: OnboardAdviseData,
+  jiraConnector: JiraConnectorData,
 } as const satisfies Record<StageName, z.ZodType>;
 
 export type StageData<S extends StageName> = z.infer<(typeof STAGE_DATA)[S]>;

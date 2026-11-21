@@ -12,6 +12,7 @@ import { SubtasksService } from '../subtasks/subtasks.service';
 import { StateModule } from '../state/state.module';
 import { USAGE_GATE, UsageGate } from './usage/usage-gate';
 import { AgentRunner } from './agent-runner/agent-runner';
+import { JiraConnectorClient } from './jira-connector/jira-connector-client';
 import { FileLogSink } from './agent-runner/file-log-sink';
 import { LOG_SINK } from './agent-runner/log-sink';
 import { PrismaStageRunStore, STAGE_RUN_STORE } from './agent-runner/stage-run-store';
@@ -80,6 +81,16 @@ import { WorkerRunner } from './worker-runner';
     { provide: LOG_SINK, useClass: FileLogSink },
     { provide: USAGE_GATE, useFactory: (prisma: PrismaService) => new UsageGate(prisma), inject: [PrismaService] },
     AgentRunner,
+    // Connector mode: Jira calls run the jiraConnector stage, so the client lives here and is plugged into the shared JiraClients.
+    {
+      provide: JiraConnectorClient,
+      useFactory: (prisma: PrismaService, runner: AgentRunner, clients: JiraClients) => {
+        const client = new JiraConnectorClient(prisma, runner);
+        clients.useConnector(client);
+        return client;
+      },
+      inject: [PrismaService, AgentRunner, JiraClients],
+    },
     VerifyService,
     { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients, raiser: SupportRaiser) => new IntakePoller(prisma, clients, undefined, raiser), inject: [PrismaService, JiraClients, SupportRaiser] },
     SubtasksService,
