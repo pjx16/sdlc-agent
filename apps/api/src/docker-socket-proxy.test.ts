@@ -114,6 +114,8 @@ describe('docker socket proxy server', () => {
     const sock = path.join(tmp, 'd.sock');
     const seen: string[] = [];
     const daemon: Server = createServer((s) => {
+      // The proxy may reset a connection it refuses or finishes with (ECONNRESET on Linux); that must not surface as an unhandled error.
+      s.on('error', () => undefined);
       let buf = '';
       s.on('data', (d) => {
         buf += d.toString('latin1');
