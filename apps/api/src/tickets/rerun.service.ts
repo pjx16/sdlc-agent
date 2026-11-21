@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, FORWARD_ORDER, ProjectSettingsSchema, RERUNNABLE_STATES, checkMove, loopLimitMessage, orderOf, rerunCount, type MoveRecord, type TicketStatus } from '@sdlc/shared';
+import { ErrorCodes, FORWARD_ORDER, ProjectSettingsSchema, RERUNNABLE_STATES, checkMove, loopLimitMessage, orderOf, rerunCount, type MoveRecord, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
@@ -137,10 +137,10 @@ export class RerunService {
   /** Outbound only: the Jira status follows the transition, and one marker comment says why. A Jira problem never blocks. */
   private async tellJira(ticket: Ticket & { project: { jiraMode: string; settings: unknown } }, stage: TicketStatus, note: string | undefined): Promise<void> {
     const settings = ProjectSettingsSchema.parse(ticket.project.settings);
-    if (ticket.source !== 'jira' || !ticket.externalKey || ticket.project.jiraMode !== 'rest' || !settings.jiraWriteBack.comments) return;
+    if (ticket.source !== 'jira' || !ticket.externalKey || !jiraOn(ticket.project.jiraMode) || !settings.jiraWriteBack.comments) return;
     const text = `Rerun of ${stage} requested${note ? `: ${note}` : '.'}`;
     try {
-      await (await this.jira.forRest()).comment(ticket.externalKey, text, jiraMarker(ticket.key, `rerun-${stage}`, `${Date.now()}`));
+      await (await this.jira.forMode(ticket.project.jiraMode)).comment(ticket.externalKey, text, jiraMarker(ticket.key, `rerun-${stage}`, `${Date.now()}`));
     } catch (err) {
       await logEvent(this.prisma, events.warning({ code: 'JIRA_ERROR', detail: err instanceof Error ? err.message : String(err) }), { ticketId: ticket.id });
     }

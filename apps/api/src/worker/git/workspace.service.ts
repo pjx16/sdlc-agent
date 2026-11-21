@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { ProjectSettingsSchema, type TicketType } from '@sdlc/shared';
+import { ProjectSettingsSchema, type TicketType, jiraOn } from '@sdlc/shared';
 import { jiraMarker } from '../../jira/jira-client';
 import { GitHubAuth } from '../github/github-auth.service';
 import { JiraClients } from '../../jira/jira-clients';
@@ -165,8 +165,8 @@ export class WorkspaceService {
     await this.prisma.orchestratorDecision.create({ data: { ticketId: ticket.id, point: 'push_replace', legalMoves: [{ kind: 'push', to: 'push' }, { kind: 'replace_own_commits', to: 'push' }] as never, chosen: 'replace_own_commits push', reason, fallbackUsed: false } });
     await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'git', level: 'warn', source: 'git', message: `Replaced ${shas.length} earlier commit(s) of ${branch} on the remote (${short}): ${reason}`.slice(0, 500) } });
     try {
-      if (!this.jira || ticket.source !== 'jira' || !ticket.externalKey || project.jiraMode !== 'rest' || !ProjectSettingsSchema.parse(project.settings).jiraWriteBack.comments) return;
-      await (await this.jira.forRest()).comment(ticket.externalKey, `sdlc-agent decided (push): replace its own earlier commits on ${branch}.\nWhy: ${reason}`, jiraMarker(ticket.key, 'decision-push', `${Date.now()}`));
+      if (!this.jira || ticket.source !== 'jira' || !ticket.externalKey || !jiraOn(project.jiraMode) || !ProjectSettingsSchema.parse(project.settings).jiraWriteBack.comments) return;
+      await (await this.jira.forMode(project.jiraMode)).comment(ticket.externalKey, `sdlc-agent decided (push): replace its own earlier commits on ${branch}.\nWhy: ${reason}`, jiraMarker(ticket.key, 'decision-push', `${Date.now()}`));
     } catch (err) {
       this.logger.warn(`Could not write the push decision to Jira for ${ticket.key}: ${err instanceof Error ? err.message : String(err)}`);
     }

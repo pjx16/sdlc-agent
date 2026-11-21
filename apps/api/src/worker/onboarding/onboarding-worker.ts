@@ -3,8 +3,7 @@ import path from 'node:path';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   DEFAULT_GLOBAL_SETTINGS, GlobalSettingsSchema, ProjectSettingsSchema, defaultRouting, describeError, events,
-  type CommandCheck, type ConfluenceSpace, type JiraFacts, type ModelAlias, type OnboardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus,
-} from '@sdlc/shared';
+  type CommandCheck, type ConfluenceSpace, type JiraFacts, type ModelAlias, type OnboardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { ConfluenceClients } from '../../confluence/confluence-clients';
 import { logEvent } from '../../common/event-log';
 import type { Prisma, Project } from '../../generated/prisma/client';
@@ -180,9 +179,9 @@ export class OnboardingWorker implements Housekeeper {
       throw new Error(`GitHub: ${err instanceof Error ? err.message : String(err)}. Check the GitHub token in Settings → Connections and the repository URL.`, { cause: err });
     }
     let jira: JiraFacts | null = null;
-    if (project.jiraMode === 'rest' && project.jiraProjectKey) {
+    if (jiraOn(project.jiraMode) && project.jiraProjectKey) {
       try {
-        jira = await (await this.jira.forRest()).projectFacts(project.jiraProjectKey);
+        jira = await (await this.jira.forMode(project.jiraMode)).projectFacts(project.jiraProjectKey);
       } catch (err) {
         if (err instanceof JiraNotConfiguredError) throw new Error(`${err.message}. Or onboard without a Jira project key.`, { cause: err });
         throw new Error(`Jira: ${err instanceof Error ? err.message : String(err)}. Check the project key and the Jira credential.`, { cause: err });

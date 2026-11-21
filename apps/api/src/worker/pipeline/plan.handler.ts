@@ -3,7 +3,7 @@ import { FormatLoader } from '../format-loader';
 import { OrchestratorService } from '../orchestrator/orchestrator.service';
 import { writeArtifact } from '../../common/artifacts';
 import { SupportRaiser } from '../../support/support-raiser';
-import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
+import { ProjectSettingsSchema, type StageEnvelope, jiraOn } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { jiraMarker } from '../../jira/jira-client';
 import { JiraClients } from '../../jira/jira-clients';
@@ -128,9 +128,9 @@ export class PlanHandler implements StepHandler {
 
   /** Posts the plan to the Jira issue (REST). A Jira problem never blocks the pipeline. */
   private async commentOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, plan: string): Promise<void> {
-    if (!enabled || jiraMode !== 'rest' || ticket.source !== 'jira' || !ticket.externalKey) return;
+    if (!enabled || !jiraOn(jiraMode) || ticket.source !== 'jira' || !ticket.externalKey) return;
     try {
-      await (await this.jira.forRest()).comment(ticket.externalKey, await this.formats.fill('jira-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
+      await (await this.jira.forMode(jiraMode)).comment(ticket.externalKey, await this.formats.fill('jira-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Posting the plan to ${ticket.externalKey} failed: ${message}`);

@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, ProjectInputSchema, deepMerge, type ProjectInput } from '@sdlc/shared';
+import { ErrorCodes, ProjectInputSchema, deepMerge, type ProjectInput, jiraOn } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
 import { Prisma } from '../generated/prisma/client';
@@ -58,14 +58,14 @@ export class ProjectsService {
   /** GET /projects/:id/jira/statuses: Jira status names for the mapping dropdown (REST mode). */
   async jiraStatuses(id: string): Promise<string[]> {
     const project = await this.get(id);
-    if (project.jiraMode !== 'rest') {
+    if (!jiraOn(project.jiraMode)) {
       throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Jira statuses can only be listed when the project is in REST mode');
     }
     if (!project.jiraProjectKey) {
       throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Set the Jira project key first');
     }
     try {
-      return await (await this.jira.forRest()).listStatuses(project.jiraProjectKey);
+      return await (await this.jira.forMode(project.jiraMode)).listStatuses(project.jiraProjectKey);
     } catch (err) {
       throw new ApiException(HttpStatus.BAD_GATEWAY, ErrorCodes.jiraError, err instanceof Error ? err.message : 'Jira request failed');
     }

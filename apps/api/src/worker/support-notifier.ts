@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnModuleInit, Optional } from '@nestjs/common';
-import { ProjectSettingsSchema, events } from '@sdlc/shared';
+import { ProjectSettingsSchema, events, jiraOn } from '@sdlc/shared';
 import { logEvent } from '../common/event-log';
 import type { SupportTicket } from '../generated/prisma/client';
 import { jiraMarker } from '../jira/jira-client';
@@ -42,9 +42,9 @@ export class SupportNotifier implements SupportNotifierPort, OnModuleInit {
     const text = `**Needs you:** ${ticket.title}\n\n${ticket.body}`.slice(0, 4000);
 
     const settings = ProjectSettingsSchema.parse(t.project.settings);
-    if (t.source === 'jira' && t.externalKey && t.project.jiraMode === 'rest' && settings.jiraWriteBack.comments) {
+    if (t.source === 'jira' && t.externalKey && jiraOn(t.project.jiraMode) && settings.jiraWriteBack.comments) {
       try {
-        await (await this.jira.forRest()).comment(t.externalKey, await this.formats.fill('jira-needs-you', { title: ticket.title, body: ticket.body.slice(0, 3800) }), jiraMarker(t.key, `support-${ticket.id}`, ticket.id));
+        await (await this.jira.forMode(t.project.jiraMode)).comment(t.externalKey, await this.formats.fill('jira-needs-you', { title: ticket.title, body: ticket.body.slice(0, 3800) }), jiraMarker(t.key, `support-${ticket.id}`, ticket.id));
       } catch (err) {
         await this.warn(t.id, 'JIRA_ERROR', 'jira', `Could not tell Jira about "${ticket.title}": ${err instanceof Error ? err.message : String(err)}`);
       }

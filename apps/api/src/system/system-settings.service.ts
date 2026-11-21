@@ -44,7 +44,7 @@ export interface WorkerStatusView {
 }
 
 export interface IntakeStatusView {
-  mode: 'rest';
+  mode: 'rest' | 'mcp' | 'connector';
   at: string | null;
   /** Projects polled (Jira mode on, mirror ready). */
   projects: number;
@@ -150,7 +150,7 @@ export class SystemSettingsService {
     const running = await this.prisma.stageRun.findFirst({ where: { status: 'running' }, orderBy: { startedAt: 'desc' } });
     const usage = await this.prisma.usageSnapshot.findFirst({ orderBy: { at: 'desc' } });
     const worker = await this.prisma.workerStatus.findUnique({ where: { id: 'worker' } });
-    const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest'] } }, orderBy: { id: 'asc' } });
+    const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest', 'intake-mcp', 'intake-connector'] } }, orderBy: { id: 'asc' } });
     const restarts = await this.prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: new Date(Date.now() - 10 * 60_000) } } });
     const events = await this.prisma.event.findMany({ orderBy: { at: 'desc' }, take: 8, include: { ticket: { select: { key: true } } } });
     const inboxFyi = await this.prisma.supportTicket.count({ where: { status: 'open', NOT: { OR: [{ kind: 'approval' }, { priority: 'blocking' }] } } });
@@ -176,7 +176,7 @@ export class SystemSettingsService {
         tickDetail: worker.tickDetail,
         agentImageError: worker.agentImageError,
         intake: intakeRows.map((r) => ({
-          mode: 'rest' as const,
+          mode: (r.intakeMode === 'mcp' || r.intakeMode === 'connector' ? r.intakeMode : 'rest') as 'rest' | 'mcp' | 'connector',
           at: r.intakeAt?.toISOString() ?? null,
           projects: r.intakeProjects,
           waiting: r.intakeWaiting,

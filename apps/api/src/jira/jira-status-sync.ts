@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { SupportRaiser, isAuthFailure } from '../support/support-raiser';
-import { ProjectSettingsSchema, type TicketStatus } from '@sdlc/shared';
+import { ProjectSettingsSchema, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import type { TransitionListener, TransitionResult } from '../state/state-machine.service';
 import { JiraClients } from './jira-clients';
@@ -23,14 +23,14 @@ export class JiraStatusSync implements TransitionListener {
   async onTransition({ ticket, transition }: TransitionResult): Promise<void> {
     if (ticket.source !== 'jira' || !ticket.externalKey) return;
     const project = await this.prisma.project.findUnique({ where: { id: ticket.projectId } });
-    if (!project || project.jiraMode !== 'rest') return;
+    if (!project || !jiraOn(project.jiraMode)) return;
 
     const settings = ProjectSettingsSchema.parse(project.settings);
     const target = settings.jiraStatusMap[ticket.status as TicketStatus];
     if (!target || !settings.jiraWriteBack.transitions) return;
 
     try {
-      await (await this.clients.forRest()).transition(ticket.externalKey, target);
+      await (await this.clients.forMode(project.jiraMode)).transition(ticket.externalKey, target);
       await this.prisma.stateTransition.update({ where: { id: transition.id }, data: { jiraStatusApplied: target, jiraSyncResult: 'applied', jiraSyncError: null } });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
