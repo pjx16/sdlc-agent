@@ -48,6 +48,11 @@ describe('semver and changelog', () => {
     expect(needsConfirmation('0.0.1', '0.0.2', sliceChangelog(CHANGELOG, '0.0.1', '0.0.2'))).toBe(true);
     expect(needsConfirmation('0.0.5', '0.1.0', [])).toBe(true);
     expect(needsConfirmation('1.0.0', '2.0.0', [])).toBe(true);
+    expect(needsConfirmation('0.0.1', '1.0.0', [])).toBe(true);
+    // From 1.0, semantic versioning: a minor or patch version asks only when its notes say something breaks.
+    expect(needsConfirmation('1.0.0', '1.1.0', [])).toBe(false);
+    expect(needsConfirmation('1.1.0', '1.1.3', [])).toBe(false);
+    expect(needsConfirmation('1.0.0', '1.1.0', [{ version: '1.1.0', text: '- **Breaking:** x' }] as never)).toBe(true);
   });
 });
 
