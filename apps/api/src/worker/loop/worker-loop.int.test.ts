@@ -1,4 +1,6 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { CredentialsService } from '../../credentials/credentials.service';
 import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
@@ -17,10 +19,13 @@ import { WorkerConfig } from '../worker-config';
 import { WorkerLoop } from './worker-loop';
 
 
+/** The loop's data folder: a fresh private temp directory, so no other user can plant files in it. */
+const DATA_DIR = mkdtempSync(path.join(tmpdir(), 'sdlc-loop-'));
+
 /** A ready project needs its mirror on disk, or the loop queues it to be cloned again. */
 function fakeMirror(id: string): void {
-  mkdirSync(`/tmp/sdlc-loop/mirrors/${id}.git`, { recursive: true });
-  writeFileSync(`/tmp/sdlc-loop/mirrors/${id}.git/HEAD`, 'ref: refs/heads/main\n');
+  mkdirSync(path.join(DATA_DIR, 'mirrors', `${id}.git`), { recursive: true });
+  writeFileSync(path.join(DATA_DIR, 'mirrors', `${id}.git`, 'HEAD'), 'ref: refs/heads/main\n');
 }
 
 describe('worker loop', () => {
@@ -41,7 +46,7 @@ describe('worker loop', () => {
     },
   });
   const loopWith = (handlers: StepHandler[]) => {
-    const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
+    const config = new WorkerConfig({ DATA_DIR, DATABASE_URL: db.url } as NodeJS.ProcessEnv);
     return new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, handlers, () => clock);
   };
   const ticket = async (status: TicketStatus = 'NEW', over: Record<string, unknown> = {}) => {
@@ -79,7 +84,7 @@ describe('worker loop', () => {
     const saved = { ...process.env };
     for (const k of ['ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
     try {
-      const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
+      const config = new WorkerConfig({ DATA_DIR, DATABASE_URL: db.url } as NodeJS.ProcessEnv);
       const creds = new CredentialsService(prisma);
       const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, creds), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, [handler('NEW', () => ({ kind: 'stay' }))], () => clock, [], undefined, creds);
       const t = await ticket('NEW');
@@ -300,7 +305,7 @@ describe('worker loop', () => {
   it('the orchestrator hook may replace the default move of a step, and a step without it moves as before', async () => {
     const t = await ticket('REVIEW');
     const seen: string[] = [];
-    const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
+    const config = new WorkerConfig({ DATA_DIR, DATABASE_URL: db.url } as NodeJS.ProcessEnv);
     const orchestrator = {
       async review(tk: { key: string }, outcome: StepOutcome): Promise<StepOutcome> {
         seen.push(tk.key);
