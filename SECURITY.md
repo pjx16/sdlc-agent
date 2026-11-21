@@ -4,11 +4,11 @@
 
 | Version | Supported |
 | --- | --- |
-| Latest `0.x` release | Yes: security fixes are released as a new patch version |
+| Latest `1.x` release | Yes: security fixes are released as a new patch version |
 | Older releases | No: upgrade with `sdlc-agent upgrade` |
 | `dev` branch | Fixed on the branch before the release that ships the fix |
 
-The project is pre-1.0 and maintained by volunteers, so these are targets rather than guarantees:
+The project is maintained by volunteers, so these are targets rather than guarantees:
 
 | Step | Target |
 | --- | --- |

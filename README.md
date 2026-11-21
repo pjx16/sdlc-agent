@@ -1,21 +1,21 @@
 # sdlc-agent
 
 [![CI](https://github.com/pjx16/sdlc-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/pjx16/sdlc-agent/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/pjx16/sdlc-agent?include_prereleases)](https://github.com/pjx16/sdlc-agent/releases)
+[![Release](https://img.shields.io/github/v/release/pjx16/sdlc-agent)](https://github.com/pjx16/sdlc-agent/releases)
 [![License: MIT](https://img.shields.io/github/license/pjx16/sdlc-agent)](./LICENSE)
 
 A self-hosted, Docker-based **shipping engine** for solo developers. It turns tickets into reviewable pull requests with AI agents, while keeping AI usage lean and never giving agents access to your machine or credentials.
 
-> [!WARNING]
-> **Status: under development.** This is a `0.0.x` pre-release. It is published so I can use it on my own projects and find what breaks. It is not production-ready, and it is not supported for anyone else.
+> [!NOTE]
+> **Status: 1.0.** Releases follow [semantic versioning](https://semver.org/): a breaking change comes only in a new major version, with upgrade notes in the [CHANGELOG](https://github.com/pjx16/sdlc-agent/blob/dev/CHANGELOG.md), and `sdlc-agent upgrade` carries an install across it.
 >
 > **Known limits**
 > - Only TypeScript/JavaScript stacks (Node.js, NestJS, Next.js) for now.
 > - Single user, password login.
 > - Agents run with full permissions inside their Docker containers. Don't point it at repositories you can't afford to lose, and don't run it on a machine that holds credentials you don't want exposed.
-> - The Claude usage pause is a guard, not a guarantee. Check your plan's limits yourself.
+> - Spend budgets are checked between runs, so the run in progress when a budget is reached can go past it. Set a spend limit in the Anthropic Console as the hard stop.
 >
-> Feedback and bug reports are welcome, but expect breaking changes until `0.1.0`.
+> Feedback and bug reports are welcome: [open an issue](https://github.com/pjx16/sdlc-agent/issues).
 
 **What has been tested.** The pipeline is implemented and covered by unit, integration and browser tests (a stand-in plays Claude in those). Two small real tickets have run end to end with live Claude, from a pasted ticket to a merged PR (see [`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)). Larger tickets, review findings, CI failures, Confluence and Jira have not been exercised live.
 
@@ -154,7 +154,7 @@ shasum -a 256 -c --ignore-missing SHA256SUMS   # macOS; on Linux: sha256sum -c -
 tar -xzf sdlc-agent-<version>.tar.gz
 cd sdlc-agent-<version>
 cp .env.example .env                   # set POSTGRES_PASSWORD and ENCRYPTION_KEY (openssl rand -base64 32); SDLC_VERSION is already set
-mkdir -m 700 backups && printf 'SDLC_UID=%s\nSDLC_GID=%s\n' "$(id -u)" "$(id -g)" >> .env
+printf 'SDLC_UID=%s\nSDLC_GID=%s\n' "$(id -u)" "$(id -g)" >> .env   # the daily backups in backups/ are written as you
 docker compose --profile build build agent-image && docker compose up -d
 ```
 

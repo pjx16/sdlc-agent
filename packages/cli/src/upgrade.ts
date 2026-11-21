@@ -77,7 +77,9 @@ export function needsConfirmation(from: string, to: string, sections: ChangelogS
   if (sections.some((s) => /breaking/i.test(s.text))) return true;
   const [fm, fn] = from.split(/[.-]/).map(Number);
   const [tm, tn] = to.split(/[.-]/).map(Number);
-  return fm !== tm || fn !== tn;
+  // Semantic versioning: from 1.0 only a new major version may break things; before 1.0 a new minor version may too.
+  if (fm === 0 || tm === 0) return fm !== tm || fn !== tn;
+  return fm !== tm;
 }
 
 export interface MergeResult {

@@ -2,6 +2,8 @@
 # Cuts a release from a maintainer's machine. There is no release pipeline: nothing is published unless you run this.
 #
 #   scripts/release.sh prepare  X.Y.Z   Bump every version and cut the changelog on release/vX.Y.Z, then open a PR to dev.
+#   scripts/release.sh promote  X.Y.Z   Once that PR is merged: fast-forward main to dev (creating main the first time) and push it.
+#                                       Releases are cut from main; every commit on main is a release.
 #   scripts/release.sh check    X.Y.Z   Run every pre-publish check and build the bundle. Publishes nothing (a dry run).
 #   scripts/release.sh publish  X.Y.Z   Check, then build, scan, sign and push the images, push the tag, create the
 #                                       GitHub release and publish the npm package. Rolls back by itself if a step fails.
@@ -27,7 +29,7 @@ BUILDER=sdlc-release
 PLATFORMS=linux/amd64,linux/arm64
 
 # name|build context|Dockerfile. Published as $REGISTRY/sdlc-agent-<name>. The agent image is never published: it bundles
-# Claude Code, which is not ours to redistribute, so installs build it from the bundle's docker/agent folder.
+# Claude Code, which is not ours to redistribute, so installs build it inside Docker from this release's git tag.
 IMAGES=(
   "api|.|apps/api/Dockerfile"
   "worker|.|docker/worker/Dockerfile"
@@ -84,7 +86,7 @@ for arg in "$@"; do
     *) die "unknown option: $arg" ;;
   esac
 done
-[[ "$COMMAND" =~ ^(prepare|check|publish|rollback)$ ]] || { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+[[ "$COMMAND" =~ ^(prepare|promote|check|publish|rollback)$ ]] || { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || die "the version must look like 0.1.0 or 0.1.0-rc.1, not '$VERSION'"
 
 TAG=v$VERSION
@@ -100,11 +102,21 @@ require_tools() {
   [ ${#missing[@]} -eq 0 ] || die "missing tools: ${missing[*]} (brew install ${missing[*]})"
 }
 
-require_clean_dev() {
+require_clean_branch() {
+  local branch=$1
   [ -z "$(git status --porcelain)" ] || die "the working tree has uncommitted changes"
-  [ "$(git branch --show-current)" = dev ] || die "switch to dev first (git switch dev)"
+  [ "$(git branch --show-current)" = "$branch" ] || die "switch to $branch first (git switch $branch)"
+  git fetch --quiet origin "$branch"
+  [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$branch")" ] || die "$branch is not the same as origin/$branch; pull or push first"
+}
+
+require_clean_dev() { require_clean_branch dev; }
+
+# Releases are cut from main, which only ever moves forward to a commit of dev (scripts/release.sh promote).
+require_release_main() {
+  require_clean_branch main
   git fetch --quiet origin dev
-  [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/dev)" ] || die "dev is not the same as origin/dev; pull or push first"
+  git merge-base --is-ancestor HEAD origin/dev || die "main has commits that are not on dev; main only moves forward to dev (scripts/release.sh promote $VERSION)"
 }
 
 # --------------------------------------------------------------------------------------------------------------- prepare
@@ -122,9 +134,30 @@ cmd_prepare() {
   git push -u origin "release/$TAG"
   gh pr create --repo "$REPO" --base dev --title "chore(release): $TAG" --body "Sets every workspace version and the \`sdlc-subagents\` plugin version to \`$VERSION\`, pins the marketplace to \`$TAG\` (plugin installs fail from merge until \`publish\` pushes the tag, so publish soon after), and moves the \`[Unreleased]\` changelog entries under \`[$VERSION]\`. Check the notes: they become the GitHub release notes.
 
-After merge: \`git switch dev && git pull && scripts/release.sh publish $VERSION\`"
+After merge: \`git switch dev && git pull && scripts/release.sh promote $VERSION && scripts/release.sh publish $VERSION\`"
   echo
-  echo "Review and merge the pull request, then run: git switch dev && git pull && scripts/release.sh publish $VERSION"
+  echo "Review and merge the pull request, then run: git switch dev && git pull && scripts/release.sh promote $VERSION && scripts/release.sh publish $VERSION"
+}
+
+# --------------------------------------------------------------------------------------------------------------- promote
+
+cmd_promote() {
+  require_tools git node
+  require_clean_dev
+  local version
+  version=$(node -p "require('./package.json').version")
+  [ "$version" = "$VERSION" ] || die "dev is at $version, not $VERSION; merge the release pull request first (scripts/release.sh prepare $VERSION)"
+  if git ls-remote --exit-code --heads origin main >/dev/null 2>&1; then
+    git fetch --quiet origin main
+    git merge-base --is-ancestor origin/main origin/dev || die "origin/main has commits that are not on dev; it can only move forward to dev"
+    git switch main 2>/dev/null || git switch -c main --track origin/main
+    git merge --ff-only --quiet origin/dev
+  else
+    log "Creating main from dev (first release from main)"
+    git switch -c main --no-track
+  fi
+  git push -u origin main
+  log "main is at $(git rev-parse --short HEAD), the $TAG release commit. Wait for CI on it, then: scripts/release.sh publish $VERSION"
 }
 
 # ----------------------------------------------------------------------------------------------------------------- check
@@ -132,7 +165,7 @@ After merge: \`git switch dev && git pull && scripts/release.sh publish $VERSION
 cmd_check() {
   log "Checking that $TAG can be released"
   require_tools git gh jq node npm docker cosign trivy shasum zip
-  require_clean_dev
+  require_release_main
 
   local cli_version
   cli_version=$(node -p "require('./packages/cli/package.json').version")
@@ -194,13 +227,16 @@ cmd_check() {
 build_bundle() {
   log "Building the install bundle"
   local dir=sdlc-agent-$VERSION
-  rm -rf "$WORK/dist" && mkdir -p "$WORK/dist/$dir/docker"
+  rm -rf "$WORK/dist" && mkdir -p "$WORK/dist/$dir/backups"
   (
     cd "$WORK/dist"
     local root=../../..
     cp "$root/deploy/docker-compose.yml" "$dir/docker-compose.yml"
-    # The agent image is built on the user's machine (docker compose --profile build build agent-image).
-    cp -R "$root/docker/agent" "$dir/docker/agent"
+    # The compose `backup` service runs it; without it Docker would mount an empty folder in its place.
+    cp "$root/deploy/backup.sh" "$dir/backup.sh"
+    chmod 755 "$dir/backup.sh"
+    # Encrypted database backups land here, private to the user. (The agent image is built inside Docker from the git tag.)
+    chmod 700 "$dir/backups"
     sed "s/^SDLC_VERSION=.*/SDLC_VERSION=$VERSION/" "$root/.env.example" > "$dir/.env.example"
     cp -R "$root/guidelines" "$dir/guidelines"
     for f in LICENSE README.md CHANGELOG.md SECURITY.md THIRD_PARTY_NOTICES.md; do cp "$root/$f" "$dir/"; done
@@ -366,7 +402,7 @@ cmd_rollback() {
   echo "Rolling back $TAG. This removes, where they exist:"
   echo "  $NPM_PACKAGE@$VERSION on npm (unpublished, or deprecated if npm refuses), the GitHub release $TAG,"
   echo "  the tag $TAG on origin and locally, and every $REGISTRY/sdlc-agent-* image of this release."
-  echo "  The release commit on dev stays."
+  echo "  The release commit on main and dev stays."
   confirm "Roll back?" || die "stopped; nothing was changed"
 
   if [ -n "$(npm view "$NPM_PACKAGE@$VERSION" version 2>/dev/null)" ]; then
