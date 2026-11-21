@@ -160,10 +160,10 @@ docker compose up -d
 
 `sdlc-agent up` builds the agent image on your machine before starting the stack, so the first run takes a few minutes longer. The agent image is never published because it contains Claude Code, which is Anthropic's software (release installs build it from `docker/agent`; a source checkout builds it with `npm run up:prod`). Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
 
-The images are published to GHCR with provenance attestations. To verify one (needs the GitHub CLI):
+The images on GHCR are signed. To verify one, use [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) and the `cosign.pub` attached to every GitHub release:
 
 ```bash
-gh attestation verify oci://ghcr.io/pjx16/sdlc-agent-api:<version> --owner pjx16
+cosign verify --key cosign.pub ghcr.io/pjx16/sdlc-agent-api:<version>
 ```
 
 ### Run from source
@@ -289,7 +289,7 @@ Known limitations:
 
 ## Releases and versioning
 
-Versions follow [semantic versioning](https://semver.org/). Releases are tags on `dev`; until `1.0`, breaking changes (database migrations, configuration, API) can happen in any minor release and are marked **Breaking** in [`CHANGELOG.md`](./CHANGELOG.md), so read it before upgrading. Release images are signed and attested; [`SECURITY.md`](./SECURITY.md#verifying-a-release) shows how to verify them. Third-party licences are listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+Versions follow [semantic versioning](https://semver.org/). Releases are tags on `dev`; until `1.0`, breaking changes (database migrations, configuration, API) can happen in any minor release and are marked **Breaking** in [`CHANGELOG.md`](./CHANGELOG.md), so read it before upgrading. Releases are cut by a maintainer with `scripts/release.sh` (see [`CONTRIBUTING.md`](./CONTRIBUTING.md#cutting-a-release)). Release images are signed and carry an SBOM and build provenance; [`SECURITY.md`](./SECURITY.md#verifying-a-release) shows how to verify them. Third-party licences are listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
 ## Contributing
 

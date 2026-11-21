@@ -42,19 +42,20 @@ The boundaries that matter:
 - **Pushes.** Never forced, except that a branch holding only the pipeline's own superseded commits is replaced with `--force-with-lease` pinned to the inspected commit; commits by anyone else are never replaced.
 - **Stored credentials.** Tokens entered in the dashboard are stored in the local Postgres, encrypted with AES-256-GCM using `ENCRYPTION_KEY` from `.env`; anyone who can read both `.env` and the database can read them. Back up `.env` separately from the database. Losing `ENCRYPTION_KEY` means re-entering the tokens. Environment variables always override stored values.
 - **Browser ↔ API.** A single-user password login creates a session cookie (httpOnly, SameSite). Requests are denied by default without a session; the only public endpoints are `/auth/login`, `/health`, `/setup/status` (reveals only whether an admin exists) and `/setup/admin` (needs the one-time setup code and is rate limited), state-changing requests marked cross-site by `Sec-Fetch-Site` are refused, unknown `Host` headers are refused (DNS rebinding), and the dashboard sends anti-framing headers.
-- **Supply chain.** Base images and GitHub Actions are pinned by digest. Release images are built in GitHub Actions with provenance, an SBOM and a build attestation, signed with cosign (keyless), and scanned with Trivy. The npm package is published with npm provenance. The agent image is never published: it is built on your machine.
+- **Supply chain.** Base images and GitHub Actions are pinned by digest. Release images are built by a maintainer with `scripts/release.sh`, without the layer cache and from freshly pulled base images. Each carries an SBOM and BuildKit provenance, is scanned with Trivy (any fixable HIGH or CRITICAL finding stops the release before the image is tagged), and is signed with the project's cosign key, whose public half is `cosign.pub` in the repository and on every release. The npm package is published by the same maintainer, with npm two-factor authentication. The agent image is never published: it is built on your machine.
 
 ## Verifying a release
 
 ```bash
-# Build attestation (GitHub CLI)
-gh attestation verify oci://ghcr.io/pjx16/sdlc-agent-api:<version> --repo pjx16/sdlc-agent
+# Signature: cosign.pub is in the repository and attached to every GitHub release
+cosign verify --key cosign.pub ghcr.io/pjx16/sdlc-agent-api:<version>
 
-# Signature (cosign)
-cosign verify ghcr.io/pjx16/sdlc-agent-api:<version> \
-  --certificate-identity-regexp '^https://github.com/pjx16/sdlc-agent/' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+# SBOM and build provenance (the commit it was built from is in the provenance)
+docker buildx imagetools inspect ghcr.io/pjx16/sdlc-agent-api:<version> --format '{{ json .Provenance }}'
+docker buildx imagetools inspect ghcr.io/pjx16/sdlc-agent-api:<version> --format '{{ json .SBOM }}'
 ```
+
+Releases up to 0.0.1 were built in GitHub Actions and signed keyless instead; verify those with `gh attestation verify oci://ghcr.io/pjx16/sdlc-agent-api:<version> --repo pjx16/sdlc-agent`.
 
 The same works for the `worker`, `dashboard`, `broker`, `proxy`, `docker-proxy` and `npm-mirror` images. The release tarball's checksum is in `SHA256SUMS` on the GitHub release.
 

@@ -127,11 +127,11 @@ describe('docker access and agent network hardening', () => {
     expect(serviceBlock(yaml, 'npm-mirror')).toMatch(/networks:\s*\[agent_net, egress\]/);
   });
 
-  it('ships the docker-proxy and npm-mirror images with every release', () => {
-    const release = readFileSync(repoFile('.github/workflows/release.yml'), 'utf8');
-    for (const name of ['docker-proxy', 'npm-mirror']) {
-      expect(release).toContain(`name: ${name},`);
-      expect(readFileSync(repoFile('deploy/docker-compose.yml'), 'utf8')).toContain(`sdlc-agent-${name}:`);
-    }
+  it('publishes every image the release compose file pulls, and never the agent image', () => {
+    const release = readFileSync(repoFile('scripts/release.sh'), 'utf8');
+    const pulled = [...readWithoutComments('deploy/docker-compose.yml').matchAll(/\/sdlc-agent-([a-z-]+):/g)].map((m) => m[1]);
+    expect(pulled).toEqual(expect.arrayContaining(['docker-proxy', 'npm-mirror']));
+    for (const name of pulled) expect(release, name).toContain(`"${name}|`);
+    expect(release).not.toContain('"agent|');
   });
 });
