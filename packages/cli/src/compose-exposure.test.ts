@@ -105,19 +105,40 @@ describe('docker access and agent network hardening', () => {
     expect(serviceBlock(yaml, 'worker')).toMatch(/docker_api:/);
     for (const other of ['api', 'dashboard', 'postgres', 'proxy', 'npm-mirror']) expect(serviceBlock(yaml, other), other).not.toContain('docker_api');
     expect(yaml).toMatch(/\n {2}docker_api:\s*\n\s*internal: true/);
-    expect(serviceBlock(yaml, 'docker-proxy')).toContain('ALLOWED_BIND_ROOTS');
+    // Agents mount sub-paths of the data volume, and nothing from the host.
+    expect(serviceBlock(yaml, 'docker-proxy')).toContain('ALLOWED_DATA_VOLUME: sdlc_data');
+    expect(serviceBlock(yaml, 'docker-proxy')).not.toContain('ALLOWED_BIND_ROOTS');
     expect(serviceBlock(yaml, 'docker-proxy')).toContain('ALLOWED_IMAGES');
+  });
+
+  it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('keeps repository data in the sdlc_data volume, never a host folder, in %s', (file) => {
+    const yaml = readWithoutComments(file);
+    expect(yaml).not.toContain('${DATA_DIR');
+    expect(serviceBlock(yaml, 'worker')).toContain('DATA_DIR: /data');
+    expect(serviceBlock(yaml, 'worker')).toContain('DATA_VOLUME: sdlc_data');
+    expect(serviceBlock(yaml, 'worker')).toMatch(/- data:\/data\n/);
+    expect(serviceBlock(yaml, 'api')).toMatch(/- data:\/data:ro/);
+    expect(yaml).toMatch(/\n {2}data:\s*\n\s*name: sdlc_data/);
+  });
+
+  it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('backs the database up daily, encrypted, as the installing user, in %s', (file) => {
+    const block = serviceBlock(readWithoutComments(file), 'backup');
+    expect(block).toContain('BACKUP_KEY: ${ENCRYPTION_KEY');
+    expect(block).toContain('- ./backups:/backups');
+    expect(block).toContain('user: "${SDLC_UID:-0}:${SDLC_GID:-0}"');
+    expect(block).toMatch(/networks:\s*\[internal\]/);
+    expect(block).toContain('read_only: true');
   });
 
   it.each(['docker-compose.yml', 'deploy/docker-compose.yml'])('runs every service with no-new-privileges in %s', (file) => {
     const yaml = readWithoutComments(file);
-    for (const svc of ['postgres', 'api', 'worker', 'docker-proxy', 'dashboard', 'proxy', 'npm-mirror']) expect(serviceBlock(yaml, svc), svc).toMatch(/<<: \*(nnp|unprivileged)/);
+    for (const svc of ['postgres', 'backup', 'api', 'worker', 'docker-proxy', 'dashboard', 'proxy', 'npm-mirror']) expect(serviceBlock(yaml, svc), svc).toMatch(/<<: \*(nnp|unprivileged)/);
   });
 
-  it('builds the agent image locally in a release install instead of pulling a published one', () => {
+  it('builds the agent image inside Docker from the release tag instead of pulling a published one', () => {
     const yaml = readWithoutComments('deploy/docker-compose.yml');
     expect(yaml).not.toContain('sdlc-agent-agent');
-    expect(serviceBlock(yaml, 'agent-image')).toContain('context: ./docker/agent');
+    expect(serviceBlock(yaml, 'agent-image')).toContain('context: https://github.com/pjx16/sdlc-agent.git#v${SDLC_VERSION}:docker/agent');
     expect(serviceBlock(yaml, 'worker')).toContain('AGENT_IMAGE: ${AGENT_IMAGE:-sdlc-agent/agent:${SDLC_VERSION}}');
   });
 

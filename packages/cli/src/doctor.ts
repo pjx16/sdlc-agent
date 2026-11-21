@@ -36,6 +36,14 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+/** Volume sub-path mounts, which keep each agent to its own ticket's folder of the data volume, arrived in Docker Engine 26. */
+export const MIN_ENGINE_VERSION = '26.0.0';
+
+/** A Docker Engine version (`27.3.1`, `26.1.4-ce`) at or above the minimum. */
+export function engineSupported(version: string): boolean {
+  return /^\d+\.\d+/.test(version.trim()) && compareVersions(version.trim(), MIN_ENGINE_VERSION) >= 0;
+}
+
 export const DEFAULT_SOCKET = '/var/run/docker.sock';
 
 /** Where Colima, OrbStack and Docker Desktop put the socket when /var/run/docker.sock is not there. */
@@ -86,7 +94,7 @@ export interface DoctorOptions {
   env?: { bind?: string; dockerSock?: string; dataDir?: string };
 }
 
-function postgresImage(dir: string): string {
+export function postgresImage(dir: string): string {
   for (const file of [path.join(dir, 'docker-compose.yml'), path.join(assetsDir(), 'docker-compose.yml')]) {
     if (!existsSync(file)) continue;
     const m = /image:\s*(postgres:\S+)/.exec(readFileSync(file, 'utf8'));
@@ -101,6 +109,19 @@ export function envFor(dir: string): DoctorOptions['env'] {
   if (!existsSync(file)) return {};
   const text = readFileSync(file, 'utf8');
   return { bind: getEnv(text, 'DASHBOARD_BIND'), dockerSock: getEnv(text, 'DOCKER_SOCK'), dataDir: getEnv(text, 'DATA_DIR') };
+}
+
+/** Mounts one folder of a throwaway volume, as agent containers do with the data volume. */
+async function subpathProbe(image: string): Promise<boolean> {
+  const volume = `sdlc_doctor_probe_${process.pid}`;
+  try {
+    if ((await run('docker', ['volume', 'create', volume])).code !== 0) return false;
+    if ((await run('docker', ['run', '--rm', '-v', `${volume}:/v`, image, 'sh', '-c', 'mkdir -p /v/sub && touch /v/sub/ok'])).code !== 0) return false;
+    const probe = await run('docker', ['run', '--rm', '--mount', `type=volume,src=${volume},dst=/probe,volume-subpath=sub,readonly`, image, 'test', '-f', '/probe/ok']);
+    return probe.code === 0;
+  } finally {
+    await run('docker', ['volume', 'rm', '-f', volume]);
+  }
 }
 
 export async function doctor(opts: DoctorOptions): Promise<DoctorResult> {
@@ -119,6 +140,16 @@ export async function doctor(opts: DoctorOptions): Promise<DoctorResult> {
   const server = await run('docker', ['version', '--format', '{{.Server.Version}}']);
   const dockerUp = server.code === 0 && server.stdout.trim() !== '';
   add({ name: 'Docker is running', required: true, ok: dockerUp, detail: dockerUp ? `Server ${server.stdout.trim()}` : undefined, hint: 'Docker is not running or not installed. Start Docker Desktop (or Colima / OrbStack).' });
+  const engineOk = dockerUp && engineSupported(server.stdout);
+  if (dockerUp) {
+    add({
+      name: 'Docker Engine 26 or newer',
+      required: true,
+      ok: engineOk,
+      detail: `Engine ${server.stdout.trim()}`,
+      hint: 'Update Docker Desktop (4.29 or later ships Engine 26), Colima or OrbStack. Each agent sees only its own ticket\'s folder through a volume sub-path mount, which older engines cannot do.',
+    });
+  }
 
   const cv = await run('docker', ['compose', 'version', '--short']);
   const composeVersion = cv.stdout.trim();
@@ -145,13 +176,10 @@ export async function doctor(opts: DoctorOptions): Promise<DoctorResult> {
     add({ name: `Port 3000 is free on ${bind}`, required: false, ok: await portFree(3000, bind), hint: 'Something else uses port 3000. Stop it, or choose another address with --bind.' });
   }
 
-  if (dockerUp && opts.env?.dataDir) {
-    const probe = await run('docker', ['run', '--rm', '-v', `${opts.env.dataDir}:/probe`, postgresImage(opts.dir), 'sh', '-c', 'touch /probe/.doctor && rm /probe/.doctor']);
-    add({ name: 'Docker can write to the data folder', required: true, ok: probe.code === 0, hint: `Docker cannot use ${opts.env.dataDir}. In Docker Desktop, Colima or OrbStack, share that path (Settings → Resources → File sharing).` });
-  }
+  if (engineOk) add({ name: 'Docker can mount a sub-path of a volume', required: true, ok: await subpathProbe(postgresImage(opts.dir)), hint: 'A test container could not mount part of a Docker volume. Check that Docker Desktop is up to date and restart it.' });
 
   try {
-    const base = diskTarget(opts.dir, opts.env?.dataDir, existsSync);
+    const base = diskTarget(opts.dir, undefined, existsSync);
     const s = statfsSync(base);
     add(diskCheck(s.bavail * s.bsize, base));
   } catch {

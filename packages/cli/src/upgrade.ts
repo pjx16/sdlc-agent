@@ -1,12 +1,11 @@
-import { spawn } from 'node:child_process';
-import { chmodSync, copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { pipeline } from 'node:stream/promises';
-import { createGzip } from 'node:zlib';
-import { composeArgs, isRunning } from './compose';
+import { compose, isRunning } from './compose';
 import { up } from './commands';
-import { copyAgentBuild } from './init';
-import { envFor, runDoctor } from './doctor';
+import { copyVersionedFiles, hostIds } from './init';
+import { writeBackup } from './backup';
+import { legacyDataDir, moveIntoVolume, retireDataDir } from './data-volume';
+import { envFor, postgresImage, runDoctor } from './doctor';
 import { getEnv, setEnv, writeEnvFile } from './envfile';
 import { type Manifest, readManifest, sha256, shippedGuidelineHashes, writeManifest } from './manifest';
 import { assetsDir, packageVersion } from './paths';
@@ -148,22 +147,6 @@ export function addMissingKeys(envText: string, composeText: string): { text: st
   return { text, added, unknown };
 }
 
-const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
-
-async function backup(dir: string, version: string): Promise<string> {
-  const file = path.join(dir, 'backups', `sdlc-${version}-${stamp()}.sql.gz`);
-  mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const child = spawn('docker', composeArgs(dir, ['exec', '-T', 'postgres', 'pg_dump', '-U', 'sdlc', 'sdlc']), { stdio: ['ignore', 'pipe', 'pipe'] });
-  let stderr = '';
-  child.stderr.on('data', (c: Buffer) => (stderr += c.toString()));
-  const exited = new Promise<number>((resolve) => child.on('close', (code) => resolve(code ?? 1)));
-  const dump = createWriteStream(file, { mode: 0o600 });
-  await pipeline(child.stdout, createGzip(), dump);
-  if ((await exited) !== 0) throw new CliError(`The database backup failed: ${stderr.trim().split('\n').pop() ?? 'pg_dump error'}. Use --skip-backup to upgrade without one.`);
-  chmodSync(file, 0o600);
-  return file;
-}
-
 export interface UpgradeOptions {
   dir: string;
   yes: boolean;
@@ -193,17 +176,27 @@ export async function upgrade(opts: UpgradeOptions): Promise<void> {
 
   if (!opts.skipBackup) {
     if (await isRunning(dir)) {
-      const file = await backup(dir, manifest.version);
-      out(`Database backup written to ${file}`);
+      const file = await writeBackup(dir, `sdlc-${manifest.version}`);
+      out(`Encrypted database backup written to ${file}`);
     } else out(yellow('The stack is not running, so there is no database backup. Start it first, or pass --skip-backup.'));
+  }
+
+  // Installs before 1.0.0 kept repositories in a host folder (DATA_DIR): move them into the data volume while the stack is stopped.
+  const legacy = legacyDataDir(readFileSync(envFile, 'utf8'));
+  if (legacy) {
+    await compose(dir, ['stop']);
+    await moveIntoVolume(legacy, postgresImage(dir));
   }
 
   const composeText = readFileSync(path.join(assets, 'docker-compose.yml'), 'utf8');
   copyFileSync(path.join(assets, 'docker-compose.yml'), path.join(dir, 'docker-compose.yml'));
-  copyAgentBuild(assets, dir);
+  copyVersionedFiles(assets, dir);
   const merged = mergeGuidelines(assets, dir, manifest.guidelineHashes);
 
   let env = setEnv(readFileSync(envFile, 'utf8'), 'SDLC_VERSION', to);
+  if (legacy) env = retireDataDir(env, to);
+  const ids = hostIds();
+  if (!getEnv(env, 'SDLC_UID')) env = setEnv(setEnv(env, 'SDLC_UID', ids.uid), 'SDLC_GID', ids.gid);
   const keys = addMissingKeys(env, composeText);
   env = keys.text;
   writeEnvFile(envFile, env);
@@ -214,6 +207,7 @@ export async function upgrade(opts: UpgradeOptions): Promise<void> {
   await up({ dir, quiet: true });
 
   out(`\nUpgraded to ${to}.`);
+  if (legacy) out(`Repository data now lives in Docker. ${legacy} is no longer used and can be deleted.`);
   if (merged.conflicts.length > 0) {
     out('You edited these guidelines; the new versions were written beside them. Review and merge:');
     for (const f of merged.conflicts) out(`  ${path.join(dir, f)}.new`);

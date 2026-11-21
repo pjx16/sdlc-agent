@@ -6,6 +6,8 @@ import { init } from './init';
 import { packageVersion, resolveInstallDir } from './paths';
 import { CliError, out, red } from './ui';
 import { upgrade } from './upgrade';
+import { backupNow, restore } from './backup';
+import { copyWorkspaceOut } from './data-volume';
 
 const HELP = `sdlc-agent — install and run the sdlc-agent stack
 
@@ -18,6 +20,9 @@ Commands:
   status         Show the version, containers and setup state
   logs [service] Show logs (-f to follow)
   upgrade        Move the installation to this CLI's version (backs up the database first)
+  backup         Write an encrypted database backup now (one is also written daily)
+  restore <file> Replace the database with a backup, even after its volume was deleted
+  files <TICKET> [dest]  Copy a ticket's workspace out of Docker into a folder
   doctor         Check Docker, ports and disk space
   reset-admin    Forgot the password: remove the admin account and print a new setup code
   uninstall      Stop the stack and delete its database
@@ -28,6 +33,7 @@ Options:
 
 init:    --bind <addr> (default 127.0.0.1)  --no-start  --no-open  --force
 upgrade: --yes  --skip-backup
+restore: --yes
 reset-admin: --yes
 uninstall: --purge
 `;
@@ -98,6 +104,15 @@ async function dispatch(argv: string[]): Promise<number> {
       return 0;
     case 'upgrade':
       await upgrade({ dir, yes: Boolean(values.yes), skipBackup: Boolean(values['skip-backup']) });
+      return 0;
+    case 'backup':
+      await backupNow(dir);
+      return 0;
+    case 'restore':
+      await restore(dir, positionals[1], Boolean(values.yes));
+      return 0;
+    case 'files':
+      await copyWorkspaceOut(dir, positionals[1], positionals[2]);
       return 0;
     case 'doctor':
       return (await runDoctor({ dir, env: envFor(dir) })).ok ? 0 : 1;

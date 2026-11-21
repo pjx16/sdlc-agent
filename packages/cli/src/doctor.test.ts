@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { compareVersions, diskCheck, diskTarget, pickSocket, runDoctor, socketCandidates } from './doctor';
+import { compareVersions, diskCheck, diskTarget, engineSupported, pickSocket, runDoctor, socketCandidates } from './doctor';
+
+describe('engineSupported', () => {
+  it('needs Docker Engine 26 or newer, for volume sub-path mounts', () => {
+    expect(engineSupported('26.0.0')).toBe(true);
+    expect(engineSupported('27.3.1\n')).toBe(true);
+    expect(engineSupported('26.1.4-ce')).toBe(true);
+    expect(engineSupported('25.0.5')).toBe(false);
+    expect(engineSupported('')).toBe(false);
+    expect(engineSupported('dev')).toBe(false);
+  });
+});
 
 describe('compareVersions', () => {
   it('orders versions, ignoring a leading v', () => {

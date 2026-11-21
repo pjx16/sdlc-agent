@@ -9,7 +9,7 @@ const root = path.resolve(pkg, '../..');
 const assets = path.join(pkg, 'assets');
 
 rmSync(assets, { recursive: true, force: true });
-mkdirSync(path.join(assets, 'docker'), { recursive: true });
+mkdirSync(assets, { recursive: true });
 
 const copy = (from, to) => {
   const source = path.join(root, from);
@@ -17,8 +17,9 @@ const copy = (from, to) => {
   cpSync(source, path.join(assets, to), { recursive: true });
 };
 copy('deploy/docker-compose.yml', 'docker-compose.yml');
-// The agent image is built on the user's machine (it bundles Claude Code, which is not ours to redistribute).
-copy('docker/agent', 'docker/agent');
+// The daily encrypted database backup, run by the compose `backup` service. (The agent image is built by Docker from the release's git
+// tag, so its build files are not shipped.)
+copy('deploy/backup.sh', 'backup.sh');
 copy('guidelines', 'guidelines');
 copy('CHANGELOG.md', 'CHANGELOG.md');
 copy('LICENSE', 'LICENSE');
