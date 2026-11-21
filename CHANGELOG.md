@@ -6,10 +6,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-### Added
-
-- **`sdlc-subagents`, a Claude Code plugin.** Eleven agents (solution architect, bug investigator, technical architect, test writer, coder, fixer, documentor, PR, quality and security reviewers, CI triager) can be called from any Claude Code session, without the stack: `/plugin install sdlc-subagents --marketplace pjx16/sdlc-agent`. This repository is the marketplace (`.claude-plugin/marketplace.json`). The plugin's version is the release version, and each release attaches `sdlc-subagents-<version>.zip`. Pipeline-only agents (orchestrator, onboarding advisor, assistant, feature mapper, repo profiler) are not in it.
-
 ### Security
 
 - **docker-proxy filter bypass fixed.** A request that asked to upgrade was forwarded without `Connection: close`, and later requests on the same connection reached the Docker socket unchecked, including a privileged container create. The proxy now handles one request per connection and only the attach route may upgrade. It also requires the agent image (`ALLOWED_IMAGES`), the `sdlc.agent` label, `CapDrop: ALL`, `no-new-privileges`, a read-only root filesystem, memory and PID limits and a numeric non-root `uid:gid` on every create. It refuses `MaskedPaths`/`ReadonlyPaths` overrides and extra networks. It acts only on containers carrying the agent label, and it sits on its own network shared with the worker only.
@@ -45,6 +41,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- **`sdlc-subagents`, a Claude Code plugin.** Eleven agents (solution architect, bug investigator, technical architect, test writer, coder, fixer, documentor, PR, quality and security reviewers, CI triager) can be called from any Claude Code session, without the stack: `/plugin install sdlc-subagents --marketplace pjx16/sdlc-agent`. This repository is the marketplace (`.claude-plugin/marketplace.json`). The plugin's version is the release version, and each release attaches `sdlc-subagents-<version>.zip`. Pipeline-only agents (orchestrator, onboarding advisor, assistant, feature mapper, repo profiler) are not in it.
 - Documentation: a docs index (`docs/README.md`), a configuration reference (`docs/CONFIGURATION.md`), `docs/CONFLUENCE.md`, the live run notes moved out of the README to `docs/LIVE_RUNS.md`, and architecture 1.2.0 (`docs/architecture/v1.2.0`). The README is shorter and points to them; the security section defers to `SECURITY.md`.
 - Repository hygiene: a feature request issue template, `.editorconfig`, `.nvmrc`, and licence and repository metadata in every workspace `package.json`. The root package is now named `sdlc-agent-monorepo` so it no longer shares a name with the published CLI.
 - **Self-recovery.** A step that would stop a ticket for a person (`needs_help`) is first given to the orchestrator (decision point `recovery`): it reads the failure and what was already tried and chooses to retry, redo the stuck subtask's tests, or ask a person, with a note for the agent. `recovery.maxAttempts` (default 3) and `recovery.enabled` are project settings. Questions, manual pauses, closed PRs and rejected pushes are not given to it. Every orchestrator decision is stored, shown on the Decisions tab and commented on the Jira ticket.
