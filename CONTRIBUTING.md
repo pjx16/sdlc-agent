@@ -79,9 +79,9 @@ The GitHub account needs write access to the repository and admin access to the 
 
 Each release:
 
-1. `scripts/release.sh prepare X.Y.Z`: sets every workspace version, moves the `[Unreleased]` changelog entries under `[X.Y.Z]` (they become the release notes), and opens a pull request from `release/vX.Y.Z`. Review the notes and merge it once CI passes.
+1. `scripts/release.sh prepare X.Y.Z`: sets every workspace version and the `sdlc-subagents` plugin version, pins the plugin marketplace to the `vX.Y.Z` tag, moves the `[Unreleased]` changelog entries under `[X.Y.Z]` (they become the release notes), and opens a pull request from `release/vX.Y.Z`. Review the notes and merge it once CI passes. From the merge until `publish` pushes the tag, the marketplace points at a tag that does not exist yet and plugin installs fail, so publish soon after merging.
 2. `git switch dev && git pull && scripts/release.sh check X.Y.Z` (optional): a dry run of every check, plus the install bundle in `.release/vX.Y.Z/dist`. Nothing is published.
-3. `scripts/release.sh publish X.Y.Z`: runs the checks, asks once, then builds the images for amd64 and arm64 without cache and pushes them by digest. It scans every image with Trivy, signs them, and only then tags them `X.Y.Z` and `sha-<commit>`. Next it pushes the git tag and creates the GitHub release (marked pre-release while the version is `0.x`). It publishes to npm last and asks first (`next` dist-tag for `-rc.N` versions, `latest` otherwise).
+3. `scripts/release.sh publish X.Y.Z`: runs the checks, asks once, then builds the images for amd64 and arm64 without cache and pushes them by digest. It scans every image with Trivy, signs them, and only then tags them `X.Y.Z` and `sha-<commit>`. Next it pushes the git tag and creates the GitHub release (marked pre-release while the version is `0.x`) with the install bundle, `sdlc-subagents-X.Y.Z.zip` and `SHA256SUMS`. It publishes to npm last and asks first (`next` dist-tag for `-rc.N` versions, `latest` otherwise).
 
 The checks need a clean `dev` equal to `origin/dev`, a green CI run on that commit (`--ignore-ci` runs lint, typecheck and unit tests locally instead), versions matching `X.Y.Z`, changelog notes for it, and no existing tag, release or npm version. `--yes` skips the prompts.
 
