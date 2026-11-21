@@ -22,11 +22,20 @@ export interface PollResult {
   subtasksIgnored: number;
 }
 
-/** REST-mode intake (F3): runs each project's JQL and stores new tickets as NEW, exactly once per (projectId, externalKey). */
+/** The Jira modes intake polls. Each has its own backoff and status row: one transport being down must not stop the others. */
+export const POLLED_JIRA_MODES = ['rest', 'mcp', 'connector'] as const;
+export type PolledJiraMode = (typeof POLLED_JIRA_MODES)[number];
+
+/**
+ * Jira intake (F3): runs each project's JQL and stores new tickets as NEW, exactly once per (projectId, externalKey). REST and Rovo MCP
+ * projects are polled on every call; connector projects run a Claude agent per poll, so each is polled at most every
+ * `jiraConnector.pollIntervalMin` minutes.
+ */
 @Injectable()
 export class IntakePoller {
   private readonly logger = new Logger(IntakePoller.name);
-  private backoffUntil = 0;
+  private readonly backoffUntil = new Map<PolledJiraMode, number>();
+  private readonly lastConnectorPoll = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -35,25 +44,42 @@ export class IntakePoller {
     private readonly raiser?: SupportRaiser,
   ) {}
 
-  /** Milliseconds of intake backoff still to run (0 when polling is allowed). */
-  backoffRemainingMs(): number {
-    return Math.max(0, this.backoffUntil - this.now());
+  /** Milliseconds of intake backoff still to run for a mode (0 when polling is allowed). */
+  backoffRemainingMs(mode: PolledJiraMode = 'rest'): number {
+    return Math.max(0, (this.backoffUntil.get(mode) ?? 0) - this.now());
   }
 
-  async poll(mode: 'rest' = 'rest', only?: (project: Project) => boolean): Promise<PollResult> {
+  /** Polls one mode, or every mode when none is given (the results are added up). */
+  async poll(mode?: PolledJiraMode, only?: (project: Project) => boolean): Promise<PollResult> {
+    if (mode) return this.pollMode(mode, only);
+    const total: PollResult = { projects: 0, created: 0, duplicates: 0, errors: [], subtasksIgnored: 0 };
+    for (const m of POLLED_JIRA_MODES) {
+      const r = await this.pollMode(m, only);
+      total.projects += r.projects;
+      total.created += r.created;
+      total.duplicates += r.duplicates;
+      total.subtasksIgnored += r.subtasksIgnored;
+      total.errors.push(...r.errors);
+      if (m === 'rest' && r.skipped) total.skipped = r.skipped;
+    }
+    return total;
+  }
+
+  private async pollMode(mode: PolledJiraMode, only?: (project: Project) => boolean): Promise<PollResult> {
     const result: PollResult = { projects: 0, created: 0, duplicates: 0, errors: [], subtasksIgnored: 0 };
 
     // Pausing intake and pausing the pipeline are separate switches: only the intake switch stops polling.
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     if (settings?.intakePaused) return this.finish(mode, { ...result, skipped: 'intake_paused' });
-    if (this.backoffRemainingMs() > 0) return this.finish(mode, { ...result, skipped: 'backoff' });
+    if (this.backoffRemainingMs(mode) > 0) return this.finish(mode, { ...result, skipped: 'backoff' });
 
     // A project accepts tickets only when its mirror is ready (F2).
     const projects = await this.prisma.project.findMany({ where: { enabled: true, onboardingStatus: 'confirmed', jiraMode: mode, mirrorStatus: 'ok' }, orderBy: { createdAt: 'asc' } });
-    for (const project of projects.filter((p) => !only || only(p))) {
+    for (const project of projects.filter((p) => (!only || only(p)) && this.due(mode, p))) {
       result.projects++;
       try {
-        const tickets = await (await this.clients.forRest()).searchTickets(project);
+        const tickets = await (await this.clients.forMode(mode)).searchTickets(project);
+        if (mode === 'connector') this.lastConnectorPoll.set(project.id, this.now());
         for (const jt of tickets) {
           if (await this.isSubtask(jt)) {
             result.subtasksIgnored++;
@@ -67,12 +93,13 @@ export class IntakePoller {
         }
       } catch (err) {
         if (err instanceof JiraUnavailableError) {
-          this.backoffUntil = this.now() + INTAKE_BACKOFF_MS;
+          this.backoffUntil.set(mode, this.now() + INTAKE_BACKOFF_MS);
           result.errors.push({ project: project.name, message: err.message });
-          this.logger.warn(`${err.message}; intake paused for 10 minutes`);
-          await this.prisma.event.create({ data: { type: 'jira', message: 'Jira is unavailable: intake paused for 10 minutes' } }).catch(() => undefined);
-          break; // every project talks to the same Jira
+          this.logger.warn(`${err.message}; ${mode} intake paused for 10 minutes`);
+          await this.prisma.event.create({ data: { type: 'jira', message: `Jira (${mode}) is unavailable: intake paused for 10 minutes` } }).catch(() => undefined);
+          break; // every project in this mode talks to the same Jira
         }
+        if (mode === 'connector') this.lastConnectorPoll.set(project.id, this.now()); // a failing agent must not run again on every tick
         const message = err instanceof Error ? err.message : String(err);
         result.errors.push({ project: project.name, message });
         if (!(err instanceof JiraNotConfiguredError)) this.logger.warn(`Polling "${project.name}" failed: ${message}`);
@@ -82,9 +109,20 @@ export class IntakePoller {
     return this.finish(mode, result);
   }
 
-  /** Remembers the outcome of this poll for the dashboard, then returns it. */
-  private async finish(mode: 'rest', result: PollResult): Promise<PollResult> {
+  /** Connector projects wait out their poll interval; the other modes are always due. */
+  private due(mode: PolledJiraMode, project: Project): boolean {
+    if (mode !== 'connector') return true;
+    const last = this.lastConnectorPoll.get(project.id);
+    return last === undefined || this.now() - last >= ProjectSettingsSchema.parse(project.settings).jiraConnector.pollIntervalMin * 60_000;
+  }
+
+  /** Remembers the outcome of this poll for the dashboard, then returns it. Modes nobody uses leave no status row. */
+  private async finish(mode: PolledJiraMode, result: PollResult): Promise<PollResult> {
     const waiting = await this.prisma.project.count({ where: { enabled: true, onboardingStatus: 'confirmed', jiraMode: mode, mirrorStatus: { not: 'ok' } } }).catch(() => 0);
+    if (mode !== 'rest' && result.projects === 0 && waiting === 0 && result.errors.length === 0) {
+      const used = await this.prisma.project.count({ where: { enabled: true, onboardingStatus: 'confirmed', jiraMode: mode } }).catch(() => 0);
+      if (used === 0) return result;
+    }
     await recordIntake(this.prisma, {
       mode,
       projects: result.projects,

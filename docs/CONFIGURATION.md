@@ -14,7 +14,11 @@ A variable set here overrides the dashboard value and makes the field read-only 
 | `CLAUDE_CODE_OAUTH_TOKEN` | no | Output of `claude setup-token` |
 | `GITHUB_TOKEN` | no | Fine-grained token for git and `gh` (not needed when every project works as the bot) |
 | `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL` | no | Identity of every commit made with a personal token |
-| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira or Confluence | One Atlassian credential for Jira and Confluence |
+| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira or Confluence | One Atlassian credential for Jira (REST mode, recommended) and Confluence |
+| `JIRA_MCP_TOKEN` | Rovo MCP mode, if not using OAuth | A scoped Atlassian API token with the Jira `agent-interface` scopes, used with `JIRA_EMAIL`. OAuth (Connect in Settings → Connections) is the usual way |
+| `JIRA_MCP_URL` | no | Rovo MCP server (default `https://mcp.atlassian.com/v2/mcp`) |
+| `JIRA_CLOUD_ID` | no | The Atlassian site for Rovo MCP mode, when the sign-in sees several sites and `JIRA_BASE_URL` is not set |
+| `JIRA_MCP_OAUTH` | no | The stored Rovo OAuth grant; normally written by the dashboard's Connect flow. Set in `.env`, its refreshed tokens cannot be saved |
 | `DASHBOARD_PASSWORD` | no | Admin password (at least 12 characters). Overrides the setup wizard and disables password change |
 | `SETUP_CODE` | no | One-time code for the setup wizard; otherwise the API logs one at start-up |
 | `COOKIE_SECURE` | no | `true` when the dashboard is served over HTTPS |

@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '../../..');
 
 describe('the agent roster', () => {
   it('has one row per agent and every pipeline stage runs exactly one agent', () => {
-    expect(AGENTS).toHaveLength(16);
+    expect(AGENTS).toHaveLength(17);
     expect(new Set(AGENTS.map((a) => a.name)).size).toBe(AGENTS.length);
     for (const stage of STAGE_NAMES) expect(AGENTS.filter((a) => a.stages.includes(stage))).toHaveLength(1);
   });

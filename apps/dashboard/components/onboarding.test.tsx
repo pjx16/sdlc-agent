@@ -33,7 +33,7 @@ describe('OnboardForm: two fields', () => {
     await userEvent.type(screen.getByLabelText('Jira project key (optional)'), 'SDA');
     await userEvent.click(screen.getByRole('button', { name: 'Start' }));
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/onboard');
-    expect(sentBody()).toEqual({ repoUrl: 'https://github.com/acme/billing', jiraProjectKey: 'SDA', githubAuth: 'token' });
+    expect(sentBody()).toEqual({ repoUrl: 'https://github.com/acme/billing', jiraProjectKey: 'SDA', githubAuth: 'token', jiraMode: 'rest' });
     expect(push).toHaveBeenCalledWith('/projects/p9');
   });
 
@@ -190,7 +190,7 @@ describe('ProjectSummary', () => {
   const project = { id: 'p1', name: 'billing', repoUrl: 'https://github.com/acme/billing', baseBranch: 'main', stack: 'nestjs', jiraMode: 'rest', jiraProjectKey: 'SDA', settings: { ...DEFAULT_PROJECT_SETTINGS, jiraIssueTypeRouting: { Story: 'feature', Epic: 'ignore' }, confluence: { spaceKey: 'ENG', parentPageId: '1' } } } as unknown as ProjectView;
   it('shows what the project is, without every setting', () => {
     render(<ProjectSummary project={project} />);
-    expect(screen.getByText('Jira SDA, and pasted tickets')).toBeInTheDocument();
+    expect(screen.getByText('Jira SDA (REST API), and pasted tickets')).toBeInTheDocument();
     expect(screen.getByText('Story → feature, Epic → ignored')).toBeInTheDocument();
     expect(screen.getByText('Confluence space ENG')).toBeInTheDocument();
   });

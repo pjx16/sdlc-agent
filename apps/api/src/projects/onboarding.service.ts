@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import {
-  ErrorCodes, GITHUB_AUTHS, GlobalSettingsSchema, ISSUE_KINDS, MUST_ACCEPT, ONBOARDING_SECTIONS, PLANS_PARENT_PAGE_TITLE, ProjectSettingsSchema, RepoProfileData, TICKET_STATUSES, buildIntakeJql, defaultLocalKeyPrefix, events,
+  ErrorCodes, GITHUB_AUTHS, GlobalSettingsSchema, ISSUE_KINDS, MUST_ACCEPT, ONBOARDING_SECTIONS, PLANS_PARENT_PAGE_TITLE, ProjectSettingsSchema, RepoProfileData, TICKET_STATUSES, buildIntakeJql, defaultLocalKeyPrefix, events, jiraOn,
   type OnboardingProposal, type OnboardingSection, type OnboardingStatus, type TicketStatus,
 } from '@sdlc/shared';
 import { z } from 'zod';
@@ -21,6 +21,8 @@ const StartBody = z.object({
   jiraProjectKey: z.string().trim().optional().transform((v) => (v ? v : undefined)).refine((v) => v === undefined || /^[A-Z][A-Z0-9_]*$/.test(v), 'must be upper-case letters, digits or _'),
   /** token: the personal token from Settings (the default). bot: sdlc-agent-bot, through the token broker. */
   githubAuth: z.enum(GITHUB_AUTHS, { error: 'must be token or bot' }).default('token'),
+  /** How Jira is reached when a project key is given: REST (recommended), Rovo MCP, or the Claude Jira connector. */
+  jiraMode: z.enum(['rest', 'mcp', 'connector'], { error: 'must be rest, mcp or connector' }).default('rest'),
 });
 
 const SectionBody = z.object({ action: z.enum(['accept', 'edit']), value: z.record(z.string(), z.unknown()).optional() });
@@ -57,7 +59,7 @@ export class OnboardingService {
 
   /** POST /projects/onboard: a repo URL and, optionally, a Jira project key. The worker does the rest. */
   async start(body: unknown): Promise<ProjectDto> {
-    const { repoUrl, jiraProjectKey, githubAuth } = parseBody(StartBody, body);
+    const { repoUrl, jiraProjectKey, githubAuth, jiraMode } = parseBody(StartBody, body);
     const [, owner = '', repo = ''] = GITHUB_URL.exec(repoUrl) ?? [];
     const names = [repo, `${owner}-${repo}`, `${owner}-${repo}-2`];
     for (const name of names) {
@@ -71,7 +73,7 @@ export class OnboardingService {
             stack: 'ts_node',
             testCmdTemplate: 'echo {files}',
             localKeyPrefix: jiraProjectKey ?? defaultLocalKeyPrefix(repo),
-            jiraMode: jiraProjectKey ? 'rest' : 'off',
+            jiraMode: jiraProjectKey ? jiraMode : 'off',
             jiraProjectKey: jiraProjectKey ?? null,
             onboardingStatus: 'profiling',
             mirrorStatus: 'pending',
@@ -185,7 +187,7 @@ export class OnboardingService {
     const jql = buildIntakeJql({ projectKey: p.jiraProjectKey, label: proposal.advice.intakeLabel, routing: proposal.advice.issueTypeRouting });
     let found;
     try {
-      found = await (await this.jira.forRest()).searchTickets({ jiraProjectKey: p.jiraProjectKey, jiraJql: jql });
+      found = await (await this.jira.forMode(p.jiraMode)).searchTickets({ jiraProjectKey: p.jiraProjectKey, jiraJql: jql });
     } catch (err) {
       throw new ApiException(HttpStatus.BAD_GATEWAY, ErrorCodes.jiraError, err instanceof Error ? err.message : 'Jira request failed');
     }
@@ -243,7 +245,7 @@ export class OnboardingService {
         testCmdTemplate: profile.testCmdTemplate,
         kbDir: profile.kbDir,
         baseBranch: profile.baseBranch,
-        jiraMode: p.jiraProjectKey ? 'rest' : 'off',
+        jiraMode: p.jiraProjectKey ? (jiraOn(p.jiraMode) ? p.jiraMode : 'rest') : 'off',
         jiraJql: p.jiraProjectKey ? buildIntakeJql({ projectKey: p.jiraProjectKey, label: advice.intakeLabel, routing: advice.issueTypeRouting }) : null,
         settings: nextSettings as unknown as Prisma.InputJsonValue,
         // A changed base branch needs a fresh mirror; otherwise the one the worker made stays.

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { ProjectSettingsSchema } from '@sdlc/shared';
+import { ProjectSettingsSchema, jiraOn } from '@sdlc/shared';
 import type { StageArtifact, Ticket } from '../../generated/prisma/client';
 import { ConfluenceClients } from '../../confluence/confluence-clients';
 import { ConfluenceHub, type DocumentHub, type HubDocument } from '../../confluence/document-hub';
@@ -126,19 +126,19 @@ export class PlanPageSync implements Housekeeper, TransitionListener {
 
   /** One comment with the page link and the page's status. It is edited in place as the status changes (its marker does not change). */
   private async linkOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, url: string, status: string): Promise<void> {
-    if (!enabled || jiraMode !== 'rest' || ticket.source !== 'jira' || !ticket.externalKey || !url) return;
+    if (!enabled || !jiraOn(jiraMode) || ticket.source !== 'jira' || !ticket.externalKey || !url) return;
     try {
-      await (await this.jira.forRest()).upsertComment(ticket.externalKey, await this.formats.fill('jira-plan-link', { key: ticket.key, url, status }), jiraMarker(ticket.key, 'plan-link'));
+      await (await this.jira.forMode(jiraMode)).upsertComment(ticket.externalKey, await this.formats.fill('jira-plan-link', { key: ticket.key, url, status }), jiraMarker(ticket.key, 'plan-link'));
     } catch (err) {
       await this.event(ticket, 'warn', `Could not post the plan link to Jira: ${err instanceof Error ? err.message : String(err)}`, false);
     }
   }
 
   private async fullTextOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, current: StageArtifact): Promise<void> {
-    if (!enabled || jiraMode !== 'rest' || ticket.source !== 'jira' || !ticket.externalKey) return;
+    if (!enabled || !jiraOn(jiraMode) || ticket.source !== 'jira' || !ticket.externalKey) return;
     const plan = (current.data as { planMarkdown?: string }).planMarkdown ?? '';
     try {
-      await (await this.jira.forRest()).comment(ticket.externalKey, await this.formats.fill('jira-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
+      await (await this.jira.forMode(jiraMode)).comment(ticket.externalKey, await this.formats.fill('jira-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
     } catch (err) {
       await this.event(ticket, 'warn', `Could not post the plan to Jira: ${err instanceof Error ? err.message : String(err)}`, false);
     }

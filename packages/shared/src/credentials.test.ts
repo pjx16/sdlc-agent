@@ -11,6 +11,10 @@ const cases: Record<CredentialKey, { ok: string; bad: string }> = {
   jira_base_url: { ok: 'https://acme.atlassian.net', bad: 'https://evil.example.com' },
   jira_email: { ok: 'me@example.com', bad: 'me' },
   jira_api_token: { ok: 'x'.repeat(24), bad: 'short' },
+  jira_mcp_url: { ok: 'https://mcp.atlassian.com/v2/mcp', bad: 'http://mcp.atlassian.com/v2/mcp' },
+  jira_mcp_token: { ok: 'y'.repeat(24), bad: 'short' },
+  jira_mcp_oauth: { ok: JSON.stringify({ clientId: 'c', tokenEndpoint: 'https://auth.example/token', resource: 'https://mcp.example', accessToken: 'a', refreshToken: 'r', expiresAt: 0 }), bad: '{"clientId":"c"}' },
+  jira_cloud_id: { ok: '1324a887-45db-1bf4-1e99-ef0ff456d421', bad: 'acme' },
 };
 
 describe('credential schemas', () => {

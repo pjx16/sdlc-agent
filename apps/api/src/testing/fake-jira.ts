@@ -82,4 +82,7 @@ export class FakeJiraClients extends JiraClients {
   override async forMode() {
     return this.jira;
   }
+  override async forMcp() {
+    return this.jira;
+  }
 }

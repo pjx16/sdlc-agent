@@ -1,5 +1,5 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { DECISION_POINTS, ProjectSettingsSchema, automaticMoves, decisionPointOf, legalMoves, validateDecision, type DecisionOption, type DecisionPoint, type StageEnvelope } from '@sdlc/shared';
+import { DECISION_POINTS, ProjectSettingsSchema, automaticMoves, decisionPointOf, legalMoves, validateDecision, type DecisionOption, type DecisionPoint, type StageEnvelope, jiraOn } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { JiraClients } from '../../jira/jira-clients';
 import { jiraMarker } from '../../jira/jira-client';
@@ -131,9 +131,9 @@ export class OrchestratorService {
     try {
       const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
       const settings = ProjectSettingsSchema.parse(project.settings);
-      if (project.jiraMode !== 'rest' || !settings.jiraWriteBack.comments) return;
+      if (!jiraOn(project.jiraMode) || !settings.jiraWriteBack.comments) return;
       const text = [`sdlc-agent decided (${point.replace(/_/g, ' ')}): ${move.label || `${move.kind} ${move.to}`}.`, reason ? `Why: ${reason}` : null, note ? `Instruction given to the agent: ${note}` : null].filter(Boolean).join('\n');
-      await (await this.jira.forRest()).comment(ticket.externalKey, text, jiraMarker(ticket.key, `decision-${point}`, `${Date.now()}`));
+      await (await this.jira.forMode(project.jiraMode)).comment(ticket.externalKey, text, jiraMarker(ticket.key, `decision-${point}`, `${Date.now()}`));
     } catch (err) {
       this.logger.warn(`Could not write the decision to Jira for ${ticket.key}: ${err instanceof Error ? err.message : String(err)}`);
     }

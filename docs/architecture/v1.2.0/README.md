@@ -33,7 +33,7 @@ How sdlc-agent 1.2.0 is put together. This is a snapshot: later versions get the
 | Review | One reviewer | PR, quality and security reviewers in turn; findings merged, only critical and high start the fixer |
 | CI failures | Fixer got every failing check | Also **triaged**: `code` goes to the fixer, `flaky` reruns once, `infra` becomes a `ci_infra` support item |
 | Documents | Plan in Jira | **Confluence document hub**: one page per ticket, kept in step with approvals and reruns; Jira gets a link |
-| Jira | REST | REST only (MCP mode removed); issue-type routing (feature, bug, chore, ignore) |
+| Jira | REST | REST (recommended), Rovo MCP called by code, or the claude.ai Jira connector driven by an agent (since 2026-11-21); issue-type routing (feature, bug, chore, ignore) |
 | Intake of work | Paste or Jira | Also project **onboarding** (repo profiler and onboarding advisor), the **inbox**, and **reruns** from any finished stage |
 | Orchestrator | Recovery only | Also decision points such as "update the knowledge base or skip it" after review |
 

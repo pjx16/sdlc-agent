@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { DECISION_POINTS, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
+import { DECISION_POINTS, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { allArtifacts, writeArtifact } from '../common/artifacts';
 import { parseBody } from '../common/parse-body';
@@ -273,7 +273,7 @@ export class TicketsService {
       if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket changed while it was being updated');
       await writeArtifact(this.prisma, id, 'plan', { planMarkdown, editedBy: 'user' }).catch(() => undefined);
     }
-    if (ticket.source === 'jira' && ticket.externalKey && ticket.project.jiraMode === 'rest') await this.refreshFromJira(ticket.id, ticket.key, ticket.externalKey);
+    if (ticket.source === 'jira' && ticket.externalKey && jiraOn(ticket.project.jiraMode)) await this.refreshFromJira(ticket.id, ticket.key, ticket.externalKey, ticket.project.jiraMode);
 
     const { ticket: updated } = await this.states.transition(id, 'BREAKDOWN', 'user', planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown ? 'Plan approved with edits' : 'Plan approved', undefined, { kind: 'approve' });
     return toTicketDto(updated);
@@ -288,9 +288,9 @@ export class TicketsService {
   }
 
   /** Developer edits made in Jira reach the next stages. A Jira problem is recorded and never blocks the approval. */
-  private async refreshFromJira(ticketId: string, key: string, externalKey: string): Promise<void> {
+  private async refreshFromJira(ticketId: string, key: string, externalKey: string, mode: string): Promise<void> {
     try {
-      const issue = await (await this.jira.forRest()).readStatus(externalKey);
+      const issue = await (await this.jira.forMode(mode)).readStatus(externalKey);
       await this.prisma.ticket.update({ where: { id: ticketId }, data: { title: issue.summary || undefined, body: issue.description } });
     } catch (err) {
       await this.prisma.event.create({ data: { ticketId, type: 'jira', message: `${key}: could not re-read the Jira issue: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500) } });

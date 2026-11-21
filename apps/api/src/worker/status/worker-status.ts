@@ -81,8 +81,10 @@ export class HeartbeatTimer {
   }
 }
 
+const INTAKE_LABELS: Record<IntakeRecord['mode'], string> = { rest: 'REST', mcp: 'Rovo MCP', connector: 'Claude connector' };
+
 export interface IntakeRecord {
-  mode: 'rest';
+  mode: 'rest' | 'mcp' | 'connector';
   /** Enabled projects in this Jira mode whose mirror is ready: the ones that were polled. */
   projects: number;
   /** Enabled projects in this Jira mode that were left out because the mirror is not ready. */
@@ -93,7 +95,7 @@ export interface IntakeRecord {
   skipped?: string;
 }
 
-/** The result of the last Jira intake poll, one row (`intake-rest`). Also leaves an Event when tickets arrived or a new error appeared. */
+/** The result of the last Jira intake poll, one row per mode (`intake-rest`, `intake-mcp`, `intake-connector`). Also leaves an Event when tickets arrived or a new error appeared. */
 export async function recordIntake(prisma: Pick<PrismaService, 'workerStatus' | 'event'>, r: IntakeRecord): Promise<void> {
   try {
     const id = `intake-${r.mode}`;
@@ -109,7 +111,7 @@ export async function recordIntake(prisma: Pick<PrismaService, 'workerStatus' | 
       intakeSkipped: r.skipped ?? null,
     };
     await prisma.workerStatus.upsert({ where: { id }, update: data, create: { id, heartbeatAt: new Date(), tickOutcome: 'intake', ...data } });
-    const label = 'Jira (REST)';
+    const label = `Jira (${INTAKE_LABELS[r.mode]})`;
     if (r.created > 0) await prisma.event.create({ data: { type: 'jira', message: `${label} intake: ${r.created} new ticket${r.created === 1 ? '' : 's'}` } });
     if (r.error && r.error !== previous?.intakeError) await prisma.event.create({ data: { type: 'jira', message: `${label} intake failed: ${r.error}`.slice(0, 500) } });
   } catch {

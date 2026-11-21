@@ -22,19 +22,33 @@ export class ApprovalPoller {
     private readonly subtasks: SubtasksService,
   ) {}
 
-  /** Returns how many tickets were approved. Throws JiraUnavailableError if Jira is down (the loop pauses intake). */
+  /** When each connector ticket was last read: reading it runs a Claude agent, so it waits out the project's poll interval. */
+  private readonly lastConnectorRead = new Map<string, number>();
+
+  /**
+   * Returns how many tickets were approved. When one mode's Jira is down the rest of that mode is skipped and the other modes still run;
+   * the first such error is thrown at the end (the loop logs it).
+   */
   async check(only?: (project: Project) => boolean): Promise<number> {
     const tickets = await this.prisma.ticket.findMany({
-      where: { source: 'jira', externalKey: { not: null }, status: { in: ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] }, project: { enabled: true, onboardingStatus: 'confirmed', jiraMode: 'rest' } },
+      where: { source: 'jira', externalKey: { not: null }, status: { in: ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] }, project: { enabled: true, onboardingStatus: 'confirmed', jiraMode: { in: ['rest', 'mcp', 'connector'] } } },
       include: { project: true },
       orderBy: { createdAt: 'asc' },
     });
     let approved = 0;
+    const down = new Map<string, Error>();
     for (const ticket of tickets.filter((t) => !only || only(t.project))) {
+      const mode = ticket.project.jiraMode;
+      if (down.has(mode)) continue;
+      if (mode === 'connector') {
+        const last = this.lastConnectorRead.get(ticket.id);
+        if (last !== undefined && Date.now() - last < ProjectSettingsSchema.parse(ticket.project.settings).jiraConnector.pollIntervalMin * 60_000) continue;
+      }
       const approvals = ProjectSettingsSchema.parse(ticket.project.settings).jiraApprovalStatuses;
       if (!approvals.plan && !approvals.breakdown) continue;
       try {
-        const issue = await (await this.clients.forRest()).readStatus(ticket.externalKey as string);
+        if (mode === 'connector') this.lastConnectorRead.set(ticket.id, Date.now());
+        const issue = await (await this.clients.forMode(mode)).readStatus(ticket.externalKey as string);
         const { status } = issue;
         const next = approvalTarget(ticket.status as TicketStatus, status, approvals);
         if (!next) continue;
@@ -53,11 +67,16 @@ export class ApprovalPoller {
         await this.states.transition(ticket.id, next, 'jira', `approved in Jira (status "${status}")`);
         approved++;
       } catch (err) {
-        if (err instanceof JiraUnavailableError || err instanceof JiraNotConfiguredError) throw err;
+        if (err instanceof JiraUnavailableError || err instanceof JiraNotConfiguredError) {
+          down.set(mode, err);
+          continue;
+        }
         // One bad ticket (deleted issue, no permission) must not stop the others.
         this.logger.warn(`Approval check for ${ticket.key} failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
+    const first = down.values().next().value;
+    if (first) throw first;
     return approved;
   }
 }

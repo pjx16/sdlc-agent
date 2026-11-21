@@ -1,5 +1,5 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { ProjectSettingsSchema } from '@sdlc/shared';
+import { ProjectSettingsSchema, jiraOn } from '@sdlc/shared';
 import { jiraMarker } from '../../jira/jira-client';
 import { JiraClients } from '../../jira/jira-clients';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -93,8 +93,8 @@ export class PrSizeService {
 
   private async tellJira(ticket: { key: string; source: string; externalKey: string | null }, project: { jiraMode: string; settings: unknown }, text: string, level: Level): Promise<void> {
     try {
-      if (!this.jira || ticket.source !== 'jira' || !ticket.externalKey || project.jiraMode !== 'rest' || !ProjectSettingsSchema.parse(project.settings).jiraWriteBack.comments) return;
-      await (await this.jira.forRest()).comment(ticket.externalKey, text, jiraMarker(ticket.key, `pr-size-${level}`, `${Date.now()}`));
+      if (!this.jira || ticket.source !== 'jira' || !ticket.externalKey || !jiraOn(project.jiraMode) || !ProjectSettingsSchema.parse(project.settings).jiraWriteBack.comments) return;
+      await (await this.jira.forMode(project.jiraMode)).comment(ticket.externalKey, text, jiraMarker(ticket.key, `pr-size-${level}`, `${Date.now()}`));
     } catch (err) {
       this.logger.warn(`Could not write the PR size note to Jira for ${ticket.key}: ${err instanceof Error ? err.message : String(err)}`);
     }

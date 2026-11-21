@@ -1,4 +1,5 @@
 import type { ProjectView } from '@/lib/types';
+import { jiraModeLabel } from '@/lib/jira-modes';
 
 /** What a confirmed project is, at a glance. Everything else is under Advanced settings. */
 export function ProjectSummary({ project }: { project: ProjectView }) {
@@ -15,7 +16,7 @@ export function ProjectSummary({ project }: { project: ProjectView }) {
         <dt className="text-muted">Stack</dt>
         <dd>{project.stack}</dd>
         <dt className="text-muted">Tickets</dt>
-        <dd>{project.jiraMode === 'rest' && project.jiraProjectKey ? `Jira ${project.jiraProjectKey}, and pasted tickets` : 'Pasted tickets only'}</dd>
+        <dd>{project.jiraMode !== 'off' && project.jiraProjectKey ? `Jira ${project.jiraProjectKey} (${jiraModeLabel(project.jiraMode)}), and pasted tickets` : 'Pasted tickets only'}</dd>
         {routing.length > 0 && (
           <>
             <dt className="text-muted">Issue types</dt>

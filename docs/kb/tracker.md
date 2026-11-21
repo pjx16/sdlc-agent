@@ -2,14 +2,16 @@
 
 ## Overview
 
-The tracker integration connects the pipeline to Jira Cloud over REST v3. It pulls tickets in (intake), reads approval statuses, and writes comments, status moves and sub-tasks back. Jira problems never block the pipeline; only intake pauses. The user-facing description is [`docs/TRACKER.md`](../TRACKER.md).
+The tracker integration connects the pipeline to Jira Cloud in one of three modes per project: REST v3 (recommended), the Atlassian Rovo MCP server called by code, or the claude.ai Jira connector driven by a Claude agent (the only mode that spends Claude tokens). It pulls tickets in (intake), reads approval statuses, and writes comments, status moves and sub-tasks back. Jira problems never block the pipeline; only intake pauses. The user-facing description is [`docs/TRACKER.md`](../TRACKER.md).
 
 ## Entry points
 
 - `JiraClient` interface — `apps/api/src/jira/jira-client.ts:40` — what the pipeline may ask of a tracker
-- `JiraRestClient` — `apps/api/src/jira/jira-rest-client.ts:34` — the only implementation (Basic auth, plain `fetch`)
-- `JiraClients.forRest()` — `apps/api/src/jira/jira-clients.ts:27` — provider that hands out the client
-- `IntakePoller.poll()` — `apps/api/src/worker/intake/intake-poller.ts:55` — called from the worker loop (`worker/loop/worker-loop.ts:210`)
+- `JiraRestClient` — `apps/api/src/jira/jira-rest-client.ts:34` — REST mode (Basic auth, plain `fetch`)
+- `JiraMcpClient` — `apps/api/src/jira/jira-mcp-client.ts:40` — Rovo MCP mode, over `McpSession` (`mcp-session.ts`, streamable HTTP) with a scoped token or an OAuth grant (`mcp-auth.ts`, `rovo-oauth.ts`, `credentials/jira-oauth.controller.ts`)
+- `JiraConnectorClient` — `apps/api/src/worker/jira-connector/jira-connector-client.ts:58` — connector mode: each operation is one `jiraConnector` stage run; plugged in by the worker module
+- `JiraClients.forMode(mode)` — `apps/api/src/jira/jira-clients.ts:32` — provider that hands out the client for a project's mode
+- `IntakePoller.poll()` — `apps/api/src/worker/intake/intake-poller.ts:53` — called from the worker loop; one backoff and status row per mode, connector projects throttled to `jiraConnector.pollIntervalMin`
 - `ApprovalPoller.check()` — `apps/api/src/jira/approval-poller.ts:26` — inbound approvals (injected in `worker-loop.ts:50`)
 - `JiraStatusSync.onTransition()` — `apps/api/src/jira/jira-status-sync.ts:23` — outbound status moves after a state transition
 - `JiraModule` — `apps/api/src/jira/jira.module.ts:6` — exports `JiraClients` and `JiraStatusSync`

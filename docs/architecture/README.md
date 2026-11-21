@@ -24,6 +24,7 @@ Newest first. One row per version folder, plus any fix worth recording.
 
 | Date | Version | Change | Why | PR |
 | --- | --- | --- | --- | --- |
+| 2026-11-21 | 1.2.0 | Jira modes `mcp` (the Rovo MCP server, called by code, OAuth or scoped token) and `connector` (a Haiku `jiraConnector` stage drives the claude.ai Jira connector) beside `rest`. The connector stage runs with its own claude.ai login volume and proxy port 3129 (Anthropic and claude.ai only), not the LLM gateway | Organisations that block Atlassian API tokens, or the Rovo MCP server too, can still use Jira; REST stays the recommended, token-free mode | n/a |
 | 2026-11-18 | 1.2.0 | The worker reaches Docker through a filtering `docker-proxy` instead of the socket; agents call an LLM gateway in the worker instead of holding the Claude token; agents install from a read-only npm mirror; the egress proxy allows only Prisma's binary host | A prompt-injected agent must not be able to use the Claude token, publish packages or start privileged containers | n/a |
 | 2026-11-18 | 1.2.0 | 16 agents with generated `.claude/agents` files; PR, quality and security reviewers; CI triage; Confluence document hub; project onboarding, inbox and reruns; Jira is REST only | One agent, one job; fewer repeated holds for a person | n/a |
 | 2026-11-18 | 1.1.0 | Fix: the system diagram no longer says Jira is reached over "REST or MCP" (MCP mode was removed) | A mistake in the snapshot | n/a |
