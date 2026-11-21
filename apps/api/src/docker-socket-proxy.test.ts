@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { buildCreateOptions } from './worker/agent-runner/container-options';
 
 const dir = path.resolve(__dirname, '../../../docker/socket-proxy');
-type Opts = { bindRoots?: string[]; images?: string[]; networks?: string[] };
+type Opts = { bindRoots?: string[]; images?: string[]; networks?: string[]; dataVolume?: string };
 type Policy = {
   checkRequest: (m: string, u: string, body?: unknown, o?: Opts) => string | null;
   nonRootUser: (u: unknown) => boolean;
@@ -65,6 +65,43 @@ describe('docker socket proxy policy', () => {
     expect(bad((o) => (o.HostConfig.PortBindings = { '22/tcp': [{ HostPort: '2222' }] }))).toContain('PortBindings');
     expect(bad((o) => (o.User = 'root'))).toContain('non-root');
     expect(bad((o) => delete o.User)).toContain('non-root');
+  });
+
+  describe('with a data volume (installs: no host folders at all)', () => {
+    const volOpts: Opts = { images: [IMAGE], dataVolume: 'sdlc_data' };
+    const volumeCreate = () =>
+      buildCreateOptions(
+        { name: 'sdlc-run-1', image: IMAGE, cmd: ['run-stage'], env: {}, workspace: { path: '/data/workspaces/p1/K-1', readOnly: false, hide: { emptyFile: '/data/empty-file', names: ['CLAUDE.md'] } }, contextDir: '/data/runs/r1', memory: '4g', cpus: 2, timeoutMs: 1 },
+        { name: 'sdlc_data', root: '/data' },
+      ) as unknown as { HostConfig: Record<string, unknown> };
+    const bad = async (patch: (o: ReturnType<typeof volumeCreate>) => void) => {
+      const { checkRequest } = await load();
+      const copy = JSON.parse(JSON.stringify(volumeCreate())) as ReturnType<typeof volumeCreate>;
+      patch(copy);
+      return checkRequest('POST', '/containers/create', copy, volOpts);
+    };
+    const mount = (over: Record<string, unknown>) => [{ Type: 'volume', Source: 'sdlc_data', Target: '/workspace', ReadOnly: false, VolumeOptions: { Subpath: 'workspaces/p1/K-1' }, ...over }];
+
+    it('accepts what the worker sends: sub-paths of the data volume', async () => {
+      const { checkRequest } = await load();
+      expect(checkRequest('POST', '/containers/create', volumeCreate(), volOpts)).toBeNull();
+    });
+
+    it('refuses host folders, the whole volume, other volumes and anything but a plain sub-path', async () => {
+      expect(await bad((o) => (o.HostConfig.Binds = ['/data/workspaces/p1/K-1:/workspace:rw']))).toContain('outside the data folder');
+      expect(await bad((o) => (o.HostConfig.Binds = ['sdlc_data:/everything:ro']))).toContain('only be mounted by sub-path');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ VolumeOptions: {} })))).toContain('never the whole volume');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ VolumeOptions: { Subpath: '.' } })))).toContain('never the whole volume');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ VolumeOptions: { Subpath: '../x' } })))).toContain('plain relative path');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ VolumeOptions: { Subpath: 'workspaces/../../x' } })))).toContain('plain relative path');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ VolumeOptions: { Subpath: '/etc' } })))).toContain('plain relative path');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ Source: 'sdlc_npm_mirror' })))).toContain('not the data volume');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ Type: 'bind', Source: '/' })))).toContain('mount type bind');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ Type: 'tmpfs' })))).toContain('mount type tmpfs');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ BindOptions: { Propagation: 'shared' } })))).toContain('BindOptions');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ VolumeOptions: { Subpath: 'w', DriverConfig: { Name: 'local' } } })))).toContain('DriverConfig');
+      expect(await bad((o) => (o.HostConfig.Mounts = mount({ Target: 'relative' })))).toContain('absolute target');
+    });
   });
 
   it('requires the sandbox the worker asks for, instead of trusting a create that leaves it out', async () => {

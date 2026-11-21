@@ -3,6 +3,11 @@ import path from 'node:path';
 /** Worker environment. Tokens and the git identity are not here: they come from CredentialsService (env first, then the database). DATA_DIR must be an absolute path that is identical on the host and in agent containers. */
 export class WorkerConfig {
   readonly dataDir: string;
+  /**
+   * DATA_VOLUME: installs keep DATA_DIR in this Docker volume (mounted at DATA_DIR in the worker), so repository code never lands on
+   * the host disk; agent containers mount sub-paths of it. Unset (development, tests): DATA_DIR is a host folder, bind-mounted.
+   */
+  readonly dataVolume: string | null;
   readonly databaseUrl: string;
   readonly mirrorPollMs: number;
   readonly agentImage: string;
@@ -30,6 +35,7 @@ export class WorkerConfig {
     const dataDir = env.DATA_DIR as string;
     if (!path.isAbsolute(dataDir)) throw new Error('DATA_DIR must be an absolute path');
     this.dataDir = dataDir;
+    this.dataVolume = env.DATA_VOLUME?.trim() || null;
     this.databaseUrl = env.DATABASE_URL as string;
     this.mirrorPollMs = Number(env.MIRROR_POLL_MS ?? 5000);
     this.agentImage = env.AGENT_IMAGE || 'sdlc-agent/agent:latest';
@@ -50,6 +56,11 @@ export class WorkerConfig {
     );
     this.pushUrlPrefixes = ['https://github.com/', ...(env.TEST_PUSH_URL_PREFIXES ?? '').split(',').map((p) => p.trim()).filter(Boolean)];
     this.guidelinesDir = env.GUIDELINES_DIR || path.resolve(__dirname, '../../../../guidelines');
+  }
+
+  /** The data volume and where the worker mounts it, for agent containers; null when DATA_DIR is a host folder. */
+  dataMount(): { name: string; root: string } | null {
+    return this.dataVolume ? { name: this.dataVolume, root: this.dataDir } : null;
   }
 
   runDir(stageRunId: string): string {

@@ -13,6 +13,8 @@ const PORT = Number(process.env.PORT || 2375);
 const list = (v) => (v || '').split(',').map((s) => s.trim()).filter(Boolean);
 const opts = {
   bindRoots: list(process.env.ALLOWED_BIND_ROOTS).map((s) => s.replace(/\/+$/, '')),
+  // Installs: the data volume agents mount sub-paths of (no host bind roots then). Development: unset, host bind roots instead.
+  dataVolume: (process.env.ALLOWED_DATA_VOLUME || '').trim(),
   images: list(process.env.ALLOWED_IMAGES),
   networks: list(process.env.ALLOWED_NETWORKS || 'sdlc_agent_net'),
 };
@@ -114,4 +116,4 @@ net.createServer((client) => {
       .catch((err) => deny(client, `internal error: ${err.message}`));
   };
   client.on('data', onData);
-}).listen(PORT, '0.0.0.0', () => console.log(`docker-proxy on :${PORT} -> ${SOCKET}, bind roots: ${opts.bindRoots.join(', ') || '(none)'}, images: ${opts.images.join(', ') || '(none)'}`));
+}).listen(PORT, '0.0.0.0', () => console.log(`docker-proxy on :${PORT} -> ${SOCKET}, bind roots: ${opts.bindRoots.join(', ') || '(none)'}, data volume: ${opts.dataVolume || '(none)'}, images: ${opts.images.join(', ') || '(none)'}`));
