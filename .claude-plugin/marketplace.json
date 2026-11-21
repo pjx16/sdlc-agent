@@ -8,7 +8,12 @@
   "plugins": [
     {
       "name": "sdlc-subagents",
-      "source": "./plugins/sdlc-subagents",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/pjx16/sdlc-agent.git",
+        "path": "plugins/sdlc-subagents",
+        "ref": "v0.0.1"
+      },
       "description": "Subagents from sdlc-agent for your own Claude Code sessions: design a feature, investigate a bug, split a plan, write failing tests, implement, fix, document, review a diff for correctness, quality and security, and triage a failed CI run."
     }
   ]

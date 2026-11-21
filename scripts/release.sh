@@ -114,10 +114,13 @@ cmd_prepare() {
   require_clean_dev
   git switch -c "release/$TAG"
   scripts/bump-version.sh "$VERSION"
-  git add package.json package-lock.json apps/*/package.json packages/*/package.json CHANGELOG.md
+  git add package.json package-lock.json apps/*/package.json packages/*/package.json CHANGELOG.md \
+    plugins/sdlc-subagents/.claude-plugin/plugin.json .claude-plugin/marketplace.json
   git commit -s -m "chore(release): $TAG"
+  # Everything bump-version.sh changed must be in the release commit; a file left behind would ship the old version.
+  [ -z "$(git status --porcelain)" ] || die "bump-version.sh changed files that were not committed: $(git status --porcelain | tr '\n' ' ')"
   git push -u origin "release/$TAG"
-  gh pr create --repo "$REPO" --base dev --title "chore(release): $TAG" --body "Sets every workspace version to \`$VERSION\` and moves the \`[Unreleased]\` changelog entries under \`[$VERSION]\`. Check the notes: they become the GitHub release notes.
+  gh pr create --repo "$REPO" --base dev --title "chore(release): $TAG" --body "Sets every workspace version and the \`sdlc-subagents\` plugin version to \`$VERSION\`, pins the marketplace to \`$TAG\` (plugin installs fail from merge until \`publish\` pushes the tag, so publish soon after), and moves the \`[Unreleased]\` changelog entries under \`[$VERSION]\`. Check the notes: they become the GitHub release notes.
 
 After merge: \`git switch dev && git pull && scripts/release.sh publish $VERSION\`"
   echo
@@ -134,6 +137,13 @@ cmd_check() {
   local cli_version
   cli_version=$(node -p "require('./packages/cli/package.json').version")
   [ "$cli_version" = "$VERSION" ] || die "packages/cli/package.json is $cli_version; run scripts/release.sh prepare $VERSION and merge it first"
+  local plugin_version
+  plugin_version=$(node -p "require('./plugins/sdlc-subagents/.claude-plugin/plugin.json').version")
+  [ "$plugin_version" = "$VERSION" ] || die "plugins/sdlc-subagents/.claude-plugin/plugin.json is $plugin_version; run scripts/release.sh prepare $VERSION and merge it first"
+  # The marketplace installs the plugin from this release's tag, so it must name it.
+  local plugin_ref
+  plugin_ref=$(node -p "require('./.claude-plugin/marketplace.json').plugins.find((p) => p.name === 'sdlc-subagents').source.ref")
+  [ "$plugin_ref" = "$TAG" ] || die ".claude-plugin/marketplace.json pins sdlc-subagents to $plugin_ref, not $TAG; run scripts/release.sh prepare $VERSION and merge it first"
   changelog_notes | grep -q '[^[:space:]]' || die "CHANGELOG.md has no notes under '## [$VERSION]'"
 
   git tag -l "$TAG" | grep -q . && die "the tag $TAG already exists locally (git tag -d $TAG, or roll back)"
@@ -196,11 +206,8 @@ build_bundle() {
     for f in LICENSE README.md CHANGELOG.md SECURITY.md THIRD_PARTY_NOTICES.md; do cp "$root/$f" "$dir/"; done
     COPYFILE_DISABLE=1 tar -czf "$dir.tar.gz" "$dir"
     # The sdlc-subagents Claude Code plugin, for installs without the marketplace (claude --plugin-dir). It is generated
-    # by `npm run agents` and committed; a test fails when it drifts, so it is zipped as it is in the repository.
-    local plugin_version
-    plugin_version=$(node -p "require('$root/plugins/sdlc-subagents/.claude-plugin/plugin.json').version")
-    [ "$plugin_version" = "$VERSION" ] \
-      || die "plugins/sdlc-subagents/.claude-plugin/plugin.json is $plugin_version, not $VERSION (run scripts/release.sh prepare $VERSION)"
+    # by `npm run agents` and committed; a test fails when it drifts, so it is zipped as it is in the repository. Its
+    # version was checked against $VERSION in cmd_check.
     (cd "$root/plugins" && zip -qrX "$OLDPWD/sdlc-subagents-$VERSION.zip" sdlc-subagents -x '*.DS_Store')
     shasum -a 256 "$dir.tar.gz" "sdlc-subagents-$VERSION.zip" > SHA256SUMS
     cat SHA256SUMS
@@ -237,7 +244,7 @@ cmd_publish() {
   echo "About to release $TAG from $sha:"
   echo "  images    $REGISTRY/sdlc-agent-{api,worker,dashboard,broker,proxy,docker-proxy,npm-mirror}:$VERSION"
   echo "  tag       $TAG, pushed to origin"
-  echo "  release   GitHub release $TAG (pre-release: $PRERELEASE)"
+  echo "  release   GitHub release $TAG (pre-release: $PRERELEASE) with the bundle and sdlc-subagents-$VERSION.zip"
   echo "  npm       $NPM_PACKAGE@$VERSION under the '$DIST_TAG' dist-tag"
   confirm "Publish?" || die "stopped; nothing was published"
 

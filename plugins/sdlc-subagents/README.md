@@ -18,8 +18,8 @@ On older versions, add the marketplace first:
 /plugin install sdlc-subagents@sdlc-agent
 ```
 
-The plugin follows sdlc-agent releases: its version is the release version, and `/plugin marketplace update sdlc-agent`
-fetches a new one. Each [GitHub release](https://github.com/pjx16/sdlc-agent/releases) also has
+The plugin follows sdlc-agent releases: the marketplace installs it from the latest release's tag (never from unreleased
+work on `dev`), its version is the release version, and `/plugin marketplace update sdlc-agent` fetches a new one. Each [GitHub release](https://github.com/pjx16/sdlc-agent/releases) also has
 `sdlc-subagents-<version>.zip`; unzip it and start Claude Code with `claude --plugin-dir ./sdlc-subagents` to use it without
 the marketplace.
 

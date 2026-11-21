@@ -10,6 +10,11 @@ export const PLUGIN = {
   repository: 'https://github.com/pjx16/sdlc-agent',
 } as const;
 
+/** Where the marketplace fetches the plugin from: its directory at the release tag `v<version>`. */
+export function pluginSource(version: string) {
+  return { source: 'git-subdir', url: `${PLUGIN.repository}.git`, path: PLUGIN.dir, ref: `v${version}` } as const;
+}
+
 /** Guideline files the plugin ships next to its agents, read by them through `${CLAUDE_PLUGIN_ROOT}` when needed. */
 export const PLUGIN_GUIDELINES = ['stacks/ts-node.md', 'stacks/nestjs.md', 'stacks/nextjs.md', 'review-checklist.md', 'kb-doc-template.md'] as const;
 
@@ -62,7 +67,8 @@ export function buildAgentFiles(read: (rel: string) => string, version: string):
     name: PLUGIN.marketplace,
     description: 'Claude Code plugins from sdlc-agent.',
     owner: author,
-    plugins: [{ name: PLUGIN.name, source: `./${PLUGIN.dir}`, description: PLUGIN.description }],
+    // Pinned to the release tag, not the default branch, so installs get the released agents and not unreleased work on dev.
+    plugins: [{ name: PLUGIN.name, source: pluginSource(version), description: PLUGIN.description }],
   };
   files.set('.claude-plugin/marketplace.json', `${JSON.stringify(marketplace, null, 2)}\n`);
   return files;

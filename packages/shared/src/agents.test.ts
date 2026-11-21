@@ -85,12 +85,17 @@ describe('the sdlc-subagents plugin', () => {
       for (const [, target] of text.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([\w./-]+\.md)/g)) expect(files.has(`${PLUGIN.dir}/${target}`), `${rel} -> ${target}`).toBe(true);
     }
   });
-  it('the manifest carries the release version, and the marketplace lists the plugin by its directory', () => {
+  it('the manifest carries the release version, and the marketplace pins the plugin directory to the release tag', () => {
     const manifest = JSON.parse(files.get(`${PLUGIN.dir}/.claude-plugin/plugin.json`)!);
     expect(manifest).toMatchObject({ name: PLUGIN.name, version: '9.9.9', license: 'MIT' });
     const marketplace = JSON.parse(files.get('.claude-plugin/marketplace.json')!);
     expect(marketplace.name).toBe(PLUGIN.marketplace);
-    expect(marketplace.plugins).toEqual([expect.objectContaining({ name: PLUGIN.name, source: `./${PLUGIN.dir}` })]);
+    expect(marketplace.plugins).toEqual([
+      expect.objectContaining({
+        name: PLUGIN.name,
+        source: { source: 'git-subdir', url: `${PLUGIN.repository}.git`, path: PLUGIN.dir, ref: 'v9.9.9' },
+      }),
+    ]);
   });
   it('the CI triager can read a run log in the plugin, though it has no tools in the pipeline', () => {
     expect(files.get(`${PLUGIN.dir}/agents/ci-triager.md`)).toContain('tools: Read, Grep, Glob, Bash');

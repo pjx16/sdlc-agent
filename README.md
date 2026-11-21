@@ -221,7 +221,7 @@ feature mapper, repo profiler) are not in it.
 ```
 
 On Claude Code before 2.1.275, run `/plugin marketplace add pjx16/sdlc-agent` then `/plugin install sdlc-subagents@sdlc-agent`.
-The plugin's version is the release version. See [`plugins/sdlc-subagents/README.md`](./plugins/sdlc-subagents/README.md)
+The marketplace installs the plugin from the latest release's tag, not from `dev`, and its version is the release version. See [`plugins/sdlc-subagents/README.md`](./plugins/sdlc-subagents/README.md)
 for the agents and how to use them.
 
 ## Adding a project
