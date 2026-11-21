@@ -12,7 +12,7 @@ let tokens: GatewayTokens;
 let key: string;
 const seen: { url: string; method: string; headers: Record<string, string | string[] | undefined>; body: string }[] = [];
 
-async function start(token: string | null = 'sk-ant-oat-secret') {
+async function start(token: string | null = 'sk-ant-api03-secret') {
   upstream = createServer((req, res) => {
     let body = '';
     req.on('data', (c: Buffer) => (body += c.toString()));
@@ -37,15 +37,15 @@ afterEach(() => {
 });
 
 describe('LlmGateway', () => {
-  it('forwards POST /v1/messages with the token it holds, dropping the agent\'s own credentials', async () => {
+  it('forwards POST /v1/messages with the API key it holds, dropping the agent\'s own credentials', async () => {
     const base = await start();
     const res = await fetch(`${base}/v1/messages`, { method: 'POST', headers: { 'x-api-key': key, authorization: 'Bearer attacker', 'anthropic-version': '2023-06-01', 'anthropic-beta': 'foo', 'content-type': 'application/json' }, body: '{"model":"m"}' });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
     expect(seen).toHaveLength(1);
-    expect(seen[0]?.headers['x-api-key']).toBeUndefined();
-    expect(seen[0]?.headers.authorization).toBe('Bearer sk-ant-oat-secret');
-    expect(seen[0]?.headers['anthropic-beta']).toBe('foo,oauth-2025-04-20');
+    expect(seen[0]?.headers['x-api-key']).toBe('sk-ant-api03-secret');
+    expect(seen[0]?.headers.authorization).toBeUndefined();
+    expect(seen[0]?.headers['anthropic-beta']).toBe('foo');
     expect(seen[0]?.headers['anthropic-version']).toBe('2023-06-01');
     expect(seen[0]?.body).toBe('{"model":"m"}');
   });
@@ -71,7 +71,7 @@ describe('LlmGateway', () => {
     expect(seen).toHaveLength(1);
   });
 
-  it('answers 503 and sends nothing upstream when no token is set', async () => {
+  it('answers 503 and sends nothing upstream when no API key is set', async () => {
     const base = await start(null);
     expect((await fetch(`${base}/v1/messages`, { method: 'POST', headers: { 'x-api-key': key }, body: '{}' })).status).toBe(503);
     expect(seen).toHaveLength(0);
