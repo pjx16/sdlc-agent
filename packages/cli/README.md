@@ -2,16 +2,16 @@
 
 Install and run **sdlc-agent**, a self-hosted, Docker-based engine that turns tickets (Jira or pasted) into reviewable pull requests with AI agents.
 
-> [!WARNING]
-> **Status: under development.** This is a `0.0.x` pre-release. It is published so I can use it on my own projects and find what breaks. It is not production-ready, and it is not supported for anyone else.
+> [!NOTE]
+> **Status: 1.0.** Releases follow [semantic versioning](https://semver.org/): a breaking change comes only in a new major version, with upgrade notes in the [CHANGELOG](https://github.com/pjx16/sdlc-agent/blob/dev/CHANGELOG.md), and `sdlc-agent upgrade` carries an install across it.
 >
 > **Known limits**
 > - Only TypeScript/JavaScript stacks (Node.js, NestJS, Next.js) for now.
 > - Single user, password login.
 > - Agents run with full permissions inside their Docker containers. Don't point it at repositories you can't afford to lose, and don't run it on a machine that holds credentials you don't want exposed.
-> - The Claude usage pause is a guard, not a guarantee. Check your plan's limits yourself.
+> - Spend budgets are checked between runs, so the run in progress when a budget is reached can go past it. Set a spend limit in the Anthropic Console as the hard stop.
 >
-> Feedback and bug reports are welcome, but expect breaking changes until `0.1.0`.
+> Feedback and bug reports are welcome: [open an issue](https://github.com/pjx16/sdlc-agent/issues).
 
 This package is only a launcher. The application is the Docker images published to GHCR, at the same version as the CLI.
 
@@ -77,7 +77,7 @@ Install the new CLI and run `upgrade`:
 npx sdlc-agent@latest upgrade        # or: npm i -g sdlc-agent@latest && sdlc-agent upgrade
 ```
 
-It prints the changelog between your version and the new one, asks for confirmation if the change may break things, writes an encrypted database backup to `backups/`, replaces the compose file, updates your guidelines, and restarts the stack. A guideline you edited is never overwritten: the new version is written beside it as `<file>.new` for you to review. Upgrading from 0.0.1 also moves your old `data/` folder into the `sdlc_data` volume (the stack is stopped while it copies) and comments `DATA_DIR` out of `.env`; delete the old folder once you are happy. Downgrades are not supported. Until `0.1.0`, read the changelog before upgrading.
+It prints the changelog between your version and the new one, asks for confirmation if the change may break things, writes an encrypted database backup to `backups/`, replaces the compose file, updates your guidelines, and restarts the stack. A guideline you edited is never overwritten: the new version is written beside it as `<file>.new` for you to review. Upgrading from 0.0.1 also moves your old `data/` folder into the `sdlc_data` volume (the stack is stopped while it copies) and comments `DATA_DIR` out of `.env`; delete the old folder once you are happy. Downgrades are not supported. Within a major version (1.x) an upgrade asks first only when its notes mention a breaking change; a new major version always asks.
 
 ## Forgot the password
 

@@ -2,9 +2,19 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> Until `0.1.0`, any release may contain breaking changes (database migrations, configuration, API). Read this file before upgrading.
+> From 1.0.0, a breaking change (database, configuration, API) comes only in a new major version, with upgrade steps here. `sdlc-agent upgrade` prints the notes between your version and the new one.
 
 ## [Unreleased]
+
+### Upgrading from 0.0.1
+
+Run `npx sdlc-agent@latest upgrade` (or `npm i -g sdlc-agent@latest && sdlc-agent upgrade`). It backs up the database (encrypted), moves your old `data/` folder into the `sdlc_data` Docker volume, and restarts the stack. Then:
+
+1. **Docker Engine 26 or later** is required (Docker Desktop 4.29 or later). `sdlc-agent doctor` checks it.
+2. **Enter an Anthropic API key** in Settings → Connections, or set `ANTHROPIC_API_KEY` in `.env`. The Claude subscription token is no longer used and was removed from the database. Set a spend limit on the key's workspace in the Anthropic Console too.
+3. **Approve your spending limits** in the banner the dashboard shows (or set them in Settings → Budgets): daily, weekly and monthly, in credits (1 credit = 1 USD).
+4. **Keep `.env` safe:** its `ENCRYPTION_KEY` now also opens the daily database backups in `backups/`.
+5. Once the stack runs, delete the old `data/` folder; it is no longer used.
 
 ### Security
 
