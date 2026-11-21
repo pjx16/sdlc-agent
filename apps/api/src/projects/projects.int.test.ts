@@ -117,13 +117,14 @@ describe('Projects API (F2)', () => {
     expect((await t.agent.patch(`/projects/${id}`).send({ enabled: true }).expect(200)).body.enabled).toBe(true);
   });
 
-  it('retries a failed mirror and refuses otherwise', async () => {
+  it('clones a failed or ready mirror again, and refuses one that is already cloning', async () => {
     const { id } = (await t.agent.post('/projects').send(valid).expect(201)).body;
     const refused = await t.agent.post(`/projects/${id}/mirror/retry`).expect(409);
-    expect(refused.body.error).toBe('conflict');
+    expect(refused.body).toMatchObject({ error: 'conflict', message: 'The mirror is already being cloned' });
     await t.prisma.project.update({ where: { id }, data: { mirrorStatus: 'failed', mirrorError: 'boom' } });
-    const res = await t.agent.post(`/projects/${id}/mirror/retry`).expect(200);
-    expect(res.body).toMatchObject({ mirrorStatus: 'pending', mirrorError: null });
+    expect((await t.agent.post(`/projects/${id}/mirror/retry`).expect(200)).body).toMatchObject({ mirrorStatus: 'pending', mirrorError: null });
+    await t.prisma.project.update({ where: { id }, data: { mirrorStatus: 'ok' } });
+    expect((await t.agent.post(`/projects/${id}/mirror/retry`).expect(200)).body).toMatchObject({ mirrorStatus: 'pending' });
   });
 
   it('lists Jira statuses for the mapping dropdown, only in REST mode with a project key', async () => {
