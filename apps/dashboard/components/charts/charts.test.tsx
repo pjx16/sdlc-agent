@@ -13,9 +13,9 @@ import { UsageChart } from './usage-chart';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const usage: MetricsUsage = {
-  range: '7d', thresholdPct: 50, thresholdWeeklyPct: 80,
-  series: [{ at: '2026-11-12T10:00:00Z', fiveHourPct: 20.04, sevenDayPct: 5, status: 'allowed' }, { at: '2026-11-12T11:00:00Z', fiveHourPct: 55, sevenDayPct: null, status: 'allowed_warning' }],
-  pauses: [{ at: '2026-11-12T11:00:00Z', message: 'Pipeline paused: 5-hour usage is at 55%' }],
+  range: '7d', timezone: 'UTC', unit: 'day',
+  series: [{ at: '2026-11-11T00:00:00Z', credits: 1.25, cumulative: 1.25 }, { at: '2026-11-12T00:00:00Z', credits: 2.5, cumulative: 3.75 }],
+  pauses: [{ at: '2026-11-12T11:00:00Z', message: 'Pipeline paused: The daily budget of 2 credits is used up' }],
 };
 const tokens: MetricsTokens = {
   range: '7d', groupBy: 'stage', keys: ['plan', 'implement'],
@@ -46,14 +46,14 @@ describe('ChartFrame', () => {
 describe('UsageChart', () => {
   it('describes the chart in text and lists the same numbers as a table', async () => {
     render(<UsageChart data={usage} />);
-    expect(screen.getByText(/pause threshold; latest 55%\. 1 pause/)).toBeInTheDocument();
+    expect(screen.getByText(/Credits per day \(1 credit = 1 USD\), 3\.75 credits in range\. 1 pause/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'View data' }));
-    expect(screen.getByText('20')).toBeInTheDocument();
-    expect(screen.getByText('allowed_warning')).toBeInTheDocument();
+    expect(screen.getByText('2.5')).toBeInTheDocument();
+    expect(screen.getByText('3.75')).toBeInTheDocument();
   });
   it('has a clear empty state', () => {
     render(<UsageChart data={{ ...usage, series: [], pauses: [] }} />);
-    expect(screen.getByText(/No usage recorded in this range/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing spent in this range/)).toBeInTheDocument();
   });
 });
 
@@ -135,14 +135,14 @@ describe('QualityPanel', () => {
 
 describe('Overview parts', () => {
   it('number cards show the four numbers', () => {
-    render(<NumberCards summary={{ range: '7d', ticketsDone: 3, firstPassRate: 0.5, tokensInWindow: 12345, queueLength: 2 }} />);
+    render(<NumberCards summary={{ range: '7d', ticketsDone: 3, firstPassRate: 0.5, creditsToday: 12.5, queueLength: 2 }} />);
     expect(screen.getByText('Tickets done (7d)')).toBeInTheDocument();
     expect(screen.getByText('50%')).toBeInTheDocument();
-    expect(screen.getByText('12,345')).toBeInTheDocument();
+    expect(screen.getByText('12.50')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
   });
   it('a missing first-pass rate is a dash', () => {
-    render(<NumberCards summary={{ range: '24h', ticketsDone: 0, firstPassRate: null, tokensInWindow: 0, queueLength: 0 }} />);
+    render(<NumberCards summary={{ range: '24h', ticketsDone: 0, firstPassRate: null, creditsToday: 0, queueLength: 0 }} />);
     expect(screen.getByText('—')).toBeInTheDocument();
   });
   it('the range switch marks the current range', () => {

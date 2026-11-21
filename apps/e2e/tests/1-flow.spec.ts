@@ -81,13 +81,25 @@ test('answer a support query, which resumes the ticket', async ({ page }) => {
   await expect(page.getByText(/On hold:/)).toHaveCount(0);
 });
 
+test('budget approval banner: approving saves the budgets and the banner goes away', async ({ page }) => {
+  await withDb((c) => c.query(`UPDATE "GlobalSettings" SET "budgetsApprovedAt" = NULL WHERE id = 'global'`));
+  await login(page);
+  const banner = page.getByRole('region', { name: 'Set spending limits' });
+  await expect(banner).toBeVisible();
+  await banner.getByRole('button', { name: 'Approve' }).click();
+  await expect(banner).toHaveCount(0);
+  const row = (await withDb((c) => c.query(`SELECT "budgetDailyCredits", "budgetsApprovedAt" FROM "GlobalSettings"`))).rows[0];
+  expect(row.budgetDailyCredits).not.toBeNull();
+  expect(row.budgetsApprovedAt).not.toBeNull();
+});
+
 test('pause banner: shows why, Ignore clears it', async ({ page }) => {
-  await withDb((c) => c.query(`UPDATE "GlobalSettings" SET "pipelinePaused" = true, "pausedReason" = '5-hour usage is at 55% (threshold 50%)', "resetsAt" = now() + interval '3 hours' WHERE id = 'global'`));
+  await withDb((c) => c.query(`UPDATE "GlobalSettings" SET "pipelinePaused" = true, "pausedCode" = 'SPEND_BUDGET_REACHED', "pausedReason" = 'The daily budget of 2 credits is used up (2.1 spent)', "resetsAt" = now() + interval '3 hours' WHERE id = 'global'`));
   await login(page);
   const banner = page.getByRole('alert').filter({ hasText: 'Pipeline paused' });
-  await expect(banner).toContainText('5-hour usage is at 55%');
+  await expect(banner).toContainText('The daily budget of 2 credits is used up');
   await expect(page.getByText('Paused', { exact: true })).toBeVisible();
-  await banner.getByRole('button', { name: 'Ignore usage for this window' }).click();
+  await banner.getByRole('button', { name: 'Ignore budgets until then' }).click();
   await expect(banner).toHaveCount(0);
   await expect(page.getByText('Idle', { exact: true })).toBeVisible();
   expect((await withDb((c) => c.query(`SELECT "usageIgnoredUntil" FROM "GlobalSettings"`))).rows[0].usageIgnoredUntil).not.toBeNull();

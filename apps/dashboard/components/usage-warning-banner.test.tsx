@@ -3,18 +3,17 @@ import { describe, expect, it } from 'vitest';
 import { UsageWarningBanner } from './usage-warning-banner';
 import type { SystemView } from '@/lib/types';
 
-const sys = (sevenDayPct: number): SystemView =>
-  ({ settings: { pipelinePaused: false, usageThresholdPct: 90, usageThresholdWeeklyPct: 80 }, usage: { at: '', fiveHourPct: 10, sevenDayPct, status: 'allowed', resetsAt: '2026-11-15T11:00:00Z', source: 'event' } }) as unknown as SystemView;
-const NOW = Date.parse('2026-11-14T13:30:00Z');
+const sys = (spent: number): SystemView =>
+  ({ settings: { pipelinePaused: false }, spend: { timezone: 'UTC', warnPct: 80, periods: [{ period: 'weekly', spent, budget: 50, pct: (spent / 50) * 100, resetsAt: '2026-11-23T00:00:00Z' }], suggested: { daily: 10, weekly: 50, monthly: 150 } } }) as unknown as SystemView;
 
 describe('UsageWarningBanner', () => {
   it('shows the heads-up as a note, not as a live status: a page keeps its own status messages for its actions', () => {
-    render(<UsageWarningBanner system={sys(76)} now={NOW} />);
-    expect(screen.getByRole('note', { name: 'Usage warning' })).toHaveTextContent('weekly usage 76% (pauses at 80%)');
+    render(<UsageWarningBanner system={sys(42)} />);
+    expect(screen.getByRole('note', { name: 'Budget warning' })).toHaveTextContent('weekly 84% (42.00 credits of 50.00 credits)');
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
-  it('renders nothing while usage is well under the thresholds', () => {
-    const { container } = render(<UsageWarningBanner system={sys(20)} now={NOW} />);
+  it('renders nothing while spend is well under the budgets', () => {
+    const { container } = render(<UsageWarningBanner system={sys(10)} />);
     expect(container).toBeEmptyDOMElement();
   });
 });
