@@ -19,6 +19,7 @@ const NUMERIC_PATHS = [
   'settings.recovery.maxAttempts',
   'settings.loopLimits.userRerun',
   'settings.loopLimits.orchestratorReplan',
+  'settings.jiraConnector.pollIntervalMin',
 ];
 
 export function initialValues(project?: ProjectView): FormValues {

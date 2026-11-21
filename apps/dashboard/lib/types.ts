@@ -39,7 +39,7 @@ export interface GlobalSettingsView {
 }
 
 export interface IntakeStatusView {
-  mode: 'rest';
+  mode: 'rest' | 'mcp' | 'connector';
   at: string | null;
   projects: number;
   waiting: number;

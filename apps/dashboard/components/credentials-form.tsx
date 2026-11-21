@@ -4,6 +4,7 @@ import { LocalTime } from '@/components/local-time';
 import { CREDENTIAL_KEYS, type CredentialKey, type CredentialView } from '@sdlc/shared';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { RovoConnect } from './rovo-connect';
 
 
 interface TestState {
@@ -21,6 +22,10 @@ interface Card {
   keys: CredentialKey[];
   /** The credential the card's Test button checks (it tests the connection as a whole). */
   testKey: CredentialKey;
+  /** Testable even when the test key itself is unset (the connection can be made from other keys). */
+  alwaysTestable?: boolean;
+  /** The Rovo MCP card also offers the OAuth sign-in. */
+  rovoConnect?: boolean;
 }
 
 /** GitHub's "new fine-grained token" page with the name and permissions pre-filled (the repositories are chosen on the page). */
@@ -90,18 +95,39 @@ const CARDS: Card[] = [
     help: (
       <div className="space-y-2">
         <p>
-          Only needed for Jira REST mode. Use your Jira Cloud base URL (<code>https://your-site.atlassian.net</code>), the email of your Atlassian account, and an API token from{' '}
+          For Jira REST mode, the recommended way: it spends no Claude tokens. Use your Jira Cloud base URL (<code>https://your-site.atlassian.net</code>), the email of your Atlassian account, and an API token from{' '}
           <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer" className="text-accent underline">
             id.atlassian.com ↗
           </a>
           .
         </p>
         <p>The account behind it must be able to browse the project, comment, create subtasks and transition issues, because the pipeline reads tickets, posts plans and moves statuses.</p>
+        <p>The base URL and email are also used by Rovo MCP mode (below): the URL picks the site, the email goes with a scoped token.</p>
       </div>
     ),
     keys: ['jira_base_url', 'jira_email', 'jira_api_token'],
     id: 'jira',
     testKey: 'jira_api_token',
+  },
+  {
+    title: 'Jira through Atlassian Rovo MCP',
+    optional: true,
+    help: (
+      <div className="space-y-2">
+        <p>
+          For Jira mode <strong>Atlassian Rovo MCP</strong>, when your organisation turns off classic API tokens but allows the Rovo MCP server. The pipeline calls the server&apos;s Jira tools from code, so it
+          spends no Claude tokens.
+        </p>
+        <p>
+          Either <strong>connect with Atlassian</strong> (OAuth; the sign-in is refreshed by itself), or paste a <strong>scoped</strong> API token with the Jira <code>agent-interface</code> scopes and set the Jira email above (an org admin must allow API-token access for Rovo MCP). Leave the server URL empty for the default. The cloud ID is only needed when the sign-in sees several sites and the Jira base URL is not set.
+        </p>
+      </div>
+    ),
+    keys: ['jira_mcp_url', 'jira_mcp_token', 'jira_cloud_id'],
+    id: 'jira-mcp',
+    testKey: 'jira_mcp_oauth',
+    alwaysTestable: true,
+    rovoConnect: true,
   },
 ];
 
@@ -165,7 +191,7 @@ function CardView({ card, views, onSaved }: { card: Card; views: Map<CredentialK
   // Only fields that are editable and changed (a secret: anything typed) are sent.
   const changed = fields.filter((v) => v.source !== 'env' && values[v.key]?.trim() && values[v.key]!.trim() !== initialValue(v, secretOf(v.key)));
   const primary = views.get(card.testKey);
-  const testable = primary !== undefined && primary.source !== 'unset';
+  const testable = card.alwaysTestable || (primary !== undefined && primary.source !== 'unset');
   const allEnv = fields.every((v) => v.source === 'env');
 
   async function save() {
@@ -226,6 +252,7 @@ function CardView({ card, views, onSaved }: { card: Card; views: Map<CredentialK
           <Field key={v.key} view={v} value={values[v.key] ?? ''} onChange={(text) => setValues((cur) => ({ ...cur, [v.key]: text }))} error={errors[v.key]} />
         ))}
       </div>
+      {card.rovoConnect && <RovoConnect view={primary} onChanged={() => onSaved([{ ...(primary as CredentialView), source: 'unset', hint: null }])} />}
       <div className="mt-5 flex flex-wrap items-center gap-2">
         {!allEnv && (
           <button type="button" onClick={save} disabled={busy !== null || changed.length === 0} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-50">
@@ -280,6 +307,21 @@ export function CredentialsForm({ initial, encryptionKeyOk = true }: { initial: 
       {CARDS.map((card) => (
         <CardView key={card.id} card={card} views={byKey} onSaved={onSaved} />
       ))}
+      <section data-testid="card-jira-connector" className="panel p-6" aria-labelledby="card-jira-connector-title">
+        <h2 id="card-jira-connector-title" className="text-lg font-semibold">
+          Jira through the Claude Jira connector <span className="ml-2 text-xs font-normal text-muted">optional · uses Claude tokens</span>
+        </h2>
+        <div className="mt-2 space-y-2 text-sm text-muted">
+          <p>
+            For Jira mode <strong>Claude Jira connector</strong>, when your organisation allows neither of the above but you have added Jira as a connector in claude.ai. A Claude agent does every Jira call, so
+            it spends Claude usage each time; use it only when nothing else is allowed.
+          </p>
+          <p>
+            Nothing is entered here. Sign the connector in once, on the machine that runs sdlc-agent: <code>bash scripts/jira-connector-login.sh</code>, then <code>/login</code> with the claude.ai account that has
+            the connector, and <code>/mcp</code> to check it is listed. <code>bash scripts/jira-connector-login.sh --check</code> shows what the login can see.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

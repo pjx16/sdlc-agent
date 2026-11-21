@@ -59,7 +59,7 @@ export class ProjectsService {
   async jiraStatuses(id: string): Promise<string[]> {
     const project = await this.get(id);
     if (!jiraOn(project.jiraMode)) {
-      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Jira statuses can only be listed when the project is in REST mode');
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Jira statuses can only be listed when the project uses Jira');
     }
     if (!project.jiraProjectKey) {
       throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Set the Jira project key first');

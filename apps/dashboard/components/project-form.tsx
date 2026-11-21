@@ -3,16 +3,18 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import {
-  CLAUDE_MD_MODES, DEFAULT_INTAKE_LABEL, JIRA_MODES, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
+  CLAUDE_MD_MODES, DEFAULT_INTAKE_LABEL, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
   ProjectSettingsSchema, defaultJiraJql, commandWarnings, stageWarnings, type ProjectStack,
 } from '@sdlc/shared';
 import { Check, FormProvider, Num, Section, Select, Text, TextArea, Warnings } from './form';
+import { JiraModeNote } from './jira-mode-note';
 import { MirrorStatus } from './mirror-status';
 import { StatusMapping } from './status-mapping';
 import { collapseListErrors, getIn, setIn, type FormValues } from '@/lib/form';
 import { applyStackChange, initialValues, toPayload } from '@/lib/project-form';
 import type { ProjectView } from '@/lib/types';
 import { STAGE_LABELS } from '@/lib/stage-labels';
+import { JIRA_MODE_OPTIONS } from '@/lib/jira-modes';
 
 const options = (values: readonly string[]) => values.map((v) => ({ value: v, label: v }));
 
@@ -118,7 +120,14 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
         </Section>
 
         <Section title="Jira">
-          <Select path="jiraMode" label="Jira mode" options={options(JIRA_MODES)} />
+          <Select path="jiraMode" label="Jira mode" options={JIRA_MODE_OPTIONS} />
+          <JiraModeNote mode={String(values.jiraMode)} />
+          {values.jiraMode === 'connector' && (
+            <>
+              <Text path="settings.jiraConnector.serverName" label="Connector name" hint='As Claude Code lists it after "claude.ai " (run the login script with --check). Usually Atlassian.' />
+              <Num path="settings.jiraConnector.pollIntervalMin" label="Poll every (minutes)" hint="Each poll and each approval check runs a Claude agent." />
+            </>
+          )}
           {jiraOn && (
             <>
               <Text path="jiraProjectKey" label="Jira project key" placeholder="ABC" />
@@ -133,9 +142,9 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
               <Check path="settings.jiraWriteBack.transitions" label="Write back status transitions" />
               <Check path="settings.jiraWriteBack.createSubtasks" label="Create Jira sub-tasks" />
               <Check path="settings.intake.paste" label="Allow pasted tickets" />
-              <Text path="settings.jiraApprovalStatuses.plan" label="Plan approved status" hint="REST mode: a ticket moved to this Jira status approves its plan." />
+              <Text path="settings.jiraApprovalStatuses.plan" label="Plan approved status" hint="A ticket moved to this Jira status approves its plan." />
               <Text path="settings.jiraApprovalStatuses.breakdown" label="Breakdown approved status" />
-              <StatusMapping projectId={project?.id} mode={values.jiraMode as 'rest' | 'off'} />
+              <StatusMapping projectId={project?.id} mode={String(values.jiraMode)} />
             </>
           )}
           {!jiraOn && <p className="text-sm text-muted sm:col-span-2">Jira is off. Tickets are pasted into the dashboard.</p>}

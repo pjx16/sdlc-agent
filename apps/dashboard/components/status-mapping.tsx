@@ -13,12 +13,15 @@ const NOT_MAPPED = { value: '', label: 'Not mapped' };
  * One row per pipeline state: which Jira status to move the issue to (F15). In REST mode (for a saved project) the
  * choices come from Jira; if Jira cannot be reached, the status name is typed.
  */
-export function StatusMapping({ projectId, mode }: { projectId?: string; mode: 'rest' | 'off' }) {
+/** Modes that can list the project's statuses cheaply. The connector would run a Claude agent for it, so there the names are typed. */
+const liveModes = ['rest', 'mcp'];
+
+export function StatusMapping({ projectId, mode }: { projectId?: string; mode: string }) {
   const { values } = useForm();
   const [load, setLoad] = useState<Load>({ state: 'idle' });
 
   useEffect(() => {
-    if (mode !== 'rest' || !projectId) {
+    if (!liveModes.includes(mode) || !projectId) {
       setLoad({ state: 'idle' });
       return;
     }
@@ -46,8 +49,8 @@ export function StatusMapping({ projectId, mode }: { projectId?: string; mode: '
   return (
     <fieldset className="sm:col-span-2">
       <legend className="text-sm">Status mapping (pipeline status to Jira status)</legend>
-      {mode === 'rest' && !projectId && <p className="mt-1 text-xs text-muted">Save the project first to choose from the statuses in Jira. Until then, type the status name.</p>}
-      {mode === 'rest' && projectId && load.state === 'loading' && <p className="mt-1 text-xs text-muted">Loading statuses from Jira…</p>}
+      {liveModes.includes(mode) && !projectId && <p className="mt-1 text-xs text-muted">Save the project first to choose from the statuses in Jira. Until then, type the status name.</p>}
+      {liveModes.includes(mode) && projectId && load.state === 'loading' && <p className="mt-1 text-xs text-muted">Loading statuses from Jira…</p>}
       {load.state === 'error' && (
         <p role="alert" className="mt-1 text-xs text-amber">
           ⚠ Could not load statuses from Jira: {load.message}. Type the status names instead.
