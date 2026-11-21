@@ -4,19 +4,31 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { ProjectStack } from '@sdlc/shared';
+import { assembleAgentPrompt } from '@sdlc/shared';
 import { buildStageContext, buildSystemMd } from './context-builder';
 
 const GUIDELINES = path.resolve(__dirname, '../../../../../guidelines');
 const read = (rel: string) => readFileSync(path.join(GUIDELINES, rel), 'utf8');
+/** An agent's prompt as the pipeline runs it: base plus pipeline overlay. */
+const stage = (name: string) => assembleAgentPrompt(read(`agents/base/${name}.md`), read(`agents/pipeline/${name}.md`));
 
 describe('shipped guideline files', () => {
   it('has every file this milestone owns', () => {
-    for (const f of ['default-CLAUDE.md', 'kb-doc-template.md', 'stacks/ts-node.md', 'stacks/nestjs.md', 'stacks/nextjs.md', 'stages/documentor.md', 'stages/solution-architect.md', 'stages/technical-architect.md', 'stages/test-writer.md', 'stages/coder.md', 'stages/fixer.md', 'stages/pr-reviewer.md', 'review-checklist.md']) expect(existsSync(path.join(GUIDELINES, f)), f).toBe(true);
+    for (const f of ['default-CLAUDE.md', 'kb-doc-template.md', 'stacks/ts-node.md', 'stacks/nestjs.md', 'stacks/nextjs.md', 'agents/shared-rules.md', ...['documentor', 'solution-architect', 'technical-architect', 'test-writer', 'coder', 'fixer', 'pr-reviewer'].flatMap((n) => [`agents/base/${n}.md`, `agents/pipeline/${n}.md`]), 'review-checklist.md']) expect(existsSync(path.join(GUIDELINES, f)), f).toBe(true);
   });
 
-  it('default-CLAUDE.md carries the required rules', () => {
-    const t = read('default-CLAUDE.md');
-    for (const needle of ['needs_input', '`blocked`', 'git commit', 'git push', 'git reset', 'rg -n', 'about 60 lines', 'node_modules', 'dist', 'coverage', 'lockfiles', 'secrets', 'Untrusted input', 'file:line', 'JSON object']) expect(t, needle).toContain(needle);
+  it('the shared rules carry the rules every agent needs, and default-CLAUDE.md how the pipeline runs and reports', () => {
+    const shared = read('agents/shared-rules.md');
+    for (const needle of ['git commit', 'git push', 'git reset', 'rg -n', 'about 60 lines', 'node_modules', 'dist', 'coverage', 'lockfiles', 'secrets', 'Untrusted input', 'file:line', '**Ask**', '**Stop as blocked**']) expect(shared, needle).toContain(needle);
+    const pipeline = read('default-CLAUDE.md');
+    for (const needle of ['needs_input', '"blocked"', 'JSON object', 'headless', 'no web access']) expect(pipeline, needle).toContain(needle);
+  });
+
+  it('the base prompts say nothing about how the pipeline runs them', () => {
+    for (const name of ['documentor', 'solution-architect', 'bug-investigator', 'feature-mapper', 'technical-architect', 'test-writer', 'coder', 'fixer', 'pr-reviewer', 'quality-reviewer', 'security-reviewer', 'ci-triager', 'repo-profiler']) {
+      const t = read(`agents/base/${name}.md`);
+      for (const needle of ['needs_input', '`blocked`', '`summary`', 'orchestrator', 'reverted', '## Inputs', '## Output']) expect(t, `${name} ${needle}`).not.toContain(needle);
+    }
   });
 
   it('kb-doc-template.md names every required section', () => {
@@ -26,20 +38,21 @@ describe('shipped guideline files', () => {
     expect(t).toContain('kbDocMaxLines');
   });
 
-  it('every stage file states its goal, inputs, steps, rules, the data shape and what to do when it cannot go on', () => {
+  it('every assembled stage prompt states its goal, inputs, steps, rules, the data shape and when to ask', () => {
     for (const f of ['documentor', 'solution-architect', 'bug-investigator', 'feature-mapper', 'technical-architect', 'test-writer', 'coder', 'fixer', 'pr-reviewer', 'quality-reviewer', 'security-reviewer', 'ci-triager', 'assistant', 'repo-profiler', 'onboarding-advisor']) {
-      const t = read(`stages/${f}.md`);
-      for (const needle of ['## Goal', '## Inputs', '## Steps', '## Rules', '## Output `data`', '`needs_input`']) expect(t, `${f} ${needle}`).toContain(needle);
+      const t = stage(f);
+      for (const needle of ['## Goal', '## Inputs', '## Steps', '## Rules', '## Output `data`']) expect(t, `${f} ${needle}`).toContain(needle);
+      expect(t, `${f} asking`).toMatch(/needs_input|\bask\b|Ask only|Do not ask/i);
     }
-    expect(read('stages/solution-architect.md')).toContain('{ "planMarkdown": "…", "risks": ["…"], "openQuestions": ["…"] }');
-    expect(read('stages/documentor.md')).toContain('"featureKey": "bookings", "isNew": true');
-    expect(read('stages/solution-architect.md')).toContain('read-only');
+    expect(stage('solution-architect')).toContain('{ "planMarkdown": "…", "risks": ["…"], "openQuestions": ["…"] }');
+    expect(stage('documentor')).toContain('"featureKey": "bookings", "isNew": true');
+    expect(stage('solution-architect')).toContain('read-only');
   });
 
   it('the KB stages leave the index to the orchestrator, and kbUpdate rewrites statements the change made false', () => {
-    expect(read('stages/documentor.md')).toContain('features.json');
-    expect(read('stages/documentor.md')).toContain('do not exist yet');
-    expect(read('stages/documentor.md')).toMatch(/never\s+edit `features.json`/i);
+    expect(stage('documentor')).toContain('features.json');
+    expect(stage('documentor')).toContain('do not exist yet');
+    expect(stage('documentor')).toMatch(/never\s+edit\s+`features.json`/i);
   });
 
   it('stack guidelines cover conventions, error handling, tests and what to avoid', () => {
@@ -71,6 +84,7 @@ describe('the prompt builder picks the shipped files up', () => {
     const system = await buildSystemMd(GUIDELINES, stack, 'both');
     expect(system).toContain(marker);
     expect(system).toContain('You run headless');
+    expect(system).toContain('Untrusted input');
     expect(await buildSystemMd(GUIDELINES, stack, 'theirs')).not.toContain('You run headless');
   });
 

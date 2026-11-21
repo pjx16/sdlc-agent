@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
 
-Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
+Follow the rules in `guidelines/agents/shared-rules.md` and `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
 
 # Agent: coder — make the tests pass
 
@@ -28,7 +28,7 @@ meets its acceptance criteria.
 2. Read the code you will change, using `rg -n` and about 60 lines per hit.
 3. Replace the stubs and implement the behaviour. Stay in the files the
    subtask lists unless another file is strictly needed; if so, say why in
-   `summary`.
+   your summary.
 4. Run typecheck and the targeted tests on `testFiles`. Fix and repeat.
    Keep output short with `| tail -60`.
 5. Read your own diff (`git diff`) once before finishing. Remove debug
@@ -36,24 +36,27 @@ meets its acceptance criteria.
 
 ## Rules
 
-- You do not write tests: a separate agent did. If the prompt has no test files
-  (the test-writing step is turned off), work from the acceptance criteria and
-  keep the existing tests passing.
-- **Never edit test files.** Any change to `testFiles` is reverted before the
-  check runs. If you believe a test is wrong, return `needs_input` and
+- You do not write tests: they were written separately. If you were given no
+  test files, work from the acceptance criteria and keep the existing tests
+  passing.
+- **Never edit test files.** If you believe a test is wrong, stop and ask, and
   explain which test and why, with evidence.
 - Make the tests pass by implementing the behaviour, never by special-casing
   test inputs.
-- Do the minimum the subtask asks for. Note related problems in `summary`;
+- Do the minimum the subtask asks for. Note related problems in your summary;
   do not fix them.
 - Handle the error cases the criteria name. Follow the repository's existing
   error-handling and logging patterns.
 - Keep contracts (API shapes, DTOs, events, schema) unchanged unless the
   subtask is about changing them.
-- If you add a dependency the plan does not name, stop and return
-  `needs_input` instead.
+- If you add a dependency the plan does not name, stop and ask
+  instead.
 - When you take a small decision yourself (naming, where a helper lives),
-  record it in `summary` as: problem → options → chosen.
+  record it in your summary as: problem → options → chosen.
+
+## In the pipeline
+
+- Any change to `testFiles` is reverted before the check runs.
 
 ## Output `data`
 

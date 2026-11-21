@@ -128,7 +128,7 @@ After merge: \`git switch dev && git pull && scripts/release.sh publish $VERSION
 
 cmd_check() {
   log "Checking that $TAG can be released"
-  require_tools git gh jq node npm docker cosign trivy shasum
+  require_tools git gh jq node npm docker cosign trivy shasum zip
   require_clean_dev
 
   local cli_version
@@ -195,7 +195,14 @@ build_bundle() {
     cp -R "$root/guidelines" "$dir/guidelines"
     for f in LICENSE README.md CHANGELOG.md SECURITY.md THIRD_PARTY_NOTICES.md; do cp "$root/$f" "$dir/"; done
     COPYFILE_DISABLE=1 tar -czf "$dir.tar.gz" "$dir"
-    shasum -a 256 "$dir.tar.gz" > SHA256SUMS
+    # The sdlc-subagents Claude Code plugin, for installs without the marketplace (claude --plugin-dir). It is generated
+    # by `npm run agents` and committed; a test fails when it drifts, so it is zipped as it is in the repository.
+    local plugin_version
+    plugin_version=$(node -p "require('$root/plugins/sdlc-subagents/.claude-plugin/plugin.json').version")
+    [ "$plugin_version" = "$VERSION" ] \
+      || die "plugins/sdlc-subagents/.claude-plugin/plugin.json is $plugin_version, not $VERSION (run scripts/release.sh prepare $VERSION)"
+    (cd "$root/plugins" && zip -qrX "$OLDPWD/sdlc-subagents-$VERSION.zip" sdlc-subagents -x '*.DS_Store')
+    shasum -a 256 "$dir.tar.gz" "sdlc-subagents-$VERSION.zip" > SHA256SUMS
     cat SHA256SUMS
   )
 }
@@ -299,7 +306,7 @@ cmd_publish() {
   if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
   # ${flags[@]+...}: bash 3.2 (macOS) treats an empty array as unbound under set -u.
   GH_TOKEN=$(gh_token) gh release create "$TAG" --repo "$REPO" --title "$TAG" --notes-file "$WORK/notes.md" --verify-tag ${flags[@]+"${flags[@]}"} \
-    "$WORK/dist/sdlc-agent-$VERSION.tar.gz" "$WORK/dist/SHA256SUMS" cosign.pub
+    "$WORK/dist/sdlc-agent-$VERSION.tar.gz" "$WORK/dist/sdlc-subagents-$VERSION.zip" "$WORK/dist/SHA256SUMS" cosign.pub
 
   # Last, because it is the one step a rollback cannot fully undo: npm never allows a version number to be used twice.
   echo

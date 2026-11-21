@@ -35,12 +35,12 @@ beforeAll(() => {
   tmp = mkdtempSync(path.join(tmpdir(), 'sdlc-ctx-'));
   guidelines = path.join(tmp, 'guidelines');
   mkdirSync(path.join(guidelines, 'stacks'), { recursive: true });
-  mkdirSync(path.join(guidelines, 'stages'), { recursive: true });
+  mkdirSync(path.join(guidelines, 'agents', 'base'), { recursive: true });
   writeFileSync(path.join(guidelines, 'stacks', 'nestjs.md'), 'NEST GUIDELINE\n');
   writeFileSync(path.join(guidelines, 'stacks', 'ts-node.md'), 'TS GUIDELINE\n');
   writeFileSync(path.join(guidelines, 'default-CLAUDE.md'), 'OUR CLAUDE MD\n');
-  writeFileSync(path.join(guidelines, 'stages', 'solution-architect.md'), 'PLAN INSTRUCTIONS\n');
-  writeFileSync(path.join(guidelines, 'stages', 'documentor.md'), 'KB BUILD INSTRUCTIONS\n');
+  writeFileSync(path.join(guidelines, 'agents', 'base', 'solution-architect.md'), 'PLAN INSTRUCTIONS\n');
+  writeFileSync(path.join(guidelines, 'agents', 'base', 'documentor.md'), 'KB BUILD INSTRUCTIONS\n');
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 

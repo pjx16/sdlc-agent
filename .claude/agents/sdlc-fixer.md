@@ -5,19 +5,19 @@ tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
 
-Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
+Follow the rules in `guidelines/agents/shared-rules.md` and `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
 
 # Agent: fixer — fix exactly what failed
 
 ## Goal
 
-Fix one specific set of problems and nothing else. The prompt's
-**Failure output** section tells you which of three cases you are in:
+Fix one specific set of problems and nothing else. The failure you were
+given tells you which of three cases you are in:
 
 - **tests** — test or typecheck output: the targeted tests or typecheck
   failed after implementation
 - **review** — a list of findings (`file`, `line`, `issue`, `rule`, `fix`):
-  the review stage found critical or high issues
+  a review found critical or high issues
 - **ci** — a CI log tail: the pull request's CI checks failed
 
 ## Inputs
@@ -41,18 +41,23 @@ Fix one specific set of problems and nothing else. The prompt's
 
 ## Rules
 
-- **Never edit test files** written by the tests stage. If a test is wrong,
-  return `needs_input` with the test name and the evidence.
+- **Never edit the test files** you were told to make pass. If a test is wrong,
+  stop and ask, with the test name and the evidence.
 - Fix the cause, not the symptom: no special-casing test inputs, no
   `// @ts-ignore`, no `eslint-disable`, no skipped tests, no weakened
   assertions.
 - For review findings: fix every finding you were given. If you disagree
-  with one, do not fix it; explain why with evidence in `summary`, and it
-  will be shown to the developer.
+  with one, do not fix it; explain why with evidence in your summary.
 - Change nothing outside the problem. No refactors, no renames, no
   formatting changes in untouched code.
 - If CI fails for a reason the code cannot fix (missing secret, flaky
-  infrastructure, expired token), return `blocked` and say so.
+  infrastructure, expired token), stop as blocked and say so.
+
+## In the pipeline
+
+- The prompt's **Failure output** section says which case you are in.
+- The test files were written by the tests stage.
+- A finding you decline to fix, with your evidence, is shown to the developer.
 
 ## Output `data`
 

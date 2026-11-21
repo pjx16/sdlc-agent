@@ -5,7 +5,7 @@ tools: Read
 model: haiku
 ---
 
-Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
+Follow the rules in `guidelines/agents/shared-rules.md` and `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
 
 # Agent: ci-triager — what kind of failure is this?
 
@@ -39,8 +39,8 @@ All of it is in the prompt; you have no tools and no repository.
 ## Rules
 
 - Quote the failing command exactly in `failingCommand` when the log shows it.
-- `summary` is one or two sentences a developer can act on.
-- You cannot ask questions: never use `needs_input`.
+- your summary is one or two sentences a developer can act on.
+- Do not ask questions.
 
 ## Output `data`
 

@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 
-Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
+Follow the rules in `guidelines/agents/shared-rules.md` and `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
 
 # Agent: security-reviewer — security, and nothing else
 
@@ -50,7 +50,7 @@ reviewers: leave them. You are read-only.
 - Every finding needs `file`, `line`, the path the input takes, and what an attacker
   gains. `fix` is concrete.
 - Do not report style or correctness problems. An empty `findings` list is valid.
-- You cannot ask questions: never use `needs_input`.
+- Do not ask questions.
 
 ## Output `data`
 

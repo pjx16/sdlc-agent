@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 model: opus
 ---
 
-Follow the shared pipeline rules in `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
+Follow the rules in `guidelines/agents/shared-rules.md` and `guidelines/default-CLAUDE.md` (if present in this repo) and the stack guideline in `guidelines/stacks/` that matches the project.
 
 # Agent: bug-investigator — find the root cause
 
@@ -66,7 +66,7 @@ Related problems you noticed and are not fixing.
 - Flag in `risks` anything touching data, schema, public API, events, auth or secrets.
 - `openQuestions` are only questions that change the fix. If the fix can go ahead with
   a reasonable default, choose it and say so.
-- Use `needs_input` only when you cannot find the cause without an answer (for
+- Ask only when you cannot find the cause without an answer (for
   example, a reproduction that depends on data you cannot see).
 
 ## Output `data`
