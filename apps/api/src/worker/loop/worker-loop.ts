@@ -189,6 +189,8 @@ export class WorkerLoop {
   }
 
   private cloneMirrors = async () => {
+    // Optional: tests that never clone pass a stand-in without it.
+    await this.mirrors.requeueMissing?.();
     const pending = await this.prisma.project.findMany({ where: { mirrorStatus: 'pending', enabled: true, onboardingStatus: 'confirmed' }, orderBy: { createdAt: 'asc' } });
     if (pending.length > 0) await setPhase(this.prisma, 'cloning', pending.map((p) => p.name).join(', '));
     const noPersonalToken = pending.length > 0 && this.creds ? !(await this.creds.resolve()).github_token : false;

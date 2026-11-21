@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { CredentialsService } from '../../credentials/credentials.service';
 import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
@@ -14,6 +15,13 @@ import type { StepHandler, StepOutcome } from '../pipeline/step-handler';
 import { MirrorService } from '../git/mirror.service';
 import { WorkerConfig } from '../worker-config';
 import { WorkerLoop } from './worker-loop';
+
+
+/** A ready project needs its mirror on disk, or the loop queues it to be cloned again. */
+function fakeMirror(id: string): void {
+  mkdirSync(`/tmp/sdlc-loop/mirrors/${id}.git`, { recursive: true });
+  writeFileSync(`/tmp/sdlc-loop/mirrors/${id}.git/HEAD`, 'ref: refs/heads/main\n');
+}
 
 describe('worker loop', () => {
   let db: TestDatabase;
@@ -63,6 +71,7 @@ describe('worker loop', () => {
     await prisma.project.deleteMany();
     await prisma.globalSettings.deleteMany();
     projectId = (await prisma.project.create({ data: { name: `p${++n}`, repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'P', mirrorStatus: 'ok' } })).id;
+    fakeMirror(projectId);
     clock += 1_000_000;
   });
 
@@ -258,6 +267,7 @@ describe('worker loop', () => {
   it('polls Jira only when due', async () => {
     const loop = loopWith([]);
     const project = await prisma.project.create({ data: { name: 'jira', repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'J', jiraMode: 'rest', jiraProjectKey: 'ABC', jiraJql: 'project = ABC', mirrorStatus: 'ok' } });
+    fakeMirror(project.id);
     await prisma.globalSettings.create({ data: { id: 'global', pollIntervalSec: 120 } });
     jira.jira.searches = [];
     await loop.tick();
@@ -272,7 +282,7 @@ describe('worker loop', () => {
   });
 
   it('keeps polling for new tickets while the pipeline is paused, but not while intake is paused', async () => {
-    await prisma.project.create({ data: { name: 'jira2', repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'J2', jiraMode: 'rest', jiraProjectKey: 'ABC', jiraJql: 'x', mirrorStatus: 'ok' } });
+    fakeMirror((await prisma.project.create({ data: { name: 'jira2', repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'J2', jiraMode: 'rest', jiraProjectKey: 'ABC', jiraJql: 'x', mirrorStatus: 'ok' } })).id);
     jira.jira.tickets = [{ key: 'ABC-1', summary: 's', description: 'd', issuetype: 'Story', labels: [], priority: null }];
     await prisma.globalSettings.create({ data: { id: 'global', pipelinePaused: true } });
     const loop = loopWith([]);
