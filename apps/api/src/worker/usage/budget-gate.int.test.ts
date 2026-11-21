@@ -94,7 +94,7 @@ describe('BudgetGate', () => {
     await spend(2);
     await gate.check();
     const ignored = await system.ignoreUsage({});
-    expect(ignored).toMatchObject({ pipelinePaused: false, usageIgnoredUntil: '2026-11-22T00:00:00.000Z' });
+    expect(ignored).toMatchObject({ pipelinePaused: false, pausedCode: null, usageIgnoredUntil: '2026-11-22T00:00:00.000Z' });
 
     await reset({ budgetDailyCredits: 1 });
     await gate.check();

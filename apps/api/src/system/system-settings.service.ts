@@ -280,7 +280,7 @@ export class SystemSettingsService {
     const ignoredUntil = until ?? current.resetsAt ?? budgetPeriod('daily', new Date(), current.timezone).end;
     const row = await this.prisma.globalSettings.update({
       where: { id: GLOBAL_ID },
-      data: { usageIgnoredUntil: ignoredUntil, pipelinePaused: false, pausedReason: null, resetsAt: null },
+      data: { usageIgnoredUntil: ignoredUntil, pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null },
     });
     await this.event('usage', `Budgets ignored until ${ignoredUntil.toISOString()}`);
     return toView(row);
