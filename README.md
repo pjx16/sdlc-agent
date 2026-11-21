@@ -132,7 +132,7 @@ The architecture is documented per version in [`docs/architecture`](./docs/archi
 
 Requirements:
 
-- Docker and Docker Compose, on macOS or a Linux VM (the host user must be able to use the Docker socket)
+- Docker (Engine 26 or newer, as in Docker Desktop 4.29 and later) and Docker Compose, on macOS or a Linux VM (the host user must be able to use the Docker socket)
 - An Anthropic API key from the [Anthropic Console](https://console.anthropic.com/settings/keys), with credits. Set a spend limit on its workspace too
 - A GitHub repository to ship into, and optionally a Jira Cloud project
 
@@ -153,12 +153,12 @@ Releases are published on [GitHub Releases](https://github.com/pjx16/sdlc-agent/
 shasum -a 256 -c --ignore-missing SHA256SUMS   # macOS; on Linux: sha256sum -c --ignore-missing SHA256SUMS
 tar -xzf sdlc-agent-<version>.tar.gz
 cd sdlc-agent-<version>
-cp .env.example .env                   # set POSTGRES_PASSWORD, ENCRYPTION_KEY (openssl rand -base64 32) and DATA_DIR; SDLC_VERSION is already set
-mkdir -p "$(grep ^DATA_DIR= .env | cut -d= -f2)"
-docker compose up -d
+cp .env.example .env                   # set POSTGRES_PASSWORD and ENCRYPTION_KEY (openssl rand -base64 32); SDLC_VERSION is already set
+mkdir -m 700 backups && printf 'SDLC_UID=%s\nSDLC_GID=%s\n' "$(id -u)" "$(id -g)" >> .env
+docker compose --profile build build agent-image && docker compose up -d
 ```
 
-`sdlc-agent up` builds the agent image on your machine before starting the stack, so the first run takes a few minutes longer. The agent image is never published because it contains Claude Code, which is Anthropic's software (release installs build it from `docker/agent`; a source checkout builds it with `npm run up:prod`). Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
+`sdlc-agent up` builds the agent image inside Docker before starting the stack, so the first run takes a few minutes longer. The agent image is never published because it contains Claude Code, which is Anthropic's software (release installs build it from the release's git tag; a source checkout builds it with `npm run up:prod`). Repository code never lands on your disk: mirrors, workspaces and run logs live in the `sdlc_data` Docker volume, and only encrypted database backups are written to `backups/`. Docker Engine 26 or later is required. Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
 
 The images on GHCR are signed. To verify one, use [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) and the `cosign.pub` attached to every GitHub release:
 
@@ -171,11 +171,11 @@ cosign verify --key cosign.pub ghcr.io/pjx16/sdlc-agent-api:<version>
 ```bash
 git clone https://github.com/pjx16/sdlc-agent.git
 cd sdlc-agent
-cp .env.example .env              # set POSTGRES_PASSWORD and DATA_DIR (an absolute path); ENCRYPTION_KEY is generated for you; tokens are entered in the dashboard
+cp .env.example .env              # set POSTGRES_PASSWORD; ENCRYPTION_KEY is generated for you; tokens are entered in the dashboard
 npm run up:prod                   # builds every image, including the agent image, and starts everything; waits until healthy
 ```
 
-`npm run up:prod` is the supported way to start a source checkout: it creates `DATA_DIR`, clears old Docker build cache, builds the agent image (which a plain `docker compose up` does not: it sits behind the `build` profile) and waits for the health checks. Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, add your tokens, and add a project. `DATA_DIR` holds mirrors, workspaces, run folders and logs.
+`npm run up:prod` is the supported way to start a source checkout: it creates `backups/`, clears old Docker build cache, builds the agent image (which a plain `docker compose up` does not: it sits behind the `build` profile) and waits for the health checks. Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, add your tokens, and add a project. Mirrors, workspaces and logs live in the `sdlc_data` Docker volume. Development mode (`npm run up:dev`) runs the api and worker on your machine, so it uses a host folder, `DATA_DIR`, instead.
 
 Who pushes and opens pull requests is chosen per project: your own personal token (the default) or **sdlc-agent-bot**, a GitHub App you install on the repository so that no token is needed. See [docs/BOT.md](./docs/BOT.md).
 

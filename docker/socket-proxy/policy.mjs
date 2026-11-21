@@ -28,7 +28,7 @@ export const UPGRADE_ROUTE = new RegExp(`^/containers/${ID}/attach$`);
 /** HostConfig fields the worker never sets. Present at all (even empty) means refused: an empty MaskedPaths unmasks /proc. */
 const FORBIDDEN_HOST_CONFIG = [
   'Privileged', 'PidMode', 'IpcMode', 'UsernsMode', 'UTSMode', 'CgroupnsMode', 'Cgroup', 'CgroupParent', 'CapAdd', 'Devices',
-  'DeviceRequests', 'DeviceCgroupRules', 'Mounts', 'VolumesFrom', 'Links', 'MaskedPaths', 'ReadonlyPaths', 'Sysctls', 'GroupAdd',
+  'DeviceRequests', 'DeviceCgroupRules', 'VolumesFrom', 'Links', 'MaskedPaths', 'ReadonlyPaths', 'Sysctls', 'GroupAdd',
   'PortBindings', 'PublishAllPorts', 'OomKillDisable', 'VolumeDriver', 'ExtraHosts', 'Dns', 'DnsOptions', 'DnsSearch',
 ];
 
@@ -100,7 +100,32 @@ export function checkPull(url, { images = [] } = {}) {
   return imageAllowed(ref, images) ? null : `image ${ref} is not the agent image`;
 }
 
-export function checkCreate(body, { bindRoots = [], volumePrefix = 'sdlc_', networks = ['sdlc_agent_net'], images = [] } = {}) {
+/**
+ * `Mounts` are only how agents see the install's data volume: each one a sub-path of THAT volume, never the whole of it, never a bind
+ * mount, a tmpfs or another volume, and with no options but ReadOnly and the sub-path. Without a data volume configured, none at all.
+ */
+function checkMounts(mounts, dataVolume) {
+  if (!present(mounts)) return null;
+  if (!Array.isArray(mounts)) return 'HostConfig.Mounts must be a list';
+  if (!dataVolume) return 'HostConfig.Mounts is not allowed';
+  for (const m of mounts) {
+    if (!m || typeof m !== 'object') return 'a mount must be an object';
+    const extra = Object.keys(m).filter((k) => !['Type', 'Source', 'Target', 'ReadOnly', 'VolumeOptions'].includes(k));
+    if (extra.length > 0) return `mount option ${extra[0]} is not allowed`;
+    if (m.Type !== 'volume') return `mount type ${m.Type ?? '(none)'} is not allowed`;
+    if (m.Source !== dataVolume) return `volume ${m.Source ?? '(none)'} is not the data volume`;
+    if (typeof m.Target !== 'string' || !m.Target.startsWith('/')) return 'a mount needs an absolute target';
+    const opts = m.VolumeOptions ?? {};
+    const optExtra = Object.keys(opts).filter((k) => k !== 'Subpath');
+    if (optExtra.length > 0) return `volume option ${optExtra[0]} is not allowed`;
+    const sub = opts.Subpath;
+    if (typeof sub !== 'string' || sub === '' || sub === '.') return 'a data volume mount must name a sub-path, never the whole volume';
+    if (sub.startsWith('/') || path.posix.normalize(sub) !== sub || sub.split('/').includes('..')) return `sub-path ${sub} is not a plain relative path`;
+  }
+  return null;
+}
+
+export function checkCreate(body, { bindRoots = [], volumePrefix = 'sdlc_', networks = ['sdlc_agent_net'], images = [], dataVolume = '' } = {}) {
   if (!body || typeof body !== 'object') return 'the create request has no JSON body';
   const hc = body.HostConfig ?? {};
   if (!imageAllowed(body.Image, images)) return `image ${body.Image ?? '(none)'} is not the agent image`;
@@ -124,8 +149,13 @@ export function checkCreate(body, { bindRoots = [], volumePrefix = 'sdlc_', netw
   // Docker attaches every network named here as well as NetworkMode: only the same one is accepted.
   for (const name of Object.keys(body.NetworkingConfig?.EndpointsConfig ?? {})) if (name !== net) return `the network ${name} is not allowed`;
 
+  const mountError = checkMounts(hc.Mounts, dataVolume);
+  if (mountError) return mountError;
+
   for (const bind of hc.Binds ?? []) {
     const [src] = String(bind).split(':');
+    // The whole data volume holds every project: it is only ever mounted by sub-path (Mounts above).
+    if (dataVolume && src === dataVolume) return `the data volume ${src} can only be mounted by sub-path`;
     if (src.startsWith('/')) {
       const norm = path.posix.normalize(src);
       if (norm !== src) return `bind source ${src} is not normalised`;

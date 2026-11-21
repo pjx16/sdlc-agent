@@ -1,4 +1,4 @@
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { runDoctor } from './doctor';
 import { setEnv, writeEnvFile } from './envfile';
@@ -6,6 +6,7 @@ import { type Manifest, shippedGuidelineHashes, writeManifest } from './manifest
 import { assetsDir, packageVersion } from './paths';
 import { generateEncryptionKey, generatePostgresPassword, generateSetupCode } from './secrets';
 import { CliError, out } from './ui';
+import { DATA_VOLUME } from './data-volume';
 import { INSTALL_TIP, openBrowser, up } from './commands';
 
 export interface InitOptions {
@@ -27,15 +28,23 @@ function copyMissing(assets: string, dir: string): void {
     cpSync(path.join(assets, rel), target);
   }
   cpSync(path.join(assets, 'guidelines'), path.join(dir, 'guidelines'), { recursive: true, force: false, errorOnExist: false });
-  copyAgentBuild(assets, dir);
+  copyVersionedFiles(assets, dir);
 }
 
-/** The agent image's build folder belongs to the installed version, so it is always replaced, never merged. */
-export function copyAgentBuild(assets: string, dir: string): void {
-  const target = path.join(dir, 'docker', 'agent');
-  rmSync(target, { recursive: true, force: true });
-  mkdirSync(path.dirname(target), { recursive: true });
-  cpSync(path.join(assets, 'docker', 'agent'), target, { recursive: true });
+/**
+ * Files that belong to the installed version, always replaced, never merged: the daily backup script. The agent image's old build
+ * folder (installs before 1.0.0) is removed: Docker now builds the image from the release's git tag.
+ */
+export function copyVersionedFiles(assets: string, dir: string): void {
+  cpSync(path.join(assets, 'backup.sh'), path.join(dir, 'backup.sh'));
+  chmodSync(path.join(dir, 'backup.sh'), 0o755);
+  rmSync(path.join(dir, 'docker', 'agent'), { recursive: true, force: true });
+  if (existsSync(path.join(dir, 'docker')) && readdirSync(path.join(dir, 'docker')).length === 0) rmSync(path.join(dir, 'docker'), { recursive: true });
+}
+
+/** The user who installed: the backup service writes its files as them, so they stay readable without root. */
+export function hostIds(): { uid: string; gid: string } {
+  return { uid: String(process.getuid?.() ?? 0), gid: String(process.getgid?.() ?? 0) };
 }
 
 export async function init(opts: InitOptions): Promise<void> {
@@ -45,15 +54,12 @@ export async function init(opts: InitOptions): Promise<void> {
     throw new CliError(`Already installed at ${dir}. Use \`sdlc-agent up\` or \`sdlc-agent upgrade\`.`);
   }
 
-  const dataDir = path.join(dir, 'data');
-  // Create the folders first (private to the user): the doctor's Docker probe mounts the data folder, and Docker would create it as root.
+  // The install folder and its backups folder, private to the user. Repository data is not here: it lives in the sdlc_data volume.
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   chmodSync(dir, 0o700);
-  for (const sub of ['data', 'backups']) {
-    mkdirSync(path.join(dir, sub), { recursive: true, mode: 0o700 });
-    chmodSync(path.join(dir, sub), 0o700);
-  }
-  const doctor = await runDoctor({ dir, env: { bind: opts.bind, dataDir } });
+  mkdirSync(path.join(dir, 'backups'), { recursive: true, mode: 0o700 });
+  chmodSync(path.join(dir, 'backups'), 0o700);
+  const doctor = await runDoctor({ dir, env: { bind: opts.bind } });
   if (!doctor.ok) throw new CliError('Fix the checks marked ✖ above, then run `sdlc-agent init` again.');
 
   const assets = assetsDir();
@@ -70,7 +76,9 @@ export async function init(opts: InitOptions): Promise<void> {
     env = setEnv(env, 'POSTGRES_PASSWORD', generatePostgresPassword());
     env = setEnv(env, 'ENCRYPTION_KEY', generateEncryptionKey());
     env = setEnv(env, 'SETUP_CODE', setupCode);
-    env = setEnv(env, 'DATA_DIR', path.resolve(dataDir));
+    const ids = hostIds();
+    env = setEnv(env, 'SDLC_UID', ids.uid);
+    env = setEnv(env, 'SDLC_GID', ids.gid);
     env = setEnv(env, 'DASHBOARD_BIND', opts.bind);
     env = setEnv(env, 'COOKIE_SECURE', 'false');
     if (doctor.dockerSock) env = setEnv(env, 'DOCKER_SOCK', doctor.dockerSock);
@@ -91,7 +99,8 @@ export async function init(opts: InitOptions): Promise<void> {
   out(`sdlc-agent ${manifest.version} is running.`);
   out(`Open  ${url}`);
   out(`Setup code: ${setupCode}   (needed once, to create your admin password)`);
-  out(`Installed in ${dir} — keep its .env safe and back it up: it holds the key that encrypts your tokens.`);
+  out(`Installed in ${dir} — keep its .env safe and back it up: it holds the key that encrypts your tokens and your backups.`);
+  out(`Repository code stays inside Docker (the ${DATA_VOLUME} volume). Encrypted database backups are written daily to ${path.join(dir, 'backups')}.`);
   out(INSTALL_TIP);
   if (opts.open && process.stdout.isTTY) openBrowser(url);
 }

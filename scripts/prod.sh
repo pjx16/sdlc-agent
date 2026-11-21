@@ -12,10 +12,9 @@ export COMPOSE_PROJECT_NAME=sdlc-agent   # production is the project sdlc-agent;
 . ./scripts/docker-housekeeping.sh
 ensure_encryption_key .env
 set -a; . ./.env; set +a
-: "${DATA_DIR:?set DATA_DIR in .env}"
-mkdir -p "$DATA_DIR"
-# Workspaces and logs hold repository code and tokens in transit: other local users must not read or edit them.
-chmod 700 "$DATA_DIR"
+# Repository data lives in the sdlc_data volume, not on the host. Only the encrypted database backups land here, private to you.
+mkdir -p backups && chmod 700 backups
+export SDLC_UID="${SDLC_UID:-$(id -u)}" SDLC_GID="${SDLC_GID:-$(id -g)}"
 
 docker_housekeeping
 echo "==> Building the agent image"

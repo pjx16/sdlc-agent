@@ -20,3 +20,4 @@ packages/cli/LICENSE
 # scripts/release.sh working files and the private signing key
 .release/
 cosign.key
+backups/

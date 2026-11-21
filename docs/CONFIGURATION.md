@@ -10,7 +10,9 @@ A variable set here overrides the dashboard value and makes the field read-only 
 | --- | --- | --- |
 | `ENCRYPTION_KEY` | yes | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts the tokens saved in the dashboard. Back it up separately from the database |
 | `POSTGRES_PASSWORD` | yes | Database password (`npm run up:prod` and the CLI create one for you where they can) |
-| `DATA_DIR` | yes | Absolute host path for mirrors, workspaces, runs and logs. Also the only place agent containers may bind-mount from |
+| `DATA_DIR` | development only | Absolute host path for mirrors, workspaces and logs when the api and worker run on your machine (`npm run up:dev`). Installs keep all of it in the `sdlc_data` Docker volume instead, and agents mount sub-paths of that volume |
+| `SDLC_UID`, `SDLC_GID` | no | The user the daily backup is written as (`sdlc-agent init` and `npm run up:prod` set them to yours), so `backups/` stays readable without root |
+| `BACKUP_KEEP` | no | How many daily encrypted database backups to keep (default 7) |
 | `ANTHROPIC_API_KEY` | no | Anthropic API key (`sk-ant-api…`) from the Anthropic Console. Every stage is billed to it |
 | `GITHUB_TOKEN` | no | Fine-grained token for git and `gh` (not needed when every project works as the bot) |
 | `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL` | no | Identity of every commit made with a personal token |

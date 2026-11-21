@@ -20,11 +20,12 @@ afterEach(() => {
 const opts = (dir: string, over: Partial<Parameters<typeof init>[0]> = {}) => ({ dir, bind: '127.0.0.1', start: false, open: false, force: false, ...over });
 
 describe('init --no-start', () => {
-  it('creates the folder (0700), .env (0600) with the generated values, and copies the assets', async () => {
+  it('creates the folder (0700), .env (0600) with the generated values, and copies the assets, with no data folder on the host', async () => {
     const dir = path.join(base, 'inst');
     await init(opts(dir));
     expect(statSync(dir).mode & 0o777).toBe(0o700);
-    expect(statSync(path.join(dir, 'data')).mode & 0o777).toBe(0o700);
+    expect(existsSync(path.join(dir, 'data'))).toBe(false);
+    expect(existsSync(path.join(dir, 'docker'))).toBe(false);
     expect(statSync(path.join(dir, 'backups')).mode & 0o777).toBe(0o700);
     expect(statSync(path.join(dir, '.env')).mode & 0o777).toBe(0o600);
 
@@ -34,13 +35,15 @@ describe('init --no-start', () => {
     expect(getEnv(env, 'POSTGRES_PASSWORD')).toMatch(/^[0-9a-f]{48}$/);
     expect(Buffer.from(getEnv(env, 'ENCRYPTION_KEY') as string, 'base64')).toHaveLength(32);
     expect(getEnv(env, 'SETUP_CODE')).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
-    expect(path.isAbsolute(getEnv(env, 'DATA_DIR') as string)).toBe(true);
-    expect(getEnv(env, 'DATA_DIR')).toBe(path.join(dir, 'data'));
+    expect(getEnv(env, 'DATA_DIR')).toBeUndefined();
+    expect(getEnv(env, 'SDLC_UID')).toBe(String(process.getuid?.() ?? 0));
+    expect(getEnv(env, 'SDLC_GID')).toBe(String(process.getgid?.() ?? 0));
     expect(getEnv(env, 'DASHBOARD_BIND')).toBe('127.0.0.1');
     expect(getEnv(env, 'COOKIE_SECURE')).toBe('false');
     expect(getEnv(env, 'LOG_LEVEL')).toBe('info');
 
     expect(existsSync(path.join(dir, 'docker-compose.yml'))).toBe(true);
+    expect(statSync(path.join(dir, 'backup.sh')).mode & 0o111).not.toBe(0);
     expect(listFiles(path.join(dir, 'guidelines')).length).toBeGreaterThan(5);
 
     const manifest = readManifest(dir);

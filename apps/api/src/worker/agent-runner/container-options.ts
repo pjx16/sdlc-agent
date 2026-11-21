@@ -18,6 +18,26 @@ export function npmCacheVolumeFor(workspacePath: string | undefined): string {
   return id ? `${NPM_CACHE_VOLUME}_${id}` : NPM_CACHE_VOLUME;
 }
 
+/**
+ * Installs keep the data folder in a Docker volume (DATA_VOLUME), mounted in the worker at `root` (its DATA_DIR), so no repository
+ * code is written to the host disk. Agent containers then mount their folders as sub-paths of that volume instead of host paths.
+ */
+export interface DataVolume {
+  name: string;
+  root: string;
+}
+
+/** A folder or file of the data folder at `target`: a sub-path of the data volume when there is one, else a host bind mount. */
+function mountFor(source: string, target: string, readOnly: boolean, data: DataVolume | undefined): { bind?: string; mount?: Docker.MountSettings } {
+  if (data) {
+    const rel = path.relative(data.root, source);
+    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+      return { mount: { Type: 'volume', Source: data.name, Target: target, ReadOnly: readOnly, VolumeOptions: { Subpath: rel } } as Docker.MountSettings };
+    }
+  }
+  return { bind: `${source}:${target}:${readOnly ? 'ro' : 'rw'}` };
+}
+
 export interface ContainerSpec {
   /** Container name, `sdlc-run-<stageRunId>` for stages. */
   name: string;
@@ -53,16 +73,22 @@ export function parseMemory(text: string): number {
   return Math.floor(Number(match[1]) * (UNITS[(match[2] ?? '').toLowerCase()] as number));
 }
 
-/** The agent container hardening, in one place so it can be tested. */
-export function buildCreateOptions(spec: ContainerSpec): Docker.ContainerCreateOptions {
+/** The agent container hardening, in one place so it can be tested. `data` is the data volume of an install (absent: host folders). */
+export function buildCreateOptions(spec: ContainerSpec, data?: DataVolume): Docker.ContainerCreateOptions {
   const binds: string[] = [];
+  const mounts: Docker.MountSettings[] = [];
+  const add = (source: string, target: string, readOnly: boolean) => {
+    const m = mountFor(source, target, readOnly, data);
+    if (m.mount) mounts.push(m.mount);
+    else if (m.bind) binds.push(m.bind);
+  };
   if (spec.workspace) {
-    binds.push(`${spec.workspace.path}:/workspace:${spec.workspace.readOnly ? 'ro' : 'rw'}`);
+    add(spec.workspace.path, '/workspace', spec.workspace.readOnly);
     // The worker runs git in this directory with credentials: an agent must not be able to change .git/config, hooks or refs.
-    if (!spec.workspace.readOnly && existsSync(path.join(spec.workspace.path, '.git'))) binds.push(`${spec.workspace.path}/.git:/workspace/.git:ro`);
-    for (const name of spec.workspace.hide?.names ?? []) binds.push(`${spec.workspace.hide?.emptyFile}:/workspace/${name}:ro`);
+    if (!spec.workspace.readOnly && existsSync(path.join(spec.workspace.path, '.git'))) add(path.join(spec.workspace.path, '.git'), '/workspace/.git', true);
+    for (const name of spec.workspace.hide?.names ?? []) add(spec.workspace.hide?.emptyFile as string, `/workspace/${name}`, true);
   }
-  if (spec.contextDir) binds.push(`${spec.contextDir}:/context:ro`);
+  if (spec.contextDir) add(spec.contextDir, '/context', true);
   binds.push(`${npmCacheVolumeFor(spec.workspace?.path)}:/npm-cache:rw`);
   binds.push(...(spec.extraBinds ?? []));
 
@@ -79,6 +105,7 @@ export function buildCreateOptions(spec: ContainerSpec): Docker.ContainerCreateO
     Tty: false,
     HostConfig: {
       Binds: binds,
+      ...(mounts.length > 0 ? { Mounts: mounts } : {}),
       NetworkMode: spec.network ?? AGENT_NETWORK,
       CapDrop: ['ALL'],
       SecurityOpt: ['no-new-privileges'],

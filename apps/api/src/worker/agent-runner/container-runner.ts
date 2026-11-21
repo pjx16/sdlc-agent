@@ -1,5 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { buildCreateOptions, type ContainerSpec } from './container-options';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { WorkerConfig } from '../worker-config';
+import { buildCreateOptions, type ContainerSpec, type DataVolume } from './container-options';
 import { CONTAINER_ENGINE, type ContainerEngine, type OutputStream } from './container-engine';
 
 export const KILL_POLL_MS = 2000;
@@ -27,10 +28,18 @@ export interface ContainerResult {
 export class ContainerRunner {
   private readonly logger = new Logger(ContainerRunner.name);
 
-  constructor(@Inject(CONTAINER_ENGINE) private readonly engine: ContainerEngine) {}
+  /** The install's data volume, when DATA_DIR lives in one: agent containers then mount sub-paths of it. */
+  private readonly data: DataVolume | undefined;
+
+  constructor(
+    @Inject(CONTAINER_ENGINE) private readonly engine: ContainerEngine,
+    @Optional() config?: WorkerConfig,
+  ) {
+    this.data = config?.dataMount() ?? undefined;
+  }
 
   async run(spec: ContainerSpec, hooks: RunHooks = {}): Promise<ContainerResult> {
-    const container = await this.engine.create(buildCreateOptions(spec));
+    const container = await this.engine.create(buildCreateOptions(spec, this.data));
     const startedAt = Date.now();
     let timedOut = false;
     let killed = false;

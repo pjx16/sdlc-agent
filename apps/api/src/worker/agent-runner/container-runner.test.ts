@@ -59,6 +59,34 @@ describe('buildCreateOptions', () => {
     expect(binds).toContain('/data/empty:/workspace/CLAUDE.local.md:ro');
   });
 
+  describe('with the install\'s data volume (DATA_VOLUME)', () => {
+    const data = { name: 'sdlc_data', root: '/data' };
+    const vol = (target: string, subpath: string, readOnly: boolean) => ({ Type: 'volume', Source: 'sdlc_data', Target: target, ReadOnly: readOnly, VolumeOptions: { Subpath: subpath } });
+
+    it('mounts the data folder as sub-paths of the volume, never as host bind mounts', () => {
+      const o = buildCreateOptions(spec({ workspace: { path: '/data/workspaces/p/KEY-1', readOnly: false, hide: { emptyFile: '/data/empty-file', names: ['CLAUDE.md'] } } }), data);
+      expect(o.HostConfig?.Mounts).toEqual([
+        vol('/workspace', 'workspaces/p/KEY-1', false),
+        vol('/workspace/CLAUDE.md', 'empty-file', true),
+        vol('/context', 'runs/abc', true),
+      ]);
+      expect(o.HostConfig?.Binds).toEqual(['sdlc_npm_cache_p:/npm-cache:rw']);
+    });
+
+    it('mounts .git read-only as its own sub-path', () => {
+      const root = mkdtempSync(path.join(tmpdir(), 'data-'));
+      mkdirSync(path.join(root, 'workspaces', 'p', 'K-2', '.git'), { recursive: true });
+      const o = buildCreateOptions(spec({ workspace: { path: path.join(root, 'workspaces', 'p', 'K-2'), readOnly: false } }), { name: 'sdlc_data', root });
+      expect(o.HostConfig?.Mounts).toContainEqual(vol('/workspace/.git', 'workspaces/p/K-2/.git', true));
+    });
+
+    it('never mounts the whole volume, and leaves paths outside the data folder as they are', () => {
+      const o = buildCreateOptions(spec({ workspace: { path: '/data', readOnly: true }, contextDir: '/elsewhere/ctx', extraBinds: ['sdlc_jira_connector_home:/connector-home:rw'] }), data);
+      expect(o.HostConfig?.Mounts).toBeUndefined();
+      expect(o.HostConfig?.Binds).toEqual(['/data:/workspace:ro', '/elsewhere/ctx:/context:ro', 'sdlc_npm_cache:/npm-cache:rw', 'sdlc_jira_connector_home:/connector-home:rw']);
+    });
+  });
+
   it('has no workspace mount for Jira stages', () => {
     const binds = buildCreateOptions(spec({ workspace: undefined })).HostConfig?.Binds ?? [];
     expect(binds.some((b) => b.includes(':/workspace'))).toBe(false);
