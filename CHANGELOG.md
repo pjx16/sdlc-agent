@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Upgrading from 0.0.1
 
-Run `npx sdlc-agent@latest upgrade` (or `npm i -g sdlc-agent@latest && sdlc-agent upgrade`). It backs up the database (encrypted), moves your old `data/` folder into the `sdlc_data` Docker volume, and restarts the stack. Then:
+0.0.1 was withdrawn from npm and GitHub Releases, so a new install can skip this section. If you installed it while it was available, run `npx sdlc-agent@latest upgrade` (or `npm i -g sdlc-agent@latest && sdlc-agent upgrade`). It backs up the database (encrypted), moves your old `data/` folder into the `sdlc_data` Docker volume, and restarts the stack. Then:
 
 1. **Docker Engine 26 or later** is required (Docker Desktop 4.29 or later). `sdlc-agent doctor` checks it.
 2. **Enter an Anthropic API key** in Settings → Connections, or set `ANTHROPIC_API_KEY` in `.env`. The Claude subscription token is no longer used and was removed from the database. Set a spend limit on the key's workspace in the Anthropic Console too.
@@ -32,7 +32,6 @@ Run `npx sdlc-agent@latest upgrade` (or `npm i -g sdlc-agent@latest && sdlc-agen
 - A banner asks once for spending limits, with suggestions from recent spend (Approve, Edit or No limits). It blocks nothing.
 - The Usage page shows today, this week and this month against their budgets, a month-end projection, the spend rate with the budget line, the average cost per ticket by kind, and credits by model and stage. The Overview shows spend over time and credits today. New endpoints: `/usage/spend` and `/usage/tickets`.
 - Rate limits no longer pause the pipeline: the stage is retried after 1, 2 and 5 minutes, then the ticket is held. A low credit balance (`CLAUDE_CREDITS`, which replaces `CLAUDE_USAGE_LIMIT`) pauses the pipeline until someone adds credits and resumes it.
-
 
 - **Breaking (customised prompts): agent prompts moved.** `guidelines/stages/<name>.md` is now a base prompt, `guidelines/agents/base/<name>.md` (goal, steps, rules), plus a pipeline overlay, `guidelines/agents/pipeline/<name>.md` (inputs and the shape of the answer). The rules every agent follows moved from `default-CLAUDE.md` to `guidelines/agents/shared-rules.md`; `default-CLAUDE.md` keeps how the pipeline runs and reports, and modes `ours` and `both` include both files as before. Edits made to the old files are not carried over: apply them to the new ones. The prompts say the same things, but the section order and a few words changed.
 
