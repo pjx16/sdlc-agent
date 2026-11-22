@@ -9,7 +9,7 @@
   },
   "homepage": "https://github.com/pjx16/sdlc-agent#readme",
   "bugs": "https://github.com/pjx16/sdlc-agent/issues",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "test": "echo 'e2e tests run with npm run test:e2e'",

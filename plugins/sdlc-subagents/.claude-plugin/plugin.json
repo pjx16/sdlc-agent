@@ -1,6 +1,6 @@
 {
   "name": "sdlc-subagents",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Subagents from sdlc-agent for your own Claude Code sessions: design a feature, investigate a bug, split a plan, write failing tests, implement, fix, document, review a diff for correctness, quality and security, and triage a failed CI run.",
   "author": {
     "name": "sdlc-agent maintainers",
