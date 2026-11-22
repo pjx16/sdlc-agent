@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-22
+
 ### Upgrading from 0.0.1
 
 0.0.1 was withdrawn from npm and GitHub Releases, so a new install can skip this section. If you installed it while it was available, run `npx sdlc-agent@latest upgrade` (or `npm i -g sdlc-agent@latest && sdlc-agent upgrade`). It backs up the database (encrypted), moves your old `data/` folder into the `sdlc_data` Docker volume, and restarts the stack. Then:
@@ -175,6 +177,7 @@ First public pre-release. Published so the author can use sdlc-agent on their ow
 - The Claude usage pause is a guard, not a guarantee.
 - No `script-src` Content-Security-Policy on the dashboard yet.
 
-[Unreleased]: https://github.com/pjx16/sdlc-agent/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/pjx16/sdlc-agent/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/pjx16/sdlc-agent/compare/v0.0.1...v1.0.0
 [0.0.1]: https://github.com/pjx16/sdlc-agent/compare/v0.0.0...v0.0.1
 [0.0.0]: https://github.com/pjx16/sdlc-agent/releases/tag/v0.0.0
