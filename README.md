@@ -310,7 +310,7 @@ Known limitations:
 
 ## Releases and versioning
 
-Versions follow [semantic versioning](https://semver.org/). Releases are tags on `dev`, and each one also publishes the `sdlc-subagents` plugin at the same version (`scripts/bump-version.sh` sets both); until `1.0`, breaking changes (database migrations, configuration, API) can happen in any minor release and are marked **Breaking** in [`CHANGELOG.md`](./CHANGELOG.md), so read it before upgrading. Releases are cut by a maintainer with `scripts/release.sh` (see [`CONTRIBUTING.md`](./CONTRIBUTING.md#cutting-a-release)). Release images are signed and carry an SBOM and build provenance; [`SECURITY.md`](./SECURITY.md#verifying-a-release) shows how to verify them. Third-party licences are listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+Versions follow [semantic versioning](https://semver.org/). From 1.0.0, a breaking change (database, configuration, API) comes only in a new major version, with upgrade steps in [`CHANGELOG.md`](./CHANGELOG.md); `sdlc-agent upgrade` prints the notes between your version and the new one. Each release is a `vX.Y.Z` tag on `main`, which holds releases only, and also publishes the `sdlc-subagents` plugin at the same version. Releases are cut by a maintainer with `scripts/release.sh` (see [`CONTRIBUTING.md`](./CONTRIBUTING.md#cutting-a-release)). Release images are signed with the project's cosign key and carry an SBOM and BuildKit provenance; [`SECURITY.md`](./SECURITY.md#verifying-a-release) shows how to verify them. Third-party licences are listed in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 
 ## Contributing
 

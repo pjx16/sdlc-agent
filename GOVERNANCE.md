@@ -19,7 +19,7 @@ Contributors who have made sustained, high-quality contributions (code, reviews,
 
 ## Releases
 
-Maintainers cut releases from `dev` with `scripts/release.sh`, following [semantic versioning](https://semver.org/) and the steps in [`CONTRIBUTING.md`](./CONTRIBUTING.md#cutting-a-release). Every release has notes in [`CHANGELOG.md`](./CHANGELOG.md).
+Maintainers cut releases with `scripts/release.sh`: the release commit lands on `dev`, `main` is fast-forwarded to it, and the `vX.Y.Z` tag goes on `main`, following [semantic versioning](https://semver.org/) and the steps in [`CONTRIBUTING.md`](./CONTRIBUTING.md#cutting-a-release). Every release has notes in [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## Changes to this document
 
