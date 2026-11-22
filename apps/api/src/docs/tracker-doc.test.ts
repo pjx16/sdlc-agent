@@ -20,10 +20,12 @@ describe('docs/TRACKER.md documentation', () => {
     expect(/\]\((\.\/)?docs\/TRACKER\.md(#[^)]*)?\)/.test(read('README.md'))).toBe(true);
   });
 
-  it('is mentioned in an Added bullet under [Unreleased] in CHANGELOG.md', () => {
-    const unreleased = read('CHANGELOG.md').split(/^## \[/m).find((part) => part.startsWith('Unreleased]')) ?? '';
-    const added = unreleased.split(/^### /m).find((part) => part.startsWith('Added')) ?? '';
-    expect(/^\s*- .*TRACKER\.md/m.test(added)).toBe(true);
+  // The entry moves from [Unreleased] to a version section when a release is prepared, so look in every section.
+  it('is mentioned in an Added bullet in CHANGELOG.md', () => {
+    const added = read('CHANGELOG.md')
+      .split(/^## \[/m)
+      .flatMap((section) => section.split(/^### /m).filter((part) => part.startsWith('Added')));
+    expect(added.some((part) => /^\s*- .*TRACKER\.md/m.test(part))).toBe(true);
   });
 
   it('links to docs/kb/tracker.md', () => {
