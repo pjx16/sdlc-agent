@@ -177,7 +177,8 @@ cmd_check() {
   local plugin_ref
   plugin_ref=$(node -p "require('./.claude-plugin/marketplace.json').plugins.find((p) => p.name === 'sdlc-subagents').source.ref")
   [ "$plugin_ref" = "$TAG" ] || die ".claude-plugin/marketplace.json pins sdlc-subagents to $plugin_ref, not $TAG; run scripts/release.sh prepare $VERSION and merge it first"
-  changelog_notes | grep -q '[^[:space:]]' || die "CHANGELOG.md has no notes under '## [$VERSION]'"
+  # Not `changelog_notes | grep -q`: grep exits at the first match, awk dies of SIGPIPE, and pipefail fails the check.
+  [ -n "$(changelog_notes | tr -d '[:space:]')" ] || die "CHANGELOG.md has no notes under '## [$VERSION]'"
 
   git tag -l "$TAG" | grep -q . && die "the tag $TAG already exists locally (git tag -d $TAG, or roll back)"
   git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null && die "the tag $TAG already exists on origin (scripts/release.sh rollback $VERSION)"
