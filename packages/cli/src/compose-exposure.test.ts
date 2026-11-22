@@ -86,11 +86,12 @@ describe('postgres network posture documentation', () => {
     expect(kb.includes('${POSTGRES_PORT:-5432}')).toBe(false);
   });
 
-  it('calls out the breaking change for host connections in the unreleased changelog', () => {
-    const changelog = read('CHANGELOG.md');
-    const unreleased = changelog.slice(changelog.indexOf('## [Unreleased]'), changelog.indexOf('\n## [', changelog.indexOf('## [Unreleased]') + 1));
-    expect(/127\.0\.0\.1:5432/.test(unreleased)).toBe(true);
-    expect(/breaking/i.test(unreleased)).toBe(true);
+  // The note moves from [Unreleased] to a version section when a release is prepared, so find it by content.
+  it('calls out the breaking change for host connections in the changelog', () => {
+    const sections = read('CHANGELOG.md').split('\n## [');
+    const section = sections.find((s) => /127\.0\.0\.1:5432/.test(s));
+    expect(section).toBeDefined();
+    expect(/breaking/i.test(section ?? '')).toBe(true);
   });
 });
 
