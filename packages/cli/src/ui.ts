@@ -18,3 +18,8 @@ export const yellow = (t: string) => paint(33, t);
 export const dim = (t: string) => paint(2, t);
 
 export const out = (line = '') => process.stdout.write(`${line}\n`);
+
+/** Runs `fn` while showing a spinner (TTY) or one status line (non-TTY). */
+export async function withProgress<T>(_label: string, _fn: () => Promise<T>): Promise<T> {
+  throw new Error('Not implemented');
+}
