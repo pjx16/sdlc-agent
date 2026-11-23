@@ -2,19 +2,6 @@
   "version": 1,
   "features": [
     {
-      "key": "database",
-      "title": "Database",
-      "doc": "database.md",
-      "globs": [
-        "docker-compose.yml",
-        "deploy/docker-compose.yml",
-        "scripts/dev.sh",
-        "apps/api/src/prisma/**"
-      ],
-      "builtFromCommit": "996ad43600f7aac9a4d2b2c8dd100ed35d611881",
-      "updatedAt": "2026-11-14T17:40:31.595Z"
-    },
-    {
       "key": "cli",
       "title": "Cli",
       "doc": "cli.md",
@@ -37,6 +24,33 @@
       ],
       "builtFromCommit": "9bdd93fe17d2a9669ce21f56201d9adbe708bc27",
       "updatedAt": "2026-11-14T16:50:16.333Z"
+    },
+    {
+      "key": "database",
+      "title": "Database",
+      "doc": "database.md",
+      "globs": [
+        "docker-compose.yml",
+        "deploy/docker-compose.yml",
+        "scripts/dev.sh",
+        "apps/api/src/prisma/**"
+      ],
+      "builtFromCommit": "996ad43600f7aac9a4d2b2c8dd100ed35d611881",
+      "updatedAt": "2026-11-14T17:40:31.595Z"
+    },
+    {
+      "key": "onboarding",
+      "title": "Onboarding",
+      "doc": "onboarding.md",
+      "globs": [
+        "apps/api/src/projects/onboarding.service.ts",
+        "apps/api/src/projects/projects.controller.ts",
+        "apps/api/src/worker/onboarding/**",
+        "apps/dashboard/components/onboarding-panel.tsx",
+        "guidelines/agents/base/repo-profiler.md"
+      ],
+      "builtFromCommit": "7100b03c70c4b60cba3481bae3dbf96349e9cc2a",
+      "updatedAt": "2026-11-23T23:59:17.456Z"
     },
     {
       "key": "setup",
