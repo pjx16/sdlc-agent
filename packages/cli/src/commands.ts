@@ -74,8 +74,10 @@ async function prepareAgentImage(dir: string, envText: string): Promise<void> {
 
 export async function up(opts: { dir: string; quiet?: boolean; skipDoctor?: boolean }): Promise<void> {
   const envText = readEnvText(opts.dir);
-  const doctor = await runDoctor({ dir: opts.dir, env: envFor(opts.dir) }, opts.quiet);
-  if (!doctor.ok) throw new CliError('Fix the checks marked ✖ above, then try again.');
+  if (!opts.skipDoctor) {
+    const doctor = await runDoctor({ dir: opts.dir, env: envFor(opts.dir) }, opts.quiet);
+    if (!doctor.ok) throw new CliError('Fix the checks marked ✖ above, then try again.');
+  }
 
   out('Pulling images…');
   if ((await compose(opts.dir, ['pull'], { inherit: true })).code !== 0) throw new CliError('Could not pull the images. Check your network and that the release is published.');

@@ -93,7 +93,7 @@ export async function init(opts: InitOptions): Promise<void> {
     out(`Installed sdlc-agent ${manifest.version} in ${dir} (not started).`);
     return;
   }
-  await up({ dir, quiet: true });
+  await up({ dir, quiet: true, skipDoctor: true });
   const url = `http://${opts.bind === '0.0.0.0' ? 'localhost' : opts.bind === '127.0.0.1' ? 'localhost' : opts.bind}:3000`;
   out();
   out(`sdlc-agent ${manifest.version} is running.`);
