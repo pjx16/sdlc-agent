@@ -72,6 +72,39 @@ docker_login() {
   gh_token | docker login ghcr.io -u "$(GH_TOKEN=$(gh_token) gh api user --jq .login)" --password-stdin >/dev/null
 }
 
+# GHCR creates an image private the first time it is pushed to a personal account, and only the website can make it
+# public (there is no API for it). A private image breaks every install that pulls it, while the maintainer, who is
+# logged in to ghcr.io, sees nothing wrong.
+package_settings() { printf 'https://github.com/users/%s/packages/container/sdlc-agent-%s/settings' "$OWNER" "$1"; }
+
+# Prints public, private or internal, or "missing" if the image was never pushed.
+package_visibility() {
+  local out
+  if out=$(GH_TOKEN=$(gh_token) gh api "/users/$OWNER/packages/container/sdlc-agent-$1" --jq .visibility 2>&1); then
+    printf '%s' "$out"
+  elif [[ "$out" == *"HTTP 404"* ]]; then
+    printf 'missing'
+  else
+    die "could not look up the GHCR package sdlc-agent-$1: $out"
+  fi
+}
+
+make_public_hint() { printf 'make it public at %s (Danger Zone > Change visibility > Public)' "$(package_settings "$1")"; }
+
+# Fetches the $VERSION manifest of every image the way a user's Docker does, without credentials.
+verify_anonymous_pulls() {
+  local entry name token code
+  for entry in "${IMAGES[@]}"; do
+    IFS='|' read -r name _ _ <<< "$entry"
+    token=$(curl -sS "https://ghcr.io/token?scope=repository:$OWNER/sdlc-agent-$name:pull" | jq -r '.token // empty')
+    code=$(curl -sS -o /dev/null -w '%{http_code}' -I -H "Authorization: Bearer $token" \
+      -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+      "https://ghcr.io/v2/$OWNER/sdlc-agent-$name/manifests/$VERSION")
+    [ "$code" = 200 ] || die "$REGISTRY/sdlc-agent-$name:$VERSION cannot be pulled without logging in (HTTP $code); $(make_public_hint "$name")"
+    echo "  $REGISTRY/sdlc-agent-$name:$VERSION pulls anonymously"
+  done
+}
+
 # ------------------------------------------------------------------------------------------------------------- arguments
 
 COMMAND=${1:-}
@@ -164,7 +197,7 @@ cmd_promote() {
 
 cmd_check() {
   log "Checking that $TAG can be released"
-  require_tools git gh jq node npm docker cosign trivy shasum zip
+  require_tools git gh jq node npm docker cosign trivy shasum zip curl
   require_release_main
 
   local cli_version
@@ -193,6 +226,23 @@ cmd_check() {
     [[ ", $scopes," == *", $scope,"* ]] || die "the GitHub token lacks $scope (gh auth refresh -s write:packages,delete:packages, or set GH_TOKEN)"
   done
   docker info >/dev/null 2>&1 || die "Docker is not running"
+
+  # Every image must be public, or users cannot pull it. An image released for the first time does not exist yet, so
+  # publish stops after pushing it and asks you to make it public.
+  local entry name visibility new=()
+  for entry in "${IMAGES[@]}"; do
+    IFS='|' read -r name _ _ <<< "$entry"
+    visibility=$(package_visibility "$name")
+    case "$visibility" in
+      public) ;;
+      missing) new+=("sdlc-agent-$name") ;;
+      *) die "$REGISTRY/sdlc-agent-$name is $visibility, so users cannot pull it; $(make_public_hint "$name")" ;;
+    esac
+  done
+  if [ ${#new[@]} -gt 0 ]; then
+    [ "$YES" = 1 ] && die "first release of ${new[*]}: GHCR creates new images private and only the website can make them public, so publish has to stop and ask you. Run it without --yes."
+    warn "first release of ${new[*]}: GHCR will create them private. publish stops after pushing them so you can make them public."
+  fi
 
   # Signing key: it must exist, unlock, and match the committed cosign.pub that users verify against.
   [ -f cosign.pub ] || die "cosign.pub is missing from the repository; see 'Cutting a release' in CONTRIBUTING.md"
@@ -321,6 +371,16 @@ cmd_publish() {
     state_set "digest_$name" "$digest"
   done
 
+  # Images pushed for the first time are private now (see package_visibility).
+  for entry in "${IMAGES[@]}"; do
+    IFS='|' read -r name _ _ <<< "$entry"
+    while [ "$(package_visibility "$name")" != public ]; do
+      [ "$YES" = 1 ] && die "$REGISTRY/sdlc-agent-$name is not public; $(make_public_hint "$name")"
+      warn "$REGISTRY/sdlc-agent-$name is private, so users could not pull it; $(make_public_hint "$name")"
+      read -r -p "Press Enter once it is public (Ctrl-C rolls the release back) " _
+    done
+  done
+
   for entry in "${IMAGES[@]}"; do
     IFS='|' read -r name _ _ <<< "$entry"
     image=$REGISTRY/sdlc-agent-$name
@@ -339,6 +399,9 @@ cmd_publish() {
     cosign sign --yes --key "$COSIGN_KEY" "$image@$digest"
     docker buildx imagetools create --builder "$BUILDER" --tag "$image:$VERSION" --tag "$image:sha-$short" "$image@$digest"
   done
+
+  log "Checking that every image pulls without logging in"
+  verify_anonymous_pulls
 
   log "Pushing the tag $TAG"
   git tag -a "$TAG" -m "$TAG" "$sha"
