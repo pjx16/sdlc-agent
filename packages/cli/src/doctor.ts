@@ -6,7 +6,7 @@ import { isRunning } from './compose';
 import { getEnv } from './envfile';
 import { assetsDir } from './paths';
 import { run } from './proc';
-import { dim, green, out, red, yellow } from './ui';
+import { dim, green, out, red, withProgress, yellow } from './ui';
 
 export interface Check {
   name: string;
@@ -111,6 +111,13 @@ export function envFor(dir: string): DoctorOptions['env'] {
   return { bind: getEnv(text, 'DASHBOARD_BIND'), dockerSock: getEnv(text, 'DOCKER_SOCK'), dataDir: getEnv(text, 'DATA_DIR') };
 }
 
+/** Pulls the probe image with visible output when it is not available locally. */
+async function ensureProbeImage(image: string): Promise<void> {
+  if ((await run('docker', ['image', 'inspect', image])).code === 0) return;
+  out(`Pulling ${image} for the Docker check…`);
+  await run('docker', ['pull', image], { inherit: true });
+}
+
 /** Mounts one folder of a throwaway volume, as agent containers do with the data volume. */
 async function subpathProbe(image: string): Promise<boolean> {
   const volume = `sdlc_doctor_probe_${process.pid}`;
@@ -137,7 +144,7 @@ export async function doctor(opts: DoctorOptions): Promise<DoctorResult> {
     hint: process.platform === 'win32' ? 'Windows is not supported yet; use WSL2 and run sdlc-agent inside it.' : 'Install Node.js 20 or newer.',
   });
 
-  const server = await run('docker', ['version', '--format', '{{.Server.Version}}']);
+  const [server, cv] = await Promise.all([run('docker', ['version', '--format', '{{.Server.Version}}']), run('docker', ['compose', 'version', '--short'])]);
   const dockerUp = server.code === 0 && server.stdout.trim() !== '';
   add({ name: 'Docker is running', required: true, ok: dockerUp, detail: dockerUp ? `Server ${server.stdout.trim()}` : undefined, hint: 'Docker is not running or not installed. Start Docker Desktop (or Colima / OrbStack).' });
   const engineOk = dockerUp && engineSupported(server.stdout);
@@ -151,7 +158,6 @@ export async function doctor(opts: DoctorOptions): Promise<DoctorResult> {
     });
   }
 
-  const cv = await run('docker', ['compose', 'version', '--short']);
   const composeVersion = cv.stdout.trim();
   add({
     name: 'Docker Compose 2.20 or newer',
@@ -176,7 +182,9 @@ export async function doctor(opts: DoctorOptions): Promise<DoctorResult> {
     add({ name: `Port 3000 is free on ${bind}`, required: false, ok: await portFree(3000, bind), hint: 'Something else uses port 3000. Stop it, or choose another address with --bind.' });
   }
 
-  if (engineOk) add({ name: 'Docker can mount a sub-path of a volume', required: true, ok: await subpathProbe(postgresImage(opts.dir)), hint: 'A test container could not mount part of a Docker volume. Check that Docker Desktop is up to date and restart it.' });
+  const probeImage = postgresImage(opts.dir);
+  if (engineOk) await ensureProbeImage(probeImage);
+  if (engineOk) add({ name: 'Docker can mount a sub-path of a volume', required: true, ok: await subpathProbe(probeImage), hint: 'A test container could not mount part of a Docker volume. Check that Docker Desktop is up to date and restart it.' });
 
   try {
     const base = diskTarget(opts.dir, undefined, existsSync);
@@ -201,7 +209,7 @@ export function printChecks(result: DoctorResult): void {
 /** Runs the checks, prints them, and reports whether the required ones passed. Skipped when SDLC_AGENT_SKIP_DOCTOR=1. */
 export async function runDoctor(opts: DoctorOptions, quiet = false): Promise<DoctorResult> {
   if (process.env.SDLC_AGENT_SKIP_DOCTOR === '1') return { ok: true, checks: [] };
-  const result = await doctor(opts);
+  const result = await withProgress('Checking Docker, ports and disk space', () => doctor(opts));
   if (!quiet || !result.ok) printChecks(result);
   return result;
 }
