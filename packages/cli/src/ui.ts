@@ -19,7 +19,24 @@ export const dim = (t: string) => paint(2, t);
 
 export const out = (line = '') => process.stdout.write(`${line}\n`);
 
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
 /** Runs `fn` while showing a spinner (TTY) or one status line (non-TTY). */
-export async function withProgress<T>(_label: string, _fn: () => Promise<T>): Promise<T> {
-  throw new Error('Not implemented');
+export async function withProgress<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  if (!process.stdout.isTTY) {
+    out(`${label}…`);
+    return fn();
+  }
+  let frame = 0;
+  const render = () => {
+    process.stdout.write(`\r${SPINNER_FRAMES[frame++ % SPINNER_FRAMES.length]} ${label}`);
+  };
+  render();
+  const timer = setInterval(render, 80);
+  try {
+    return await fn();
+  } finally {
+    clearInterval(timer);
+    process.stdout.write('\r\x1b[2K');
+  }
 }
