@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { run } from './proc';
+import { out, withProgress } from './ui';
 import { compareVersions, diskCheck, diskTarget, engineSupported, pickSocket, runDoctor, socketCandidates } from './doctor';
+
+vi.mock('./proc', () => ({ run: vi.fn() }));
+vi.mock('./compose', () => ({ isRunning: vi.fn(async () => false) }));
+vi.mock('./ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./ui')>()),
+  out: vi.fn(),
+  withProgress: vi.fn(async (_label: string, fn: () => Promise<unknown>) => fn()),
+}));
 
 describe('engineSupported', () => {
   it('needs Docker Engine 26 or newer, for volume sub-path mounts', () => {
@@ -107,5 +117,108 @@ describe('runDoctor', () => {
       if (prev === undefined) delete process.env.SDLC_AGENT_SKIP_DOCTOR;
       else process.env.SDLC_AGENT_SKIP_DOCTOR = prev;
     }
+  });
+});
+
+type Reply = { code: number; stdout: string; stderr: string };
+const reply = (code: number, stdout = ''): Reply => ({ code, stdout, stderr: '' });
+const key = (args: readonly string[]) => args.slice(0, 2).join(' ');
+
+/** Fakes docker: every call succeeds unless `overrides` replies for its first two arguments. */
+function fakeDocker(overrides: Record<string, () => Promise<Reply> | Reply> = {}, onCall?: (args: readonly string[]) => void) {
+  vi.mocked(run).mockImplementation(async (_cmd, args) => {
+    onCall?.(args);
+    const o = overrides[key(args)];
+    if (o) return o();
+    if (key(args) === 'version --format') return reply(0, '27.0.0\n');
+    if (key(args) === 'compose version') return reply(0, '2.29.1\n');
+    return reply(0);
+  });
+}
+const calls = () => vi.mocked(run).mock.calls;
+const isPull = (args: readonly string[]) => args[0] === 'pull';
+
+describe('runDoctor progress and probe image', () => {
+  beforeEach(() => {
+    delete process.env.SDLC_AGENT_SKIP_DOCTOR;
+    vi.mocked(run).mockReset();
+    vi.mocked(out).mockClear();
+    vi.mocked(withProgress).mockClear();
+  });
+  afterEach(() => {
+    delete process.env.SDLC_AGENT_SKIP_DOCTOR;
+  });
+
+  it('shows the progress label before any docker check runs', async () => {
+    const events: string[] = [];
+    vi.mocked(withProgress).mockImplementationOnce(async (label, fn) => {
+      events.push(`progress:${label}`);
+      return fn();
+    });
+    fakeDocker({}, (args) => events.push(`run:${key(args)}`));
+    await runDoctor({ dir: '/nonexistent' }, true);
+    expect(events[0]).toBe('progress:Checking Docker, ports and disk space');
+    expect(events.some((e) => e.startsWith('run:'))).toBe(true);
+  });
+
+  it('prints no label and runs nothing when SDLC_AGENT_SKIP_DOCTOR=1', async () => {
+    process.env.SDLC_AGENT_SKIP_DOCTOR = '1';
+    fakeDocker();
+    const r = await runDoctor({ dir: '/nonexistent' }, true);
+    expect(r).toEqual({ ok: true, checks: [] });
+    expect(withProgress).not.toHaveBeenCalled();
+    expect(out).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('prints the pull notice and pulls with inherited output before the probe when the image is missing', async () => {
+    fakeDocker({ 'image inspect': () => reply(1) });
+    await runDoctor({ dir: '/nonexistent' }, true);
+    const pullIdx = calls().findIndex(([, a]) => isPull(a));
+    expect(pullIdx).toBeGreaterThanOrEqual(0);
+    const [, pullArgs, pullOpts] = calls()[pullIdx] as [string, readonly string[], { inherit?: boolean } | undefined];
+    const image = pullArgs[1] as string;
+    expect(image).toMatch(/^postgres:/);
+    expect(pullOpts?.inherit).toBe(true);
+    expect(calls().some(([, a]) => key(a) === 'image inspect' && a[2] === image)).toBe(true);
+    expect(out).toHaveBeenCalledWith(`Pulling ${image} for the Docker check…`);
+    const firstRun = calls().findIndex(([, a]) => a[0] === 'run');
+    expect(firstRun).toBeGreaterThan(pullIdx);
+  });
+
+  it('does not pull when the image exists locally', async () => {
+    fakeDocker();
+    await runDoctor({ dir: '/nonexistent' }, true);
+    expect(calls().some(([, a]) => key(a) === 'image inspect')).toBe(true);
+    expect(calls().some(([, a]) => isPull(a))).toBe(false);
+    expect(vi.mocked(out).mock.calls.some(([l]) => String(l).startsWith('Pulling '))).toBe(false);
+  });
+
+  it('starts docker compose version while docker version is still pending', async () => {
+    let release: (r: Reply) => void = () => {};
+    fakeDocker({ 'version --format': () => new Promise<Reply>((res) => (release = res)) });
+    const pending = runDoctor({ dir: '/nonexistent' }, true);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls().some(([, a]) => key(a) === 'compose version')).toBe(true);
+    release(reply(0, '27.0.0'));
+    await pending;
+  });
+
+  it('still reports a failing docker version with the same check name and hint', async () => {
+    fakeDocker({ 'version --format': () => reply(1) });
+    const r = await runDoctor({ dir: '/nonexistent' }, true);
+    const c = r.checks.find((x) => x.name === 'Docker is running');
+    expect(c?.ok).toBe(false);
+    expect(c?.hint).toContain('Docker is not running or not installed');
+    expect(r.ok).toBe(false);
+  });
+
+  it('still reports a failing docker compose version with the same check name and hint', async () => {
+    fakeDocker({ 'compose version': () => reply(1) });
+    const r = await runDoctor({ dir: '/nonexistent' }, true);
+    const c = r.checks.find((x) => x.name === 'Docker Compose 2.20 or newer');
+    expect(c?.ok).toBe(false);
+    expect(c?.hint).toContain('Install Docker Compose v2.20');
+    expect(r.ok).toBe(false);
   });
 });
