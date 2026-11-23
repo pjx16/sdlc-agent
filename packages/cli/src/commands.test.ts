@@ -98,4 +98,24 @@ describe('up', () => {
     await expect(up({ dir: '/x', quiet: true })).rejects.toThrow('Could not pull the images');
     expect(calls).toEqual(['compose pull']);
   });
+
+  it('does not run the doctor when skipDoctor is set, and still pulls and starts', async () => {
+    mockResults({});
+    await up({ dir: '/x', quiet: true, skipDoctor: true });
+    expect(runDoctor).not.toHaveBeenCalled();
+    expect(calls).toEqual(['compose pull', agent, start]);
+  });
+
+  it('runs the doctor when skipDoctor is not set', async () => {
+    mockResults({});
+    await up({ dir: '/x', quiet: true });
+    expect(runDoctor).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops before pulling when the doctor reports required failures', async () => {
+    mockResults({});
+    vi.mocked(runDoctor).mockResolvedValue({ ok: false } as Awaited<ReturnType<typeof runDoctor>>);
+    await expect(up({ dir: '/x', quiet: true })).rejects.toThrow('Fix the checks marked');
+    expect(calls).toEqual([]);
+  });
 });
