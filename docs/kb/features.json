@@ -2,19 +2,6 @@
   "version": 1,
   "features": [
     {
-      "key": "database",
-      "title": "Database",
-      "doc": "database.md",
-      "globs": [
-        "docker-compose.yml",
-        "deploy/docker-compose.yml",
-        "scripts/dev.sh",
-        "apps/api/src/prisma/**"
-      ],
-      "builtFromCommit": "996ad43600f7aac9a4d2b2c8dd100ed35d611881",
-      "updatedAt": "2026-11-14T17:40:31.595Z"
-    },
-    {
       "key": "cli",
       "title": "Cli",
       "doc": "cli.md",
@@ -39,6 +26,19 @@
       "updatedAt": "2026-11-14T16:50:16.333Z"
     },
     {
+      "key": "database",
+      "title": "Database",
+      "doc": "database.md",
+      "globs": [
+        "docker-compose.yml",
+        "deploy/docker-compose.yml",
+        "scripts/dev.sh",
+        "apps/api/src/prisma/**"
+      ],
+      "builtFromCommit": "996ad43600f7aac9a4d2b2c8dd100ed35d611881",
+      "updatedAt": "2026-11-14T17:40:31.595Z"
+    },
+    {
       "key": "setup",
       "title": "Setup",
       "doc": "setup.md",
@@ -47,8 +47,8 @@
         "apps/api/src/worker/agent-runner/container-engine.ts",
         "apps/api/src/worker/worker-runner.ts"
       ],
-      "builtFromCommit": "4bea5d51c9ebcd0991d80a4cd55f84fe6e5c4173",
-      "updatedAt": "2026-11-14T17:26:50.139Z"
+      "builtFromCommit": "1ea51d78a53099c7e3998e28139c93923e333e19",
+      "updatedAt": "2026-11-23T15:04:52.606Z"
     },
     {
       "key": "tracker",
