@@ -6,7 +6,7 @@ import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { ProjectsModule } from './projects.module';
 
 const proposalFor = (over: Partial<OnboardingProposal> = {}): OnboardingProposal => ({
-  facts: ({
+  facts: {
     github: { defaultBranch: 'main', languages: ['TypeScript'] },
     jira: {
       projectName: 'Billing',
@@ -14,7 +14,8 @@ const proposalFor = (over: Partial<OnboardingProposal> = {}): OnboardingProposal
       statusesByType: [{ type: 'Story', statuses: [{ name: 'To Do', category: 'new' }, { name: 'In Progress', category: 'indeterminate' }, { name: 'In Review', category: 'indeterminate' }, { name: 'Done', category: 'done' }] }],
       labels: ['backend'],
     },
-  }) as unknown as OnboardingProposal['facts'],
+    confluence: { spaces: [{ key: 'ENG', name: 'Engineering' }] },
+  },
   profile: { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '**/*.spec.ts', exampleTestFile: null, baseBranch: 'main', installCheck: { command: 'npm ci', ok: true, tail: '' }, typecheckCheck: null },
   advice: { statusMap: { KB: 'In Progress', DONE: 'Done' }, approvalStatuses: { plan: 'In Review', breakdown: null }, issueTypeRouting: { Story: 'feature', Bug: 'bug', Epic: 'ignore', 'Sub-task': 'ignore' }, intakeLabel: 'sdlc-agent', confluenceSpaceKey: 'ENG' },
   accepted: {},
@@ -48,6 +49,8 @@ describe('Project onboarding API', () => {
     t.jira.jira.tickets = [];
     t.jira.jira.calls = [];
     t.jira.jira.failWith = null;
+    t.confluence.confluence.failWith = null;
+    t.confluence.confluence.calls = [];
   });
 
   describe('starting', () => {
@@ -117,12 +120,13 @@ describe('Project onboarding API', () => {
       expect(bad.body.fields.testCmdTemplate).toContain('{files}');
     });
 
-    it('a status that is not in the Jira project is refused, and so is a confluence section', async () => {
+    it('a status that is not in the Jira project, and a space the person cannot write to, are refused', async () => {
       const p = await proposed();
       const status = await patch(p.id, 'statusMap', { action: 'edit', value: { statusMap: { KB: 'Invented' } } }).expect(400);
       expect(JSON.stringify(status.body.fields)).toContain('not a status of this Jira project');
-      await patch(p.id, 'confluence', { action: 'accept' }).expect(400);
-      await patch(p.id, 'confluence', { action: 'edit', value: { confluenceSpaceKey: 'ENG' } }).expect(400);
+      const space = await patch(p.id, 'confluence', { action: 'edit', value: { confluenceSpaceKey: 'SECRET' } }).expect(400);
+      expect(space.body.fields.confluenceSpaceKey).toContain('not a space you can write to');
+      await patch(p.id, 'confluence', { action: 'edit', value: { confluenceSpaceKey: null } }).expect(200);
       const type = await patch(p.id, 'routing', { action: 'edit', value: { issueTypeRouting: { Wizard: 'bug' } } }).expect(400);
       expect(JSON.stringify(type.body.fields)).toContain('not an issue type');
     });
@@ -199,7 +203,8 @@ describe('Project onboarding API', () => {
       expect(settings.jiraApprovalStatuses).toEqual({ plan: 'In Review' });
       expect(settings.jiraIssueTypeRouting).toEqual({ Story: 'feature', Bug: 'bug', Epic: 'ignore', 'Sub-task': 'ignore' });
       expect(settings.jiraSubtaskTypeName).toBe('Sub-task');
-      expect(settings).not.toHaveProperty('confluence');
+      expect(settings.confluence).toMatchObject({ spaceKey: 'ENG', parentPageId: expect.stringMatching(/^page-/) });
+      expect(t.confluence.confluence.calls).toContain('parent ENG sdlc-agent plans');
     });
 
     it('starts a new project with the stage models and turn limits chosen in Settings', async () => {
@@ -223,9 +228,20 @@ describe('Project onboarding API', () => {
       expect(await t.prisma.supportTicket.findMany({ where: { projectId: p.id } })).toMatchObject([{ kind: 'onboarding', status: 'resolved', resolvedBy: 'user' }]);
     });
 
+    it('a Confluence failure is a warning, not a failure: the project goes without it', async () => {
+      const p = await proposed();
+      await patch(p.id, 'statusMap', { action: 'accept' });
+      await patch(p.id, 'label', { action: 'accept' });
+      t.confluence.confluence.failWith = new Error('Confluence 403: no permission');
+      const res = (await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200)).body;
+      expect(res.warnings[0]).toContain('Confluence 403');
+      expect(res.project.onboardingStatus).toBe('confirmed');
+      expect(res.project.settings.confluence).toBeNull();
+    });
+
     it('a project without Jira needs no status map or label, and gets no Jira settings', async () => {
       const p = await proposed(
-        { facts: { github: { defaultBranch: 'main', languages: [] }, jira: null } as unknown as OnboardingProposal['facts'], advice: { statusMap: {}, approvalStatuses: { plan: null, breakdown: null }, issueTypeRouting: {}, intakeLabel: 'sdlc-agent', confluenceSpaceKey: null } as OnboardingProposal['advice'] },
+        { facts: { github: { defaultBranch: 'main', languages: [] }, jira: null, confluence: { spaces: null, reason: 'not configured' } }, advice: { statusMap: {}, approvalStatuses: { plan: null, breakdown: null }, issueTypeRouting: {}, intakeLabel: 'sdlc-agent', confluenceSpaceKey: null } },
         { jiraMode: 'off', jiraProjectKey: null },
       );
       const res = (await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200)).body;
