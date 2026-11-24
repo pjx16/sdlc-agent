@@ -161,6 +161,14 @@ describe('plan stage (F7)', () => {
       expect(jira.calls).toEqual([`comment ${t.externalKey}`]);
     });
 
+    it('posts the full plan as a comment even when stored settings still hold a confluence key', async () => {
+      await setProject({ jiraMode: 'rest', settings: { confluence: { spaceKey: 'ENG', parentPageId: 'page-1' } } });
+      const t = await jiraTicket();
+      await handler.run(t);
+      expect(jira.calls).toEqual([`comment ${t.externalKey}`]);
+      expect(jira.commentBodies[t.externalKey as string]?.[0]).toContain('Export CSV');
+    });
+
     it('does not post when comments are off, the ticket was pasted, or Jira is off for the project', async () => {
       await setProject({ jiraMode: 'rest', settings: { jiraWriteBack: { comments: false } } });
       await handler.run(await jiraTicket());

@@ -7,7 +7,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { JiraNotConfiguredError } from '../../jira/jira-clients';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SupportRaiser } from '../../support/support-raiser';
-import { FakeConfluence, FakeConfluenceClients } from '../../testing/fake-confluence';
 import { FakeGitHub } from '../../testing/fake-github';
 import { FakeJira, FakeJiraClients } from '../../testing/fake-jira';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
@@ -16,13 +15,12 @@ import { WorkerConfig } from '../worker-config';
 import { OnboardingWorker, factsText, sanitizeAdvice } from './onboarding-worker';
 
 const profile: RepoProfile = { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '**/*.spec.ts', exampleTestFile: 'src/a.spec.ts' };
-const advice: OnboardAdvice = {
+const advice = {
   statusMap: { KB: 'In Progress', PLANNING: 'In Progress', DONE: 'Done', FAILED: 'Made up status' },
   approvalStatuses: { plan: 'Plan Approved', breakdown: null },
   issueTypeRouting: { Story: 'feature', Bug: 'bug', Epic: 'ignore', 'Sub-task': 'feature' },
   intakeLabel: 'sdlc-agent',
-  confluenceSpaceKey: 'ENG',
-};
+} as unknown as OnboardAdvice;
 const done = (data: unknown): StageResult => ({ kind: 'done', envelope: { status: 'done', summary: 's', data } as StageEnvelope, stageRunId: 'r', attempts: 1 });
 
 describe('OnboardingWorker', () => {
@@ -33,7 +31,6 @@ describe('OnboardingWorker', () => {
   let github: FakeGitHub;
   let jiraClients: FakeJiraClients;
   let jira: FakeJira;
-  let confluence: FakeConfluence;
   let requests: StageRequest[] = [];
   let agent: (req: StageRequest) => StageResult;
   let verifyCalls: { cmd: string }[] = [];
@@ -54,8 +51,6 @@ describe('OnboardingWorker', () => {
     github = new FakeGitHub();
     jiraClients = new FakeJiraClients();
     jira = jiraClients.jira;
-    const confluenceClients = new FakeConfluenceClients();
-    confluence = confluenceClients.confluence;
     const mirrors = {
       async clone(p: { id: string }) {
         mkdirSync(config.mirrorPath(p.id), { recursive: true });
@@ -71,7 +66,7 @@ describe('OnboardingWorker', () => {
         return { ok, exitCode: ok ? 0 : 1, timedOut: false, tail: ok ? 'ok' : 'error TS2304: Cannot find name', output: '' };
       },
     };
-    worker = new OnboardingWorker(prisma, config, mirrors as never, git as never, github, jiraClients, confluenceClients, runner as never, verify as never, new SupportRaiser(prisma));
+    worker = new (OnboardingWorker as unknown as new (...deps: unknown[]) => OnboardingWorker)(prisma, config, mirrors as never, git as never, github, jiraClients, runner as never, verify as never, new SupportRaiser(prisma));
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -85,7 +80,6 @@ describe('OnboardingWorker', () => {
     github.facts = { defaultBranch: 'main', languages: ['TypeScript'] };
     github.failFacts = null;
     jira.failWith = null;
-    confluence.failWith = null;
     agent = (req) => done(req.stage === 'repoProfile' ? profile : advice);
     await prisma.supportTicket.deleteMany();
     await prisma.globalSettings.deleteMany();
@@ -100,7 +94,7 @@ describe('OnboardingWorker', () => {
     const proposal = after.onboardingProposal as unknown as OnboardingProposal;
     expect(proposal.facts.github).toEqual({ defaultBranch: 'main', languages: ['TypeScript'] });
     expect(proposal.facts.jira?.issueTypes.map((t) => t.name)).toContain('Story');
-    expect(proposal.facts.confluence).toEqual({ spaces: [{ key: 'ENG', name: 'Engineering' }, { key: 'SDA', name: 'SDA Platform' }] });
+    expect(proposal.facts).not.toHaveProperty('confluence');
     expect(proposal.profile).toMatchObject({ stack: 'nestjs', testCmdTemplate: 'npx jest {files}', baseBranch: 'main', installCheck: { command: 'npm ci', ok: true }, typecheckCheck: { command: 'npx tsc --noEmit', ok: true } });
     expect(proposal.accepted).toEqual({});
     expect(requests.map((r) => r.stage)).toEqual(['repoProfile', 'onboardAdvise']);
@@ -136,15 +130,15 @@ describe('OnboardingWorker', () => {
     });
   });
 
-  it('never leaves an invented Jira status, issue type route or Confluence space in the proposal', async () => {
+  it('never leaves an invented Jira status, issue type route in the proposal', async () => {
     const p = await project();
-    agent = (req) => done(req.stage === 'repoProfile' ? profile : { ...advice, confluenceSpaceKey: 'NOPE', approvalStatuses: { plan: 'Plan Approved', breakdown: 'Ghost' } });
+    agent = (req) => done(req.stage === 'repoProfile' ? profile : { ...advice, approvalStatuses: { plan: 'Plan Approved', breakdown: 'Ghost' } });
     await worker.check();
     const a = ((await reload(p.id)).onboardingProposal as unknown as OnboardingProposal).advice;
     expect(a.statusMap.FAILED).toBeNull(); // not a status of the project
     expect(a.statusMap.KB).toBe('In Progress');
     expect(a.approvalStatuses).toEqual({ plan: null, breakdown: null }); // "Plan Approved" is not in the fake project either
-    expect(a.confluenceSpaceKey).toBeNull();
+    expect(a).not.toHaveProperty('confluenceSpaceKey'); // an agent that still returns one is stripped
     expect(a.issueTypeRouting['Sub-task']).toBe('ignore'); // the sub-task type is always ignored
   });
 
@@ -154,16 +148,7 @@ describe('OnboardingWorker', () => {
     expect(requests.map((r) => r.stage)).toEqual(['repoProfile']);
     const proposal = (await reload(p.id)).onboardingProposal as unknown as OnboardingProposal;
     expect(proposal.facts.jira).toBeNull();
-    expect(proposal.advice).toMatchObject({ intakeLabel: 'sdlc-agent', issueTypeRouting: {}, confluenceSpaceKey: null });
-  });
-
-  it('works when Confluence cannot be reached, and says why', async () => {
-    const p = await project();
-    confluence.failWith = new Error('Confluence 401: Unauthorized');
-    await worker.check();
-    const proposal = (await reload(p.id)).onboardingProposal as unknown as OnboardingProposal;
-    expect(proposal.facts.confluence).toEqual({ spaces: null, reason: 'Confluence 401: Unauthorized' });
-    expect(proposal.advice.confluenceSpaceKey).toBeNull();
+    expect(proposal.advice).toMatchObject({ intakeLabel: 'sdlc-agent', issueTypeRouting: {} });
   });
 
   it('records a failing install and does not run the typecheck after it', async () => {
@@ -256,19 +241,18 @@ describe('OnboardingWorker', () => {
 
 describe('factsText and sanitizeAdvice (pure)', () => {
   it('writes the facts as plain text the advisor can read', () => {
-    const t = factsText('billing', {
+    const t = factsText('billing', ({
       github: { defaultBranch: 'main', languages: ['TypeScript'] },
       jira: { projectName: 'Billing', issueTypes: [{ name: 'Story', subtask: false }, { name: 'Sub-task', subtask: true }], statusesByType: [{ type: 'Story', statuses: [{ name: 'To Do', category: 'new' }] }], labels: [] },
-      confluence: { spaces: null, reason: 'no access' },
-    });
+    }) as unknown as Parameters<typeof factsText>[1]);
     expect(t).toContain('- Sub-task (the sub-task type)');
     expect(t).toContain('- Story: To Do [new]');
     expect(t).toContain('Labels already in use: none');
-    expect(t).toContain('Confluence is not available: no access');
+    expect(t.toLowerCase()).not.toContain('confluence');
   });
 
   it('with no advice at all, falls back on the default routing and label', () => {
     const jira = { projectName: 'x', issueTypes: [{ name: 'Bug', subtask: false }, { name: 'Epic', subtask: false }], statusesByType: [], labels: [] };
-    expect(sanitizeAdvice(null, jira, [])).toEqual({ statusMap: {}, approvalStatuses: { plan: null, breakdown: null }, issueTypeRouting: { Bug: 'bug', Epic: 'ignore' }, intakeLabel: 'sdlc-agent', confluenceSpaceKey: null });
+    expect((sanitizeAdvice as unknown as (a: null, j: typeof jira) => OnboardAdvice)(null, jira)).toEqual({ statusMap: {}, approvalStatuses: { plan: null, breakdown: null }, issueTypeRouting: { Bug: 'bug', Epic: 'ignore' }, intakeLabel: 'sdlc-agent' });
   });
 });

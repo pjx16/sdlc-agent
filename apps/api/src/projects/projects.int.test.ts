@@ -90,6 +90,17 @@ describe('Projects API (F2)', () => {
     expect(res.body.fields).toEqual({ name: 'a project with this name already exists' });
   });
 
+  it('loads and saves a project whose stored settings still hold a confluence key', async () => {
+    const { id } = (await t.agent.post('/projects').send(valid).expect(201)).body;
+    const row = await t.prisma.project.findUniqueOrThrow({ where: { id } });
+    await t.prisma.project.update({ where: { id }, data: { settings: { ...(row.settings as object), confluence: { spaceKey: 'ENG', parentPageId: 'p1' } } } });
+    const loaded = (await t.agent.get(`/projects/${id}`).expect(200)).body;
+    expect(loaded.settings).not.toHaveProperty('confluence');
+    const saved = await t.agent.patch(`/projects/${id}`).send({ settings: { gates: { breakdown: false } } }).expect(200);
+    expect(saved.body.settings.gates).toEqual({ plan: true, breakdown: false });
+    expect(saved.body.settings).not.toHaveProperty('confluence');
+  });
+
   it('PATCH merges nested settings and validates the result', async () => {
     const { id } = (await t.agent.post('/projects').send(valid).expect(201)).body;
     const res = await t.agent.patch(`/projects/${id}`).send({ settings: { stages: { solutionDesign: { maxTurns: 9 } }, gates: { breakdown: false } }, installCmd: 'npm ci' }).expect(200);
