@@ -260,6 +260,8 @@ model Ticket {
   lastReviewedSha String?
   ciFixPending    Boolean       @default(false)
   ciFixDone       Boolean       @default(false)
+  /// How many CI fix rounds ran for this ticket; compared with loopLimits.ciFix before queueing another.
+  ciFixRounds     Int           @default(0)
   /// The failed checks were run again once after the CI triager called the failure flaky.
   ciRerunDone     Boolean       @default(false)
   /// When the worker started waiting for the PR's checks (reset after a CI fix and on hold).
