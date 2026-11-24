@@ -2,19 +2,6 @@
   "version": 1,
   "features": [
     {
-      "key": "database",
-      "title": "Database",
-      "doc": "database.md",
-      "globs": [
-        "docker-compose.yml",
-        "deploy/docker-compose.yml",
-        "scripts/dev.sh",
-        "apps/api/src/prisma/**"
-      ],
-      "builtFromCommit": "996ad43600f7aac9a4d2b2c8dd100ed35d611881",
-      "updatedAt": "2026-11-14T17:40:31.595Z"
-    },
-    {
       "key": "cli",
       "title": "Cli",
       "doc": "cli.md",
@@ -37,6 +24,31 @@
       ],
       "builtFromCommit": "9bdd93fe17d2a9669ce21f56201d9adbe708bc27",
       "updatedAt": "2026-11-14T16:50:16.333Z"
+    },
+    {
+      "key": "database",
+      "title": "Database",
+      "doc": "database.md",
+      "globs": [
+        "docker-compose.yml",
+        "deploy/docker-compose.yml",
+        "scripts/dev.sh",
+        "apps/api/src/prisma/**"
+      ],
+      "builtFromCommit": "996ad43600f7aac9a4d2b2c8dd100ed35d611881",
+      "updatedAt": "2026-11-14T17:40:31.595Z"
+    },
+    {
+      "key": "pull-requests",
+      "title": "Pull Requests",
+      "doc": "pull-requests.md",
+      "globs": [
+        "apps/api/src/worker/ci/**",
+        "apps/api/src/worker/pipeline/pr.service.ts",
+        "apps/api/src/worker/github/**"
+      ],
+      "builtFromCommit": "7100b03c70c4b60cba3481bae3dbf96349e9cc2a",
+      "updatedAt": "2026-11-24T00:25:17.468Z"
     },
     {
       "key": "setup",
