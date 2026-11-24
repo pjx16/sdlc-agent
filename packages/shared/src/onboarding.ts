@@ -6,6 +6,12 @@ import { PROJECT_STACKS, TICKET_STATUSES, type TicketStatus } from './enums';
 export const ONBOARDING_STATUSES = ['draft', 'profiling', 'proposed', 'confirmed'] as const;
 export type OnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
 
+/** The steps of a profiling run, in order. Stub: filled in by the implement stage. */
+export const ONBOARDING_STEPS: readonly string[] = [];
+export type OnboardingStep = string;
+/** A short label for each step, shown in the dashboard. Stub: filled in by the implement stage. */
+export const ONBOARDING_STEP_LABELS: Record<OnboardingStep, string> = {};
+
 /** What a ticket of an issue type becomes. `ignore` types are not picked up. */
 export const ISSUE_KINDS = ['feature', 'bug', 'chore', 'ignore'] as const;
 export type IssueKind = (typeof ISSUE_KINDS)[number];

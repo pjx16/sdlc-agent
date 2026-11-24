@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OnboardAdviseData, RepoProfileData, buildIntakeJql, defaultRouting, kindForIssueType, missingAcceptance } from './onboarding';
+import { ONBOARDING_STEPS, ONBOARDING_STEP_LABELS, OnboardAdviseData, type OnboardingStep, RepoProfileData, buildIntakeJql, defaultRouting, kindForIssueType, missingAcceptance } from './onboarding';
 import { ProjectSettingsSchema } from './project-settings';
 
 describe('buildIntakeJql', () => {
@@ -75,5 +75,26 @@ describe('global stage defaults', () => {
     expect(GlobalSettingsSchema.parse({ stageDefaults: { solutionDesign: { model: 'haiku', maxTurns: 5 } } }).stageDefaults.solutionDesign).toEqual({ model: 'haiku', maxTurns: 5 });
     expect(GlobalSettingsSchema.safeParse({ stageDefaults: { solutionDesign: { model: 'gpt', maxTurns: 5 } } }).success).toBe(false);
     expect(GlobalSettingsSchema.safeParse({ stageDefaults: { solutionDesign: { model: 'haiku', maxTurns: 0 } } }).success).toBe(false);
+  });
+});
+
+describe('ONBOARDING_STEPS', () => {
+  it('lists the steps in pipeline order', () => {
+    expect([...ONBOARDING_STEPS]).toEqual(['access', 'facts', 'clone', 'analyse', 'verify', 'saving']);
+  });
+
+  it('derives the OnboardingStep type from the list', () => {
+    const step: OnboardingStep = ONBOARDING_STEPS[0] as OnboardingStep;
+    expect(ONBOARDING_STEPS).toContain(step);
+  });
+
+  it('gives every step a non-empty label and no extra labels', () => {
+    for (const step of ONBOARDING_STEPS) expect(ONBOARDING_STEP_LABELS[step].trim().length).toBeGreaterThan(0);
+    expect(Object.keys(ONBOARDING_STEP_LABELS).sort()).toEqual([...ONBOARDING_STEPS].sort());
+  });
+
+  it('has exactly six steps so the labels cannot be empty by accident', () => {
+    expect(ONBOARDING_STEPS).toHaveLength(6);
+    expect(ONBOARDING_STEPS.map((s) => ONBOARDING_STEP_LABELS[s])).not.toContain(undefined);
   });
 });
