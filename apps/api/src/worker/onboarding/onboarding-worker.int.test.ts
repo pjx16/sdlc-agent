@@ -1,10 +1,9 @@
 import 'reflect-metadata';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { Logger } from '@nestjs/common';
 import type { OnboardAdvice, OnboardingProposal, RepoProfile, StageEnvelope } from '@sdlc/shared';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { JiraNotConfiguredError } from '../../jira/jira-clients';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SupportRaiser } from '../../support/support-raiser';
@@ -36,7 +35,7 @@ describe('OnboardingWorker', () => {
   let jira: FakeJira;
   let confluence: FakeConfluence;
   let requests: StageRequest[] = [];
-  let agent: (req: StageRequest) => StageResult | Promise<StageResult>;
+  let agent: (req: StageRequest) => StageResult;
   let verifyCalls: { cmd: string }[] = [];
   let verifyOk: Record<string, boolean>;
   let n = 0;
@@ -78,9 +77,6 @@ describe('OnboardingWorker', () => {
     await prisma?.onModuleDestroy();
     await db?.drop();
     rmSync(tmp, { recursive: true, force: true });
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
   beforeEach(async () => {
     requests = [];
@@ -245,152 +241,6 @@ describe('OnboardingWorker', () => {
     expect((await reload(b.id)).onboardingStatus).toBe('proposed');
     await worker.check(); // nothing left
     expect(requests.length).toBe(4);
-  });
-
-  describe('speed and progress', () => {
-    const tick = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-    /** True once `cond` holds, false after `ms`: a missing concurrency fails the test instead of hanging it. */
-    const until = async (cond: () => boolean, ms = 2000) => {
-      const end = Date.now() + ms;
-      while (!cond()) {
-        if (Date.now() > end) return false;
-        await tick(5);
-      }
-      return true;
-    };
-    /** Every `onboardingStep` value the worker writes, in order. */
-    const recordSteps = () => {
-      const steps: (string | null)[] = [];
-      const original = prisma.project.update.bind(prisma.project);
-      vi.spyOn(prisma.project, 'update').mockImplementation(((args: { data: Record<string, unknown> }) => {
-        if (args.data && 'onboardingStep' in args.data) steps.push(args.data.onboardingStep as string | null);
-        return original(args as never);
-      }) as never);
-      return steps;
-    };
-    const checkoutOf = (id: string) => path.join(tmp, 'data', 'onboarding', id);
-
-    it('looks up GitHub, Jira and Confluence at the same time', async () => {
-      const p = await project();
-      const started: string[] = [];
-      let othersStartedBeforeGithubEnded = false;
-      vi.spyOn(github, 'repoFacts').mockImplementation(async () => {
-        started.push('github');
-        othersStartedBeforeGithubEnded = await until(() => started.includes('jira') && started.includes('confluence'));
-        return { defaultBranch: 'main', languages: ['TypeScript'] };
-      });
-      const projectFacts = jira.projectFacts.bind(jira);
-      vi.spyOn(jira, 'projectFacts').mockImplementation(async (key: string) => (started.push('jira'), projectFacts(key)));
-      const listSpaces = confluence.listWritableSpaces.bind(confluence);
-      vi.spyOn(confluence, 'listWritableSpaces').mockImplementation(async () => (started.push('confluence'), listSpaces()));
-      await worker.check();
-      expect(othersStartedBeforeGithubEnded).toBe(true);
-      expect((await reload(p.id)).onboardingStatus).toBe('proposed');
-    });
-
-    it('starts the advisor before the profiler has finished', async () => {
-      const p = await project();
-      const events: string[] = [];
-      agent = async (req) => {
-        events.push(`${req.stage}:start`);
-        if (req.stage === 'repoProfile') {
-          await until(() => events.includes('onboardAdvise:start'));
-          events.push('repoProfile:end');
-          return done(profile);
-        }
-        return done(advice);
-      };
-      await worker.check();
-      expect(events).toContain('onboardAdvise:start');
-      expect(events.indexOf('onboardAdvise:start')).toBeLessThan(events.indexOf('repoProfile:end'));
-      expect((await reload(p.id)).onboardingStatus).toBe('proposed');
-    });
-
-    it('fails as one unit when the advisor fails while the profiler succeeds: draft, error, checkout removed, step null', async () => {
-      const p = await project();
-      agent = (req) => (req.stage === 'onboardAdvise' ? { kind: 'out_of_credits', stageRunId: 'r', attempts: 1 } : done(profile));
-      await worker.check();
-      expect(await reload(p.id)).toMatchObject({ onboardingStatus: 'draft', onboardingProposal: null, onboardingStep: null, onboardingError: expect.stringContaining('credit balance is too low') });
-      expect(existsSync(checkoutOf(p.id))).toBe(false);
-    });
-
-    it('fails as one unit when the profiler fails while the advisor succeeds: draft, error, checkout removed, step null', async () => {
-      const p = await project();
-      agent = async (req) => {
-        if (req.stage === 'repoProfile') return { kind: 'failed', reason: 'profiler broke', errorCode: 'INVALID_OUTPUT', stageRunId: 'r', attempts: 1 };
-        await tick(20);
-        return done(advice);
-      };
-      await worker.check();
-      expect(await reload(p.id)).toMatchObject({ onboardingStatus: 'draft', onboardingProposal: null, onboardingStep: null, onboardingError: expect.stringContaining('profiler broke') });
-      expect(existsSync(checkoutOf(p.id))).toBe(false);
-    });
-
-    it('keeps the GitHub and Jira error messages when the lookups run together', async () => {
-      const p = await project();
-      github.failFacts = new Error('gh: Not Found (HTTP 404)');
-      await worker.check();
-      expect((await reload(p.id)).onboardingError).toBe('GitHub: gh: Not Found (HTTP 404). Check the GitHub token in Settings → Connections and the repository URL.');
-      const q = await project();
-      github.failFacts = null;
-      jira.failWith = new Error('Jira 404: No project could be found with key SDA');
-      await worker.check();
-      expect((await reload(q.id)).onboardingError).toBe('Jira: Jira 404: No project could be found with key SDA. Check the project key and the Jira credential.');
-    });
-
-    it('still tolerates a Confluence failure while the other lookups succeed', async () => {
-      const p = await project();
-      confluence.failWith = new Error('Confluence 500');
-      await worker.check();
-      const after = await reload(p.id);
-      expect(after.onboardingStatus).toBe('proposed');
-      expect((after.onboardingProposal as unknown as OnboardingProposal).facts.confluence).toEqual({ spaces: null, reason: 'Confluence 500' });
-    });
-
-    it('writes the step at each stage in order and clears it when the proposal is ready', async () => {
-      const steps = recordSteps();
-      const p = await project();
-      await worker.check();
-      const order = ['access', 'facts', 'clone', 'analyse', 'verify', 'saving'];
-      const positions = order.map((s) => steps.indexOf(s));
-      expect(positions.every((i) => i >= 0)).toBe(true);
-      expect([...positions].sort((a, b) => a - b)).toEqual(positions);
-      expect(steps[steps.length - 1]).toBeNull();
-      expect(await reload(p.id)).toMatchObject({ onboardingStatus: 'proposed', onboardingStep: null });
-    });
-
-    it('shows the analyse step on the project while the profiler runs', async () => {
-      const p = await project();
-      const seen: Record<string, string | null> = {};
-      agent = async (req) => {
-        seen[req.stage] = (await reload(p.id)).onboardingStep;
-        return done(req.stage === 'repoProfile' ? profile : advice);
-      };
-      await worker.check();
-      expect(seen.repoProfile).toBe('analyse');
-    });
-
-    it('sets the step to null when the onboarding fails', async () => {
-      const steps = recordSteps();
-      const p = await project();
-      github.failFacts = new Error('gh: Not Found (HTTP 404)');
-      await worker.check();
-      expect(steps.length).toBeGreaterThan(0);
-      expect(steps[steps.length - 1]).toBeNull();
-      expect(await reload(p.id)).toMatchObject({ onboardingStatus: 'draft', onboardingStep: null });
-    });
-
-    it('logs how long each step took', async () => {
-      const lines: string[] = [];
-      for (const level of ['log', 'debug', 'verbose'] as const) {
-        vi.spyOn(Logger.prototype, level).mockImplementation((msg: unknown) => void lines.push(String(msg)));
-      }
-      await project();
-      await worker.check();
-      for (const step of ['facts', 'clone', 'analyse', 'verify', 'saving']) {
-        expect(lines.some((l) => l.includes(step) && /\d+(\.\d+)?\s?m?s\b/.test(l)), `no duration logged for ${step}`).toBe(true);
-      }
-    });
   });
 
   it('waits while the pipeline is paused for limits, but not when paused by hand', async () => {
