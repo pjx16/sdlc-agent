@@ -171,6 +171,8 @@ model Project {
   onboardingStatus   OnboardingStatus @default(confirmed)
   onboardingProposal Json?
   onboardingError    String?
+  /// The profiling step now running; null when not profiling.
+  onboardingStep     String?
   jiraProjectKey     String?
   jiraJql            String?
   localKeyPrefix     String
