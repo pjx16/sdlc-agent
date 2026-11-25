@@ -292,6 +292,8 @@ export interface SubtaskRow {
 }
 
 export interface TicketFull extends TicketWithPlan {
+  /** The plan as committed to the repository (a GitHub link), once it is on the ticket's branch. */
+  planFileUrl?: string | null;
   breakdownDraft: import('@sdlc/shared').SubtaskDraft[] | null;
   subtasks: SubtaskRow[];
   maxSubtasks: number;
