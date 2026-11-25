@@ -1,4 +1,4 @@
-import type { OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
+import type { OnboardingProgress, OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
 
 /** A project as returned by the API. */
 export type ProjectView = Omit<ProjectInput, 'settings' | 'jiraProjectKey' | 'jiraJql' | 'githubAuth'> & {
@@ -42,6 +42,9 @@ export interface GlobalSettingsView {
   /** Null until the budgets are approved (or "no limits" is chosen): the dashboard asks. */
   budgetsApprovedAt: string | null;
   intakePaused: boolean;
+  intakeJiraEnabled?: boolean;
+  intakeGithubEnabled?: boolean;
+  intakePasteEnabled?: boolean;
 }
 
 export type BudgetPeriodName = 'daily' | 'weekly' | 'monthly';
@@ -167,7 +170,7 @@ export interface TicketListItem {
   projectId: string;
   projectName: string;
   key: string;
-  source: 'jira' | 'paste';
+  source: 'jira' | 'paste' | 'github';
   type: 'story' | 'bug' | 'tech';
   title: string;
   status: string;
@@ -310,6 +313,7 @@ export interface SupportTicketView {
   ticketId: string | null;
   ticketKey: string | null;
   ticketTitle: string | null;
+  ticketPrUrl?: string | null;
   stage: string;
   defaultAnswer: string | null;
   response: string | null;
@@ -339,6 +343,7 @@ export interface OnboardingView {
   status: OnboardingStatus;
   error: string | null;
   proposal: OnboardingProposal | null;
+  progress?: OnboardingProgress | null;
 }
 
 export interface DryRunView {
@@ -363,7 +368,6 @@ export interface ArtifactView {
   supersededAt: string | null;
   stageRunId: string | null;
   createdAt: string;
-  externalUrl: string | null;
 }
 
 export interface DecisionView {
