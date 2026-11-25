@@ -1,9 +1,6 @@
 import type { INestApplication, Type } from '@nestjs/common';
 import { JiraClients } from '../jira/jira-clients';
 import { FakeJiraClients } from './fake-jira';
-import { ConfluenceClients } from '../confluence/confluence-clients';
-import { ConfluenceModule } from '../confluence/confluence.module';
-import { FakeConfluenceClients } from './fake-confluence';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AuthModule } from '../auth/auth.module';
@@ -24,8 +21,6 @@ export interface TestApp {
   anonymous: ReturnType<typeof request.agent>;
   /** The fake Jira every module under test talks to. */
   jira: FakeJiraClients;
-  /** The fake Confluence. */
-  confluence: FakeConfluenceClients;
   close(): Promise<void>;
 }
 
@@ -37,12 +32,9 @@ export async function createTestApp(databaseUrl: string, modules: Type[]): Promi
     COOKIE_SECURE: 'false',
   });
   const jira = new FakeJiraClients();
-  const confluence = new FakeConfluenceClients();
-  const moduleRef = await Test.createTestingModule({ imports: [ConfluenceModule, PrismaModule, StateModule, AuthModule, SystemModule, ...modules] })
+  const moduleRef = await Test.createTestingModule({ imports: [PrismaModule, StateModule, AuthModule, SystemModule, ...modules] })
     .overrideProvider(JiraClients)
     .useValue(jira)
-    .overrideProvider(ConfluenceClients)
-    .useValue(confluence)
     .compile();
   const app = moduleRef.createNestApplication();
   configureApp(app);
@@ -55,7 +47,6 @@ export async function createTestApp(databaseUrl: string, modules: Type[]): Promi
     agent,
     anonymous: request.agent(app.getHttpServer()),
     jira,
-    confluence,
     close: () => app.close(),
   };
 }

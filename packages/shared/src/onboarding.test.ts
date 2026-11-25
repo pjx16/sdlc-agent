@@ -45,7 +45,7 @@ describe('agent output', () => {
     expect(RepoProfileData.safeParse({ ...ok, stack: 'rails' }).success).toBe(false);
   });
   it('advice maps states to statuses, several states may share one, and types to kinds', () => {
-    const ok = { statusMap: { KB: 'In Progress', PLANNING: 'In Progress', DONE: 'Done' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature', Epic: 'ignore' }, intakeLabel: 'sdlc-agent', confluenceSpaceKey: 'ENG' };
+    const ok = { statusMap: { KB: 'In Progress', PLANNING: 'In Progress', DONE: 'Done' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature', Epic: 'ignore' }, intakeLabel: 'sdlc-agent' };
     expect(OnboardAdviseData.safeParse(ok).success).toBe(true);
     expect(OnboardAdviseData.safeParse({ ...ok, issueTypeRouting: { Story: 'wizard' } }).success).toBe(false);
     expect(OnboardAdviseData.safeParse({ ...ok, intakeLabel: 'two words' }).success).toBe(false);
@@ -53,13 +53,14 @@ describe('agent output', () => {
 });
 
 describe('project settings keep the new fields', () => {
-  it('defaults to no routing and no Confluence', () => {
+  it('defaults to no routing, and an old Confluence setting is ignored', () => {
     const s = ProjectSettingsSchema.parse({});
     expect(s.jiraIssueTypeRouting).toEqual({});
-    expect(s.confluence).toBeNull();
+    expect('confluence' in s).toBe(false);
     expect(s.stages.repoProfile).toMatchObject({ model: 'sonnet' });
     expect(s.stages.onboardAdvise).toMatchObject({ model: 'haiku' });
-    expect(ProjectSettingsSchema.parse({ confluence: { spaceKey: 'ENG' } }).confluence).toEqual({ spaceKey: 'ENG', parentPageId: null });
+    // Settings saved before the Confluence integration was removed still parse, and the key is dropped.
+    expect('confluence' in ProjectSettingsSchema.parse({ confluence: { spaceKey: 'ENG' } })).toBe(false);
   });
 });
 

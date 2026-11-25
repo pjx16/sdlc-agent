@@ -4,7 +4,7 @@ export interface TicketDto {
   id: string;
   projectId: string;
   key: string;
-  source: 'jira' | 'paste';
+  source: 'jira' | 'paste' | 'github';
   externalKey: string | null;
   type: 'story' | 'bug' | 'tech';
   title: string;

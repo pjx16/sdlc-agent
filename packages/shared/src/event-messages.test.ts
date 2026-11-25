@@ -22,7 +22,6 @@ describe('event messages read as plain English', () => {
     const e = events.error({ code: 'CLAUDE_API_ERROR', vars: { detail: '529' }, retry: { n: 1, of: 3 }, retryAt: when });
     expect(e).toMatchObject({ level: 'error', source: 'claude', errorCode: 'CLAUDE_API_ERROR', message: 'Claude API error (529). Retry 1/3 at 14:32.' });
     expect(events.error({ code: 'JIRA_ERROR', vars: { detail: '503' } }).source).toBe('jira');
-    expect(events.warning({ code: 'CONFLUENCE_ERROR', detail: 'x' })).toMatchObject({ level: 'warn', source: 'confluence' });
   });
   it('decisions, reruns and skipped Jira moves', () => {
     expect(events.decision({ chosen: 'fixer', over: ['re-plan'], reason: '2 high findings, both in cancel.service.ts' }).message).toBe('Orchestrator chose fixer over re-plan: 2 high findings, both in cancel.service.ts');

@@ -32,6 +32,7 @@ Options:
   --version, --help
 
 init:    --bind <addr> (default 127.0.0.1)  --no-start  --no-open  --force
+init, up, upgrade: --verbose (show the raw output of long steps instead of a progress line)
 upgrade: --yes  --skip-backup
 restore: --yes
 reset-admin: --yes
@@ -66,6 +67,7 @@ async function dispatch(argv: string[]): Promise<number> {
         'no-start': { type: 'boolean' },
         'no-open': { type: 'boolean' },
         force: { type: 'boolean' },
+        verbose: { type: 'boolean' },
         yes: { type: 'boolean', short: 'y' },
         'skip-backup': { type: 'boolean' },
         purge: { type: 'boolean' },
@@ -79,6 +81,7 @@ async function dispatch(argv: string[]): Promise<number> {
     return 2;
   }
   const { values, positionals } = parsed;
+  if (values.verbose) process.env.SDLC_AGENT_VERBOSE = '1';
   if (values.version) return out(packageVersion()), 0;
   const command = positionals[0];
   if (values.help || !command) return out(HELP), command || values.help ? 0 : 2;

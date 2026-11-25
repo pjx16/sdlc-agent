@@ -12,7 +12,7 @@ export const INTAKE_BACKOFF_MS = 10 * 60 * 1000;
 
 export interface PollResult {
   /** Why nothing was polled, if so. */
-  skipped?: 'intake_paused' | 'backoff';
+  skipped?: 'intake_paused' | 'backoff' | 'source_off';
   projects: number;
   created: number;
   /** Tickets that were already stored. */
@@ -71,6 +71,8 @@ export class IntakePoller {
     // Pausing intake and pausing the pipeline are separate switches: only the intake switch stops polling.
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     if (settings?.intakePaused) return this.finish(mode, { ...result, skipped: 'intake_paused' });
+    // One source can be switched off on its own: the other sources keep going.
+    if (settings && !settings.intakeJiraEnabled) return this.finish(mode, { ...result, skipped: 'source_off' });
     if (this.backoffRemainingMs(mode) > 0) return this.finish(mode, { ...result, skipped: 'backoff' });
 
     // A project accepts tickets only when its mirror is ready (F2).
