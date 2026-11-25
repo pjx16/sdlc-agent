@@ -94,6 +94,6 @@ Connector mode is the one exception, by design: the `jiraConnector` stage holds 
 
 - [README.md](../README.md): project overview and how to add a project.
 - [CONFIGURATION.md](./CONFIGURATION.md): environment variables and per-project settings.
-- [CONFLUENCE.md](./CONFLUENCE.md): publishing plans to Confluence with the same credential.
+- [GITHUB.md](./GITHUB.md): GitHub issues and Projects boards as a ticket source.
 - [docs/kb/tracker.md](./kb/tracker.md): the flow, the data it touches and its edge cases.
 - [SECURITY.md](../SECURITY.md): the security policy.

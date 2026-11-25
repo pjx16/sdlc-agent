@@ -71,6 +71,11 @@ function formSettings(settings: ProjectView['settings']): FormValues {
   (s as unknown as { securityRiskPatterns: string }).securityRiskPatterns = (settings.securityRiskPatterns ?? []).join('\n');
   for (const status of TICKET_STATUSES) s.jiraStatusMap[status] = settings.jiraStatusMap[status] ?? '';
   s.jiraApprovalStatuses = { plan: settings.jiraApprovalStatuses.plan ?? '', breakdown: settings.jiraApprovalStatuses.breakdown ?? '' };
+  // The GitHub board is one object in the API and two fields in the form.
+  const github = s as unknown as { github: { project: unknown; projectOwner?: string; projectNumber?: string } };
+  github.github.projectOwner = settings.github.project?.owner ?? '';
+  github.github.projectNumber = settings.github.project ? String(settings.github.project.number) : '';
+  delete (github.github as { project?: unknown }).project;
   return s;
 }
 
@@ -95,6 +100,12 @@ export function toPayload(values: FormValues): Record<string, unknown> {
     if (v === '') delete s.jiraApprovalStatuses[key];
     else s.jiraApprovalStatuses[key] = v;
   }
+  const gh = s.github as { project?: unknown; projectOwner?: string; projectNumber?: string };
+  const owner = String(gh.projectOwner ?? '').trim();
+  const number = String(gh.projectNumber ?? '').trim();
+  gh.project = owner && number ? { owner, number: toNumber(number) } : null;
+  delete gh.projectOwner;
+  delete gh.projectNumber;
   if (String(out.localKeyPrefix ?? '').trim() === '') delete out.localKeyPrefix;
   return out;
 }

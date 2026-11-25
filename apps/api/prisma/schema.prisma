@@ -51,6 +51,7 @@ enum MirrorStatus {
 enum TicketSource {
   jira
   paste
+  github
 }
 
 enum TicketType {
@@ -171,6 +172,8 @@ model Project {
   onboardingStatus   OnboardingStatus @default(confirmed)
   onboardingProposal Json?
   onboardingError    String?
+  /// OnboardingProgress while the status is `profiling`; the phase timings are also kept in the proposal.
+  onboardingProgress Json?
   jiraProjectKey     String?
   jiraJql            String?
   localKeyPrefix     String
@@ -208,6 +211,10 @@ model GlobalSettings {
   pausedCode              String?
   resetsAt                DateTime? @db.Timestamptz(6)
   intakePaused            Boolean   @default(false)
+  /// Per-source intake switches (the intake switch above pauses every source).
+  intakeJiraEnabled       Boolean   @default(true)
+  intakeGithubEnabled     Boolean   @default(true)
+  intakePasteEnabled      Boolean   @default(true)
   pollIntervalSec         Int       @default(120)
   stageTimeoutMin         Int       @default(20)
   verifyTimeoutSec        Int       @default(600)
@@ -227,6 +234,8 @@ model Ticket {
   key             String
   source          TicketSource
   externalKey     String?
+  /// For a GitHub ticket: the status last written to the issue or the project board (so it is written once per change).
+  externalStatus  String?
   type            TicketType    @default(story)
   title           String
   body            String        @default("")
@@ -478,12 +487,6 @@ model StageArtifact {
   data            Json
   stageRunId      String?
   supersededAt    DateTime? @db.Timestamptz(6)
-  /// The Confluence page of a plan.
-  externalUrl     String?
-  externalId      String?
-  externalVersion Int?
-  /// Hash of what was last sent to Confluence, so a page is only updated when its content changed.
-  externalSig     String?
   createdAt       DateTime  @default(now()) @db.Timestamptz(6)
 
   @@unique([ticketId, stage, version])
@@ -500,7 +503,7 @@ model Event {
   at         DateTime @default(now()) @db.Timestamptz(6)
   /// info | warn | error
   level      String   @default("info")
-  /// system | orchestrator | claude | agent | jira | confluence | github | git | ci | user
+  /// system | orchestrator | claude | agent | jira | github | git | ci | user
   source     String   @default("system")
   stageRunId String?
   subtaskId  String?
