@@ -5,6 +5,7 @@ import { LogoutButton } from './logout-button';
 import { RunControls } from './run-controls';
 import { AttentionTitle } from './attention-title';
 import { Sidebar } from './sidebar';
+import { OfflineBanner } from './offline-banner';
 import { PauseBanner } from './pause-banner';
 import { UsageWarningBanner } from './usage-warning-banner';
 import { BudgetApprovalBanner } from './budget-approval-banner';
@@ -15,6 +16,7 @@ import type { SetupStatus } from '@sdlc/shared';
 /** What the top bar says about the pipeline: `Running <stage>`, `Idle` or `Paused`. */
 export function pipelineLabel(system: SystemView | null): { text: string; tone: 'green' | 'grey' | 'amber' } {
   if (!system) return { text: 'Unknown', tone: 'grey' };
+  if (system.settings.networkOffline) return { text: 'Offline', tone: 'amber' };
   if (system.settings.pipelinePaused) return { text: 'Paused', tone: 'amber' };
   if (system.runningStage) return { text: `Running ${system.runningStage.stage}`, tone: 'green' };
   return { text: 'Idle', tone: 'grey' };
@@ -37,6 +39,7 @@ export async function Shell({ children }: { children: ReactNode }) {
             <LogoutButton />
           </div>
         </header>
+        <OfflineBanner initial={{ offline: Boolean(system?.settings.networkOffline), since: system?.settings.offlineSince ?? null }} />
         {setup && !setup.ready && <SetupBanner missing={setup.missing} adminCreated={setup.adminCreated} />}
         {system && needsBudgetApproval(system) && <BudgetApprovalBanner suggested={system.spend.suggested} />}
         {!system?.settings.pipelinePaused && <UsageWarningBanner system={system} />}

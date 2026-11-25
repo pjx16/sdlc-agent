@@ -51,6 +51,7 @@ enum MirrorStatus {
 enum TicketSource {
   jira
   paste
+  github
 }
 
 enum TicketType {
@@ -171,6 +172,10 @@ model Project {
   onboardingStatus   OnboardingStatus @default(confirmed)
   onboardingProposal Json?
   onboardingError    String?
+  /// The KB docs of the repository ({ docs: [{ path, title }], updatedAt }), kept up to date by the worker so the API can list them without the repository.
+  kbCatalog          Json?
+  /// OnboardingProgress while the status is `profiling`; the phase timings are also kept in the proposal.
+  onboardingProgress Json?
   jiraProjectKey     String?
   jiraJql            String?
   localKeyPrefix     String
@@ -206,11 +211,18 @@ model GlobalSettings {
   /// The SSH key that signs every commit the pipeline makes: the public part to add to GitHub as a signing key, and the private part encrypted with ENCRYPTION_KEY. Made by the worker on first start.
   signingPublicKey        String?
   signingPrivateKeyEnc    String?
+  /// Set by the worker's connectivity monitor while there is no internet: no step starts, nothing is polled. Independent of the pause above.
+  networkOffline          Boolean   @default(false)
+  offlineSince            DateTime? @db.Timestamptz(6)
   pausedReason            String?
   /// The ERROR_CODES value behind the pause, when there is one (CLAUDE_AUTH, CLAUDE_CREDITS, SPEND_BUDGET_REACHED, ...).
   pausedCode              String?
   resetsAt                DateTime? @db.Timestamptz(6)
   intakePaused            Boolean   @default(false)
+  /// Per-source intake switches (the intake switch above pauses every source).
+  intakeJiraEnabled       Boolean   @default(true)
+  intakeGithubEnabled     Boolean   @default(true)
+  intakePasteEnabled      Boolean   @default(true)
   pollIntervalSec         Int       @default(120)
   stageTimeoutMin         Int       @default(20)
   verifyTimeoutSec        Int       @default(600)
@@ -230,10 +242,14 @@ model Ticket {
   key             String
   source          TicketSource
   externalKey     String?
+  /// For a GitHub ticket: the status last written to the issue or the project board (so it is written once per change).
+  externalStatus  String?
   type            TicketType    @default(story)
   title           String
   body            String        @default("")
   featureKey      String?
+  /// KB docs the person attached (paths relative to the project's kbDir). Every stage gets them in its context.
+  kbAttachments   Json          @default("[]")
   labels          Json          @default("[]")
   /// Where the stale code of a rerun starts; the worker reverts from here before the stage runs again.
   revertFromSha   String?
@@ -481,12 +497,6 @@ model StageArtifact {
   data            Json
   stageRunId      String?
   supersededAt    DateTime? @db.Timestamptz(6)
-  /// The Confluence page of a plan.
-  externalUrl     String?
-  externalId      String?
-  externalVersion Int?
-  /// Hash of what was last sent to Confluence, so a page is only updated when its content changed.
-  externalSig     String?
   createdAt       DateTime  @default(now()) @db.Timestamptz(6)
 
   @@unique([ticketId, stage, version])
@@ -503,7 +513,7 @@ model Event {
   at         DateTime @default(now()) @db.Timestamptz(6)
   /// info | warn | error
   level      String   @default("info")
-  /// system | orchestrator | claude | agent | jira | confluence | github | git | ci | user
+  /// system | orchestrator | claude | agent | jira | github | git | ci | user
   source     String   @default("system")
   stageRunId String?
   subtaskId  String?

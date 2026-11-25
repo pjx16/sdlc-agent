@@ -136,6 +136,14 @@ describe('System and global settings API', () => {
     expect((await t.agent.post('/system/intake/resume').expect(200)).body.intakePaused).toBe(false);
   });
 
+  it('each intake source has its own switch, on by default, apart from the intake switch', async () => {
+    expect((await t.agent.get('/system').expect(200)).body.settings).toMatchObject({ intakeJiraEnabled: true, intakeGithubEnabled: true, intakePasteEnabled: true });
+    const res = await t.agent.patch('/system/settings').send({ intakeGithubEnabled: false }).expect(200);
+    expect(res.body).toMatchObject({ intakeGithubEnabled: false, intakeJiraEnabled: true, intakePasteEnabled: true, intakePaused: false });
+    expect((await t.agent.patch('/system/settings').send({ intakeJiraEnabled: 'no' }).expect(400)).body.fields.intakeJiraEnabled).toContain('true or false');
+    await t.agent.patch('/system/settings').send({ intakeGithubEnabled: true }).expect(200);
+  });
+
   it('writes audit events for changes', async () => {
     await t.agent.patch('/system/settings').send({ pollIntervalSec: 90 }).expect(200);
     await t.agent.post('/system/pause').expect(200);

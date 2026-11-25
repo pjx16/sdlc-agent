@@ -35,6 +35,7 @@ function intakeLine(i: IntakeStatusView, system: SystemView, now: number): Activ
   const label = i.mode === 'rest' ? 'Jira intake' : `Jira intake (${i.mode === 'mcp' ? 'Rovo MCP' : 'Claude connector'})`;
   const when = ago(i.at, now);
   if (i.skipped === 'intake_paused') return { key, label, tone: 'amber', text: `Paused: not reading Jira (last checked ${when}).` };
+  if (i.skipped === 'source_off') return { key, label, tone: 'grey', text: 'Switched off in Settings: Jira is not read.' };
   if (i.skipped === 'backoff') return { key, label, tone: 'amber', text: `Jira was unreachable; waiting before trying again (last attempt ${when}).` };
   if (i.error) return { key, label, tone: 'red', text: `Last poll ${when} failed: ${i.error}` };
   if (i.projects === 0 && i.waiting > 0) {

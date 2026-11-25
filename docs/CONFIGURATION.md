@@ -16,7 +16,7 @@ A variable set here overrides the dashboard value and makes the field read-only 
 | `ANTHROPIC_API_KEY` | no | Anthropic API key (`sk-ant-api…`) from the Anthropic Console. Every stage is billed to it |
 | `GITHUB_TOKEN` | no | Fine-grained token for git and `gh` (not needed when every project works as the bot) |
 | `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL` | no | Identity of every commit made with a personal token |
-| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira or Confluence | One Atlassian credential for Jira (REST mode, recommended) and Confluence |
+| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira | One Atlassian credential for Jira (REST mode, recommended) |
 | `JIRA_MCP_TOKEN` | Rovo MCP mode, if not using OAuth | A scoped Atlassian API token with the Jira `agent-interface` scopes, used with `JIRA_EMAIL`. OAuth (Connect in Settings → Connections) is the usual way |
 | `JIRA_MCP_URL` | no | Rovo MCP server (default `https://mcp.atlassian.com/v2/mcp`) |
 | `JIRA_CLOUD_ID` | no | The Atlassian site for Rovo MCP mode, when the sign-in sees several sites and `JIRA_BASE_URL` is not set |
@@ -35,6 +35,8 @@ A variable set here overrides the dashboard value and makes the field read-only 
 | `LLM_GATEWAY_PORT`, `LLM_GATEWAY_UPSTREAM`, `LLM_GATEWAY_URL`, `NPM_REGISTRY_URL` | no | Worker settings for the LLM gateway and the npm mirror that agents use. The defaults match the shipped Compose file (`8080`, `https://api.anthropic.com`, `http://llm-gateway:8080`, `http://npm-mirror:4873/`). The API's connection test of the key uses `LLM_GATEWAY_UPSTREAM` too |
 | `LOG_LEVEL` | no | pino level of the API and worker (default `info`) |
 | `SDLC_VERSION`, `SDLC_REGISTRY` | release installs | The release to run (without the leading `v`) and the registry (default `ghcr.io/pjx16`). Used only by `deploy/docker-compose.yml` |
+| `CONNECTIVITY_CHECK` | no | `off` turns off the internet check. By default the worker checks every 10 s and pauses the pipeline (banner in the dashboard) after 3 rounds in a row with no answer; it resumes by itself |
+| `CONNECTIVITY_PROBES` | no | Comma-separated `https://` addresses the check asks (default: `api.anthropic.com`, `api.github.com`, `1.1.1.1`). Any answer, even an error status, counts as online. Replace them for a proxy or an air-gapped network |
 | `DOCKER_SOCK` | no | Docker socket path on the host if it is not `/var/run/docker.sock` (Colima, OrbStack). Release compose only |
 | `POSTGRES_PORT` | no | Loopback port of the development database (default `5433`, `npm run up:dev` only) |
 | `SDLC_AGENT_HOME`, `SDLC_AGENT_SKIP_DOCTOR` | no | CLI: install folder (default `~/.sdlc-agent`), and `1` to skip the preflight checks |
@@ -43,7 +45,7 @@ A variable set here overrides the dashboard value and makes the field read-only 
 
 - **GitHub:** either a fine-grained personal access token limited to the target repositories, with Contents (read/write), Pull requests (read/write), Actions (read), Commit statuses (read) and Metadata (read), and no administration permission, or no token at all: connect **sdlc-agent-bot** in Settings → Connections and install the GitHub App on the repositories ([`BOT.md`](./BOT.md)). Chosen per project.
 - **Anthropic:** create an API key in the [Anthropic Console](https://console.anthropic.com/settings/keys) and add credits. Usage is billed per token, so set a spend limit on the key's workspace as a hard stop; the pipeline's own budgets (below) are the soft one. *Test* in Settings → Connections checks the key against the API.
-- **Atlassian (Jira and Confluence):** an API token for the account that should read and update tickets and write pages.
+- **Atlassian (Jira):** an API token for the account that should read and update tickets.
 
 Never commit `.env` or any token.
 
@@ -52,7 +54,7 @@ Never commit `.env` or any token.
 Stored in the database and edited on the project page:
 
 - Repository, base branch, stack and its install, typecheck and targeted-test commands, knowledge-base folder, `CLAUDE.md` mode (`ours`, `theirs`, `both`).
-- Jira mode, project key, JQL, issue-type routing, intake label, status mapping and which Jira status counts as plan approval; Confluence space and parent page.
+- Jira mode, project key, JQL, issue-type routing, intake label, status mapping and which Jira status counts as plan approval.
 - Which stages run, the model and turn limit of each, review rounds, CI fix rounds, rerun and re-plan limits, recovery (`recovery.enabled`, `recovery.maxAttempts`), PR size limits (`limits.prSoftLines`, `limits.prHardLines`), extra security triggers (`securityRiskPatterns`).
 - How the project reaches GitHub: personal token or sdlc-agent-bot.
 

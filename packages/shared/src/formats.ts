@@ -153,7 +153,7 @@ CI checks passed; this PR is ready for human review.
   {
     name: 'jira-plan',
     title: 'Jira comment: the plan',
-    description: 'The comment with the full plan, posted on the Jira issue when there is no Confluence page (or Confluence failed).',
+    description: 'The comment with the full plan, posted on the Jira issue when the plan is ready.',
     kind: 'template',
     placeholders: [
       { name: 'key', meaning: 'the ticket key' },
@@ -163,22 +163,6 @@ CI checks passed; this PR is ready for human review.
     default: `## Plan for {{key}}
 
 {{plan}}
-`,
-  },
-  {
-    name: 'jira-plan-link',
-    title: 'Jira comment: the Confluence page',
-    description: 'The comment that links the plan page in Confluence. It is edited in place as the page status changes.',
-    kind: 'template',
-    placeholders: [
-      { name: 'key', meaning: 'the ticket key' },
-      { name: 'url', meaning: 'the link to the Confluence page' },
-      { name: 'status', meaning: 'the page status, for example "Draft, waiting for approval"' },
-    ],
-    required: ['url'],
-    default: `The plan for {{key}} is in Confluence: {{url}}
-
-Status: {{status}}
 `,
   },
   {

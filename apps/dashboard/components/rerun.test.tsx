@@ -84,7 +84,7 @@ describe('stale runs', () => {
   });
 });
 
-const art = (over: Partial<ArtifactView>): ArtifactView => ({ id: 'x', stage: 'plan', version: 1, data: { planMarkdown: '## Goal\nOld' }, stale: false, supersededAt: null, stageRunId: null, createdAt: '2026-11-14T10:00:00Z', externalUrl: null, ...over });
+const art = (over: Partial<ArtifactView>): ArtifactView => ({ id: 'x', stage: 'plan', version: 1, data: { planMarkdown: '## Goal\nOld' }, stale: false, supersededAt: null, stageRunId: null, createdAt: '2026-11-14T10:00:00Z', ...over });
 
 describe('ArtifactVersions', () => {
   it('shows every version side by side, marks the current one and the stale ones', () => {
@@ -105,10 +105,8 @@ describe('ArtifactVersions', () => {
     expect(diff).toHaveTextContent('+ New');
   });
 
-  it('links a plan to its Confluence page and says when nothing was produced', () => {
-    const { rerender } = render(<ArtifactVersions artifacts={[art({ externalUrl: 'https://acme.atlassian.net/wiki/x' })]} />);
-    expect(screen.getByRole('link', { name: 'Open in Confluence' })).toHaveAttribute('href', 'https://acme.atlassian.net/wiki/x');
-    rerender(<ArtifactVersions artifacts={[]} />);
+  it('says when nothing was produced', () => {
+    render(<ArtifactVersions artifacts={[]} />);
     expect(screen.getByText(/Nothing has been produced/)).toBeInTheDocument();
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES, ERROR_POLICY, classifyClaudeError, describeError, errorSourceOf, nextBackoffMin } from './error-policy';
+import { ERROR_CODES, ERROR_POLICY, classifyClaudeError, describeError, errorSourceOf, isNetworkErrorText, nextBackoffMin } from './error-policy';
 
 describe('error policy table', () => {
   it.each(ERROR_CODES)('%s has a source, a message and an action', (code) => {
@@ -34,7 +34,6 @@ describe('error policy table', () => {
     expect(ERROR_POLICY.TURN_LIMIT.recovery).toMatchObject({ turnFactor: 1.5 });
     expect(ERROR_POLICY.INVALID_OUTPUT.recovery).toMatchObject({ withErrors: true });
     expect(ERROR_POLICY.JIRA_ERROR.recovery.kind).toBe('retry_never_block');
-    expect(ERROR_POLICY.CONFLUENCE_ERROR.recovery.kind).toBe('retry_never_block');
     expect(ERROR_POLICY.KILLED.recovery.kind).toBe('none');
   });
 });
@@ -49,7 +48,9 @@ describe('classifyClaudeError', () => {
     ['anything', 429, 'CLAUDE_RATE_LIMIT'],
     ['API Error: 529 overloaded_error', undefined, 'CLAUDE_API_ERROR'],
     ['anything', 503, 'CLAUDE_API_ERROR'],
-    ['read ECONNRESET', undefined, 'CLAUDE_API_ERROR'],
+    ['read ECONNRESET', undefined, 'NETWORK_ERROR'],
+    ['getaddrinfo ENOTFOUND api.anthropic.com', undefined, 'NETWORK_ERROR'],
+    ['API Error: fetch failed', undefined, 'NETWORK_ERROR'],
     ['Prompt is too long', undefined, 'CLAUDE_CONTEXT_TOO_LONG'],
   ] as const)('%s (%s) -> %s', (text, status, code) => {
     expect(classifyClaudeError(text, status)).toBe(code);
@@ -57,5 +58,38 @@ describe('classifyClaudeError', () => {
   it('returns null for text that is not a Claude-side failure', () => {
     expect(classifyClaudeError('The stage exited with code 1')).toBeNull();
     expect(classifyClaudeError('')).toBeNull();
+  });
+});
+
+describe('isNetworkErrorText', () => {
+  it.each([
+    "fatal: unable to access 'https://github.com/a/b.git/': Could not resolve host: github.com",
+    'connect ETIMEDOUT 140.82.112.3:443',
+    'getaddrinfo EAI_AGAIN api.github.com',
+    'Temporary failure in name resolution',
+    'fatal: the remote end hung up unexpectedly',
+    'Network is unreachable',
+    'socket hang up',
+  ])('is a lost connection: %s', (text) => expect(isNetworkErrorText(text)).toBe(true));
+
+  it.each([
+    'remote: Permission to a/b.git denied to someone.',
+    'fatal: Authentication failed for https://github.com/a/b.git',
+    'error: failed to push some refs (non-fast-forward)',
+    'HTTP 404 Not Found',
+    'Tests still fail after 3 fix rounds',
+    '',
+  ])('is not: %s', (text) => expect(isNetworkErrorText(text)).toBe(false));
+
+  it('is not for nothing', () => {
+    expect(isNetworkErrorText(null)).toBe(false);
+    expect(isNetworkErrorText(undefined)).toBe(false);
+  });
+});
+
+describe('NETWORK_ERROR policy', () => {
+  it('is retried until the connection is back, and needs nothing from the person', () => {
+    expect(ERROR_POLICY.NETWORK_ERROR.recovery.kind).toBe('retry_until_online');
+    expect(nextBackoffMin('NETWORK_ERROR', 1)).toBeNull(); // it does not use the retries of the runner
   });
 });

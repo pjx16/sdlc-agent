@@ -10,7 +10,7 @@ export type StepOutcome =
   /** A step ran and its work is recorded, but the ticket's state does not change (for example one subtask step of IN_PROGRESS). */
   | { kind: 'continue' }
   /** Nothing to change now (for example the usage gate paused the pipeline); the loop waits before the next pick. */
-  | { kind: 'stay' };
+  | { kind: 'stay'; /** The step stopped because the connection to an outside service failed: the loop waits a little before it tries again. */ network?: boolean };
 
 /**
  * One handler per actionable ticket state: runs exactly one step (one AI stage with its scripted checks, or one

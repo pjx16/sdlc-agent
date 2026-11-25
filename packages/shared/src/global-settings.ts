@@ -26,6 +26,10 @@ export const GlobalSettingsSchema = z.object({
   budgetMonthlyCredits: credits(),
   /** The dashboard warns when a budget is this far used. */
   budgetWarnPct: int(80, 1, 100),
+  /** Which sources the intake takes tickets from. The intake switch pauses all of them; these switch one off. */
+  intakeJiraEnabled: z.boolean({ error: 'must be true or false' }).default(true),
+  intakeGithubEnabled: z.boolean({ error: 'must be true or false' }).default(true),
+  intakePasteEnabled: z.boolean({ error: 'must be true or false' }).default(true),
   /** Budget days, weeks (from Monday) and months are counted in this IANA timezone. */
   timezone: z.string().trim().refine(isValidTimeZone, 'must be an IANA timezone like Asia/Kolkata').default('UTC'),
   pollIntervalSec: int(120, 5, 3600),

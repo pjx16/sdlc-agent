@@ -80,6 +80,13 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           <AssistantToggle supportTicketId={current.id} />
         </div>
       )}
+      {ticket.kbAttachments && ticket.kbAttachments.length > 0 && (
+        <p className="mt-4 text-sm text-muted">
+          Attached knowledge: {ticket.kbAttachments.map((p) => (
+            <code key={p} className="mr-2 rounded border border-border px-1.5 py-0.5 font-mono text-xs">{p}</code>
+          ))}
+        </p>
+      )}
       {ticket.body && <pre className="mt-6 whitespace-pre-wrap panel p-4 font-sans text-sm">{ticket.body}</pre>}
 
       <nav aria-label="Ticket sections" className="mt-8 flex gap-1 border-b border-border">
@@ -96,7 +103,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       </nav>
       <div className="mt-6">
         {active === 'overview' && <TicketOverview stats={ticketStats(ticket.stageRuns, ticket.subtasks, ticket.createdAt, ticket.updatedAt)} pr={ticket.prSoftLines !== undefined && ticket.prHardLines !== undefined ? { lines: ticket.prDiffLines ?? null, soft: ticket.prSoftLines, hard: ticket.prHardLines } : undefined} />}
-        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} confluenceUrl={[...artifacts].reverse().find((a) => a.stage === 'plan' && !a.stale && a.externalUrl)?.externalUrl ?? null} />}
+        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} openQuestions={needs.find((n) => n.kind === 'approval' && n.stage === 'plan' && n.status === 'open')?.openQuestions ?? []} />}
         {active === 'breakdown' && <BreakdownPanel key={ticket.updatedAt} ticketId={ticket.id} status={ticket.status} draft={ticket.breakdownDraft} subtasks={ticket.subtasks} maxSubtasks={ticket.maxSubtasks} />}
         {active === 'versions' && <ArtifactVersions artifacts={artifacts} />}
         {active === 'timeline' && <EventTimeline events={events} runs={ticket.stageRuns} />}

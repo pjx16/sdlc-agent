@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
 import type { TicketDto } from './ticket.dto';
 import { RerunService } from './rerun.service';
 import { TicketsService } from './tickets.service';
@@ -48,6 +48,11 @@ export class TicketsController {
   @Get(':id/timeline')
   timeline(@Param('id') id: string) {
     return this.tickets.timeline(id);
+  }
+
+  @Patch(':id/kb-attachments')
+  setKbAttachments(@Param('id') id: string, @Body() body: unknown) {
+    return this.tickets.setKbAttachments(id, body);
   }
 
   @Post(':id/plan/approve')

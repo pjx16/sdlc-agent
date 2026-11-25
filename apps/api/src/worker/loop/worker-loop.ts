@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { ACTIONABLE_STATUSES, type TicketStatus } from '@sdlc/shared';
+import { ACTIONABLE_STATUSES, isNetworkErrorText, type TicketStatus } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { ApprovalPoller } from '../../jira/approval-poller';
 import { JiraUnavailableError } from '../../jira/jira-client';
@@ -22,6 +22,9 @@ export interface Housekeeper {
 }
 export const HOUSEKEEPERS = Symbol('HOUSEKEEPERS');
 
+/** After a step stopped because of the network, no step starts for this long. */
+export const NETWORK_COOLDOWN_MS = 30_000;
+
 /** Sleep between iterations when there is nothing to do or the pipeline is paused. */
 export const IDLE_MS = 5000;
 
@@ -43,6 +46,7 @@ export class WorkerLoop {
   private readonly schedule: Schedule;
   private running = false;
   private stopped = true;
+  private networkCooldownUntil = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -94,6 +98,10 @@ export class WorkerLoop {
         await this.prisma.event.create({ data: { type: 'usage', message: 'A new budget period started: the pipeline resumes' } }).catch(() => undefined);
       }
       // Before a step, not only after one: a step must not start once a budget is used up.
+      if (settings?.networkOffline) {
+        await phase('paused', 'No internet connection');
+        return (outcome = 'paused');
+      }
       if (settings?.pipelinePaused || (await this.budgets?.check())) {
         await phase('paused');
         return (outcome = 'paused');
@@ -101,6 +109,12 @@ export class WorkerLoop {
 
       // At most one pipeline StageRun runs at any time, system-wide (F4). The assistant is interactive and has its own runner.
       if ((await this.prisma.stageRun.count({ where: { status: 'running', stage: { not: 'assist' } } })) > 0) return (outcome = 'blocked');
+
+      // A step stopped because of the network a moment ago: wait before trying again, so a short outage does not become a burst of failed runs.
+      if (this.now() < this.networkCooldownUntil) {
+        await phase('idle', 'Waiting for the network');
+        return (outcome = 'idle');
+      }
 
       const ticket = await this.pickNext();
       if (!ticket) {
@@ -154,10 +168,17 @@ export class WorkerLoop {
     } catch (err) {
       // An unexpected error in a step is an unrecoverable internal error (6.6 row 18).
       const message = err instanceof Error ? err.message : String(err);
+      // The connection failed, not the work: the ticket stays where it is and the step is tried again soon.
+      if (isNetworkErrorText(message)) return this.waitForNetwork(ticket, message);
       this.logger.error(logLine({ ticket: ticket.key }, `step in ${ticket.status} failed: ${message}`));
       await this.states.fail(ticket.id, message.slice(0, 500)).catch((e: unknown) => this.logger.error(String(e)));
       return 'failed';
     }
+    // A hold or failure whose reason is a lost connection is not one: the step is tried again when the connection is back.
+    if ((outcome.kind === 'hold' && isNetworkErrorText(outcome.note)) || (outcome.kind === 'fail' && isNetworkErrorText(outcome.reason))) {
+      return this.waitForNetwork(ticket, outcome.kind === 'hold' ? (outcome.note ?? '') : outcome.reason);
+    }
+    if (outcome.kind === 'stay' && outcome.network) this.networkCooldownUntil = this.now() + NETWORK_COOLDOWN_MS;
     // At a decision point with several legal moves the orchestrator may replace the default move.
     if (this.orchestrator) outcome = await this.orchestrator.review(ticket, outcome);
     // A step that would stop the ticket for a person is first given to the orchestrator to recover (a few attempts, each recorded and written to Jira).
@@ -178,6 +199,18 @@ export class WorkerLoop {
         break;
     }
     return outcome.kind;
+  }
+
+  private lastNetworkLog = 0;
+  private async waitForNetwork(ticket: Ticket, message: string): Promise<'stay'> {
+    this.networkCooldownUntil = this.now() + NETWORK_COOLDOWN_MS;
+    // One line in the timeline per outage (at most one a minute), not one per attempt.
+    if (this.now() - this.lastNetworkLog >= 60_000) {
+      this.lastNetworkLog = this.now();
+      this.logger.warn(logLine({ ticket: ticket.key }, `step in ${ticket.status} stopped by the network: ${message.slice(0, 200)}`));
+      await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'network', level: 'warn', message: `The step in ${ticket.status} stopped because the network failed. It will be tried again when the connection is back` } }).catch(() => undefined);
+    }
+    return 'stay';
   }
 
   private lastMissingLog = 0;
@@ -210,11 +243,14 @@ export class WorkerLoop {
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     const pollSec = settings?.pollIntervalSec ?? 120;
     const intervalMs = pollSec * 1000;
+    // With no internet only the connectivity check runs: every other part would fail and fill the log.
+    const offline = Boolean(settings?.networkOffline);
     for (const h of this.housekeepers) {
+      if (offline && h.name !== 'connectivity') continue;
       if (!this.schedule.due(h.name, typeof h.intervalMs === 'function' ? h.intervalMs(pollSec) * 1000 : h.intervalMs)) continue;
       await h.check().catch((err: unknown) => this.logger.error(`${h.name} check failed: ${String(err)}`));
     }
-    if (!this.schedule.due('jira', intervalMs)) return;
+    if (offline || !this.schedule.due('jira', intervalMs)) return;
 
     await setPhase(this.prisma, 'intake');
     // The intake poller applies the intake-pause switch and its own Jira backoff.
