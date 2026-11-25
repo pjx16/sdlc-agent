@@ -88,6 +88,7 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
 
   const warnings = currentWarnings(values);
   const jiraOn = values.jiraMode !== 'off';
+  const githubMode = (values.settings as { github?: { mode?: string } } | undefined)?.github?.mode;
 
   return (
     <FormProvider value={{ values, errors, set }}>
@@ -117,6 +118,19 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
 
         <Section title="Instructions">
           <Select path="claudeMdMode" label="CLAUDE.md mode" options={options(CLAUDE_MD_MODES)} hint="ours: only our guidelines; theirs: the repository's; both: both." />
+        </Section>
+
+        <Section title="GitHub issues and projects" description="Take tickets from GitHub. A Projects board is recommended: its cards show where each ticket is.">
+          <Select path="settings.github.mode" label="Source" options={[{ value: 'off', label: 'Off' }, { value: 'projects', label: 'GitHub Projects board (recommended)' }, { value: 'issues', label: 'Issues with a label' }]} />
+          {githubMode === 'issues' && <Text path="settings.github.label" label="Issue label" hint="Open issues with this label are picked up. The label sdlc:<state> shows progress." />}
+          {githubMode === 'projects' && (
+            <>
+              <Text path="settings.github.projectOwner" label="Project owner" placeholder="acme" hint="The user or organization that owns the board." />
+              <Text path="settings.github.projectNumber" label="Project number" placeholder="3" hint="The number in the board's URL. The GitHub token needs the “project” scope." />
+              <Text path="settings.github.statusField" label="Status field" />
+              <Text path="settings.github.intakeStatus" label="Pick up cards in column" hint="Cards of this repository in this column become tickets." />
+            </>
+          )}
         </Section>
 
         <Section title="Jira">

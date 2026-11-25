@@ -39,6 +39,15 @@ describe('Pasted tickets (F3)', () => {
     expect(await t.prisma.event.count({ where: { type: 'intake' } })).toBe(2);
   });
 
+  it('the pasted-tickets switch in Settings stops pasting, with a clear message, and the other sources are not involved', async () => {
+    await t.prisma.globalSettings.upsert({ where: { id: 'global' }, update: { intakePasteEnabled: false }, create: { id: 'global', intakePasteEnabled: false } });
+    const res = await t.agent.post('/tickets').send({ projectId, title: 'x' }).expect(409);
+    expect(res.body.message).toContain('switched off');
+    expect(await t.prisma.ticket.count()).toBe(0);
+    await t.prisma.globalSettings.update({ where: { id: 'global' }, data: { intakePasteEnabled: true } });
+    await t.agent.post('/tickets').send({ projectId, title: 'x' }).expect(201);
+  });
+
   it('a pasted ticket carries a kind, and the older type stays consistent with it', async () => {
     const make = async (body: Record<string, unknown>) => (await t.agent.post('/tickets').send({ projectId, title: 'x', ...body }).expect(201)).body.id as string;
     const stored = async (id: string) => t.prisma.ticket.findUniqueOrThrow({ where: { id } });

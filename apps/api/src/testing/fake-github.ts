@@ -1,5 +1,5 @@
 import type { GithubFacts } from '@sdlc/shared';
-import type { CheckBucket, GitHubClient, OpenedPr, PrCheck, PrState } from '../worker/github/github-client';
+import type { CheckBucket, GitHubClient, GithubIssue, OpenedPr, PrCheck, PrState, ProjectItem } from '../worker/github/github-client';
 
 /** A GitHub client that records every call and answers from a script. For tests. */
 export class FakeGitHub implements GitHubClient {
@@ -17,6 +17,45 @@ export class FakeGitHub implements GitHubClient {
   failLog = '';
   failReport = '';
   ready: number[] = [];
+  /** Issues by repository, and the cards of the board, as the script wants GitHub to answer. */
+  issues: GithubIssue[] = [];
+  items: ProjectItem[] = [];
+  failIssues: Error | null = null;
+  labelChanges: { repo: string; number: number; add: string[]; remove: string[] }[] = [];
+  issueComments: { repo: string; number: number; body: string }[] = [];
+  closed: { repo: string; number: number }[] = [];
+  statusMoves: { owner: string; project: number; number: number; field: string; option: string }[] = [];
+  /** Columns the board has; a move to any other returns false. */
+  columns: string[] = ['Todo', 'In Progress', 'Done'];
+
+  async listIssues(repo: string, label: string): Promise<GithubIssue[]> {
+    this.calls.push('listIssues');
+    if (this.failIssues) throw this.failIssues;
+    return this.issues.filter((i) => i.repo === repo && i.labels.includes(label));
+  }
+  async listProjectItems(): Promise<ProjectItem[]> {
+    this.calls.push('listProjectItems');
+    if (this.failIssues) throw this.failIssues;
+    return this.items;
+  }
+  async setProjectItemStatus(owner: string, project: number, issue: { repo: string; number: number }, field: string, option: string): Promise<boolean> {
+    this.calls.push('setProjectItemStatus');
+    if (!this.columns.some((c) => c.toLowerCase() === option.toLowerCase()) || !this.items.some((i) => i.issue.number === issue.number)) return false;
+    this.statusMoves.push({ owner, project, number: issue.number, field, option });
+    return true;
+  }
+  async setIssueLabels(repo: string, number: number, add: string[], remove: string[]) {
+    this.calls.push('setIssueLabels');
+    this.labelChanges.push({ repo, number, add, remove });
+  }
+  async commentIssue(repo: string, number: number, body: string) {
+    this.calls.push('commentIssue');
+    this.issueComments.push({ repo, number, body });
+  }
+  async closeIssue(repo: string, number: number) {
+    this.calls.push('closeIssue');
+    this.closed.push({ repo, number });
+  }
 
   async openDraftPr(a: { repo: string; base: string; head: string; title: string; body: string }): Promise<OpenedPr> {
     this.calls.push('openDraftPr');
@@ -74,6 +113,13 @@ export class FakeGitHub implements GitHubClient {
     this.failLog = '';
     this.failReport = '';
     this.ready = [];
+    this.issues = [];
+    this.items = [];
+    this.failIssues = null;
+    this.labelChanges = [];
+    this.issueComments = [];
+    this.closed = [];
+    this.statusMoves = [];
   }
   setChecks(...buckets: CheckBucket[]) {
     this.checksResult = buckets.map((bucket, i) => ({ name: `check-${i + 1}`, bucket }));

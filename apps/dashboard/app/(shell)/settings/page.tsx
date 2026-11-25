@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { SetupStatus } from '@sdlc/shared';
 import { ChangePasswordForm } from '@/components/change-password-form';
+import { IntakeSources } from '@/components/intake-sources';
 import { SettingsForm } from '@/components/settings-form';
 import { apiGet } from '@/lib/server-api';
 import type { SystemView } from '@/lib/types';
@@ -21,6 +22,7 @@ export default async function SettingsPage() {
           Manage connections
         </Link>
       </div>
+      <IntakeSources settings={system.settings} />
       {!status?.passwordFromEnv && <ChangePasswordForm />}
       <SettingsForm settings={system.settings} />
     </section>

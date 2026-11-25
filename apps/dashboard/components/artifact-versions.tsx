@@ -46,11 +46,6 @@ export function ArtifactVersions({ artifacts }: { artifacts: ArtifactView[] }) {
                       <span><LocalTime iso={v.createdAt} /></span>
                       {isCurrent && <span className="rounded border border-border px-1.5 py-0.5 text-green">current</span>}
                       {v.stale && <span className="rounded border border-border px-1.5 py-0.5">stale</span>}
-                      {v.externalUrl && (
-                        <a href={v.externalUrl} className="text-accent hover:underline">
-                          Open in Confluence
-                        </a>
-                      )}
                     </div>
                     {stage === 'review' && <CriteriaTable data={v.data} />}
                     <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-sans text-sm">{artifactText(v)}</pre>

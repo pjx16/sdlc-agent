@@ -59,6 +59,15 @@ describe('Inbox', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tickets/t1/kb-update/rerun');
   });
 
+  it('makes the PR link of a human review item clickable', () => {
+    const body = 'The pull request for **SDA-3: Invoices** is ready.\n\nhttps://github.com/acme/app/pull/7';
+    render(<Inbox tab="open" now={NOW} tickets={[t({ id: 'c', kind: 'pr_ready', group: 'fyi', priority: 'fyi', title: 'SDA-3 is ready for human review', body, actions: ['dismiss'] })]} />);
+    const link = screen.getByRole('link', { name: 'https://github.com/acme/app/pull/7' });
+    expect(link).toHaveAttribute('href', 'https://github.com/acme/app/pull/7');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument();
+  });
+
   it('shows a calm empty state', () => {
     render(<Inbox tickets={[]} tab="open" />);
     expect(screen.getByText(/Nothing is waiting for you/)).toBeInTheDocument();

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ArtifactVersions } from './artifact-versions';
 import type { ArtifactView } from '@/lib/types';
 
-const review = (data: unknown): ArtifactView => ({ id: 'a1', stage: 'review', version: 1, data, stale: false, supersededAt: null, stageRunId: null, createdAt: '2026-11-14T10:00:00Z', externalUrl: null }) as ArtifactView;
+const review = (data: unknown): ArtifactView => ({ id: 'a1', stage: 'review', version: 1, data, stale: false, supersededAt: null, stageRunId: null, createdAt: '2026-11-14T10:00:00Z' }) as ArtifactView;
 
 describe('ArtifactVersions: review criteria', () => {
   it('shows what the PR reviewer decided about each acceptance criterion', () => {

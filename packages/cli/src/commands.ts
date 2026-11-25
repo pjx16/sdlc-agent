@@ -7,7 +7,7 @@ import { envFor, runDoctor } from './doctor';
 import { getEnv } from './envfile';
 import { readManifest } from './manifest';
 import { run } from './proc';
-import { CliError, dim, green, out } from './ui';
+import { CliError, dim, green, out, runStep } from './ui';
 
 export const INSTALL_TIP = 'Tip: install it as an app from Chrome/Edge (address-bar install icon) or Safari (File → Add to Dock).';
 
@@ -64,12 +64,10 @@ export function agentImage(envText: string): string {
 async function prepareAgentImage(dir: string, envText: string): Promise<void> {
   if (getEnv(envText, 'AGENT_IMAGE')) {
     const image = agentImage(envText);
-    out(`Pulling the agent image ${image}…`);
-    if ((await run('docker', ['pull', image], { inherit: true })).code !== 0) throw new CliError(`Could not pull the agent image ${image} (AGENT_IMAGE in .env).`);
+    if ((await runStep(`Pulling the agent image ${image}`, (io) => run('docker', ['pull', image], io))).code !== 0) throw new CliError(`Could not pull the agent image ${image} (AGENT_IMAGE in .env).`);
     return;
   }
-  out('Building the agent image (installs Claude Code; the first build takes a few minutes)…');
-  if ((await compose(dir, ['--profile', 'build', 'build', 'agent-image'], { inherit: true })).code !== 0) throw new CliError('Could not build the agent image. See the output above.');
+  if ((await runStep('Building the agent image (installs Claude Code; the first build takes a few minutes)', (io) => compose(dir, ['--profile', 'build', 'build', 'agent-image'], io))).code !== 0) throw new CliError('Could not build the agent image. See the output above.');
 }
 
 export async function up(opts: { dir: string; quiet?: boolean }): Promise<void> {
@@ -77,11 +75,9 @@ export async function up(opts: { dir: string; quiet?: boolean }): Promise<void> 
   const doctor = await runDoctor({ dir: opts.dir, env: envFor(opts.dir) }, opts.quiet);
   if (!doctor.ok) throw new CliError('Fix the checks marked ✖ above, then try again.');
 
-  out('Pulling images…');
-  if ((await compose(opts.dir, ['pull'], { inherit: true })).code !== 0) throw new CliError('Could not pull the images. Check your network and that the release is published.');
+  if ((await runStep('Pulling images', (io) => compose(opts.dir, ['pull'], io))).code !== 0) throw new CliError('Could not pull the images. Check your network and that the release is published.');
   await prepareAgentImage(opts.dir, envText);
-  out('Starting…');
-  if ((await compose(opts.dir, ['up', '-d', '--wait', '--wait-timeout', '300'], { inherit: true })).code !== 0) throw new CliError('The stack did not become healthy. See `sdlc-agent logs`.');
+  if ((await runStep('Starting services (waiting until they are healthy)', (io) => compose(opts.dir, ['up', '-d', '--wait', '--wait-timeout', '300'], io))).code !== 0) throw new CliError('The stack did not become healthy. See `sdlc-agent logs`.');
 
   const status = await fetchSetupStatus(opts.dir);
   if (!opts.quiet) out(`\n${INSTALL_TIP}`);

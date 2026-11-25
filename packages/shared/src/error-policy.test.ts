@@ -34,7 +34,6 @@ describe('error policy table', () => {
     expect(ERROR_POLICY.TURN_LIMIT.recovery).toMatchObject({ turnFactor: 1.5 });
     expect(ERROR_POLICY.INVALID_OUTPUT.recovery).toMatchObject({ withErrors: true });
     expect(ERROR_POLICY.JIRA_ERROR.recovery.kind).toBe('retry_never_block');
-    expect(ERROR_POLICY.CONFLUENCE_ERROR.recovery.kind).toBe('retry_never_block');
     expect(ERROR_POLICY.KILLED.recovery.kind).toBe('none');
   });
 });
