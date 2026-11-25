@@ -130,6 +130,8 @@ services:
       AGENT_MEMORY: ${AGENT_MEMORY:-4g}
       AGENT_CPUS: ${AGENT_CPUS:-2}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      CONNECTIVITY_CHECK: ${CONNECTIVITY_CHECK:-on}
+      CONNECTIVITY_PROBES: ${CONNECTIVITY_PROBES:-}
     volumes:
       - data:/data
       - ./guidelines:/app/guidelines:ro
