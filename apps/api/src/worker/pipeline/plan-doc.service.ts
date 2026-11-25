@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
+import { planDocPath } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PolicyError } from '../common/retry-policy';
@@ -9,11 +10,6 @@ import { CommitGuardError } from '../git/commit-guard';
 import { WorkspaceService } from '../git/workspace.service';
 import { StageLauncher } from './stage-launcher';
 import type { StepOutcome } from './step-handler';
-
-/** Where a ticket's plan is kept in the repository: `<kbDir>/plans/<KEY>.md`. */
-export function planDocPath(kbDir: string, ticketKey: string): string {
-  return `${kbDir.replace(/\/+$/, '')}/plans/${ticketKey.replace(/[^A-Za-z0-9._-]/g, '_')}.md`;
-}
 
 /** The plan as the document committed to the repository. */
 export function planDocText(ticket: Pick<Ticket, 'key' | 'title'>, plan: string): string {

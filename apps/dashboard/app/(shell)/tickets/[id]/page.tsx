@@ -70,7 +70,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         )}
         <span className="text-muted">Updated <LocalTime iso={ticket.updatedAt} /></span>
       </div>
-      {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} />}
+      {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} prUrl={ticket.prUrl} />}
       <div className="mt-4">
         <RerunPicker ticketId={ticket.id} moves={moves} />
       </div>
@@ -103,7 +103,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       </nav>
       <div className="mt-6">
         {active === 'overview' && <TicketOverview stats={ticketStats(ticket.stageRuns, ticket.subtasks, ticket.createdAt, ticket.updatedAt)} pr={ticket.prSoftLines !== undefined && ticket.prHardLines !== undefined ? { lines: ticket.prDiffLines ?? null, soft: ticket.prSoftLines, hard: ticket.prHardLines } : undefined} />}
-        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} />}
+        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} planFileUrl={ticket.planFileUrl ?? null} />}
         {active === 'breakdown' && <BreakdownPanel key={ticket.updatedAt} ticketId={ticket.id} status={ticket.status} draft={ticket.breakdownDraft} subtasks={ticket.subtasks} maxSubtasks={ticket.maxSubtasks} />}
         {active === 'versions' && <ArtifactVersions artifacts={artifacts} />}
         {active === 'timeline' && <EventTimeline events={events} runs={ticket.stageRuns} />}

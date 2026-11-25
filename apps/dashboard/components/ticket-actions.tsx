@@ -16,7 +16,7 @@ export function actionsFor(status: string): Action[] {
   return ['hold'];
 }
 
-export function TicketActions({ ticketId, status }: { ticketId: string; status: string }) {
+export function TicketActions({ ticketId, status, prUrl }: { ticketId: string; status: string; /** The ticket's pull request: offered while it waits for human review. */ prUrl?: string | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +44,11 @@ export function TicketActions({ ticketId, status }: { ticketId: string; status: 
 
   return (
     <div className="mt-4 flex flex-wrap items-center gap-2">
+      {status === 'IN_HUMAN_REVIEW' && prUrl && (
+        <a href={prUrl} target="_blank" rel="noopener noreferrer" className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-text">
+          Open PR
+        </a>
+      )}
       {actions.map((a) => (
         <button
           key={a}
