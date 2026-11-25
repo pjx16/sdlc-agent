@@ -80,6 +80,13 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           <AssistantToggle supportTicketId={current.id} />
         </div>
       )}
+      {ticket.kbAttachments && ticket.kbAttachments.length > 0 && (
+        <p className="mt-4 text-sm text-muted">
+          Attached knowledge: {ticket.kbAttachments.map((p) => (
+            <code key={p} className="mr-2 rounded border border-border px-1.5 py-0.5 font-mono text-xs">{p}</code>
+          ))}
+        </p>
+      )}
       {ticket.body && <pre className="mt-6 whitespace-pre-wrap panel p-4 font-sans text-sm">{ticket.body}</pre>}
 
       <nav aria-label="Ticket sections" className="mt-8 flex gap-1 border-b border-border">

@@ -171,6 +171,8 @@ model Project {
   onboardingStatus   OnboardingStatus @default(confirmed)
   onboardingProposal Json?
   onboardingError    String?
+  /// The KB docs of the repository ({ docs: [{ path, title }], updatedAt }), kept up to date by the worker so the API can list them without the repository.
+  kbCatalog          Json?
   jiraProjectKey     String?
   jiraJql            String?
   localKeyPrefix     String
@@ -231,6 +233,8 @@ model Ticket {
   title           String
   body            String        @default("")
   featureKey      String?
+  /// KB docs the person attached (paths relative to the project's kbDir). Every stage gets them in its context.
+  kbAttachments   Json          @default("[]")
   labels          Json          @default("[]")
   /// Where the stale code of a rerun starts; the worker reverts from here before the stage runs again.
   revertFromSha   String?

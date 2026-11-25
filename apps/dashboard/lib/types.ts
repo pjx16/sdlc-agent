@@ -253,6 +253,8 @@ export interface RunView {
 export interface TicketDetail extends TicketListItem {
   body: string;
   featureKey: string | null;
+  /** KB docs attached to the ticket; every stage keeps them in its context. */
+  kbAttachments?: string[];
   externalKey: string | null;
   branch: string | null;
   prUrl: string | null;

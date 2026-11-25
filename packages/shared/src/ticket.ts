@@ -13,6 +13,23 @@ const featureKey = z
   .optional()
   .transform((v) => (v === '' ? undefined : v));
 
+/** Most KB docs that can be attached to one ticket, and how many lines of them a stage is given in all. */
+export const KB_ATTACHMENT_MAX = 5;
+export const KB_ATTACHMENT_MAX_LINES = 600;
+
+/** A KB doc named by its path inside the project's KB folder: relative, markdown, nothing that climbs out. */
+export const KbAttachmentPath = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine((p) => p.endsWith('.md') && !p.startsWith('/') && !p.includes('\0') && !p.includes('\\') && !p.split('/').some((part) => part === '..' || part === '.' || part === ''), 'must be a relative path to a .md file inside the KB folder');
+
+/** What the worker keeps of a repository's KB for the API: the docs a ticket can attach. */
+export interface KbCatalog {
+  docs: { path: string; title: string }[];
+  updatedAt: string;
+}
+
 /** Body of POST /tickets. */
 /** Strict: an unknown field (a typo such as `description` for `body`) is an error, not silently dropped. */
 export const PasteTicketSchema = z.strictObject({
@@ -23,6 +40,8 @@ export const PasteTicketSchema = z.strictObject({
   /** What the ticket is. Takes the place of `type`; when only `type` is sent, the kind follows it. */
   kind: z.enum(TICKET_KINDS, { error: 'must be one of feature, bug, chore' }).optional(),
   featureKey,
+  /** KB docs to keep in the context of every stage of the ticket (paths inside the project's KB folder). */
+  kbAttachments: z.array(KbAttachmentPath, { error: 'must be a list of KB doc paths' }).max(KB_ATTACHMENT_MAX, `at most ${KB_ATTACHMENT_MAX} docs`).default([]),
 });
 export type PasteTicketInput = z.infer<typeof PasteTicketSchema>;
 
