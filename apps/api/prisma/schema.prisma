@@ -203,6 +203,9 @@ model GlobalSettings {
   /// Budgets are not enforced until then.
   usageIgnoredUntil       DateTime? @db.Timestamptz(6)
   pipelinePaused          Boolean   @default(false)
+  /// The SSH key that signs every commit the pipeline makes: the public part to add to GitHub as a signing key, and the private part encrypted with ENCRYPTION_KEY. Made by the worker on first start.
+  signingPublicKey        String?
+  signingPrivateKeyEnc    String?
   pausedReason            String?
   /// The ERROR_CODES value behind the pause, when there is one (CLAUDE_AUTH, CLAUDE_CREDITS, SPEND_BUDGET_REACHED, ...).
   pausedCode              String?

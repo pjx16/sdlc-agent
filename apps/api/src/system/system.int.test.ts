@@ -28,6 +28,16 @@ describe('System and global settings API', () => {
     await t.anonymous.post('/system/pause').expect(401);
   });
 
+  it('GET /system/commit-signing gives only the public key, and null before the worker has made one', async () => {
+    await t.anonymous.get('/system/commit-signing').expect(401);
+    expect((await t.agent.get('/system/commit-signing').expect(200)).body).toEqual({ publicKey: null });
+    await t.prisma.globalSettings.upsert({ where: { id: 'global' }, update: { signingPublicKey: 'ssh-ed25519 AAAA test', signingPrivateKeyEnc: 'v1.secret.secret.secret' }, create: { id: 'global', signingPublicKey: 'ssh-ed25519 AAAA test', signingPrivateKeyEnc: 'v1.secret.secret.secret' } });
+    const res = await t.agent.get('/system/commit-signing').expect(200);
+    expect(res.body).toEqual({ publicKey: 'ssh-ed25519 AAAA test' });
+    expect(JSON.stringify((await t.agent.get('/system').expect(200)).body)).not.toContain('secret.secret'); // the private half is in no response
+    await t.prisma.globalSettings.update({ where: { id: 'global' }, data: { signingPublicKey: null, signingPrivateKeyEnc: null } });
+  });
+
   it('GET /system returns the defaults, no running stage and no usage', async () => {
     const res = await t.agent.get('/system').expect(200);
     expect(res.body.runningStage).toBeNull();

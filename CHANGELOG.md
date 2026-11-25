@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **Every commit the pipeline makes is now signed** with an SSH key the worker makes on first start (the private half is encrypted with `ENCRYPTION_KEY` and never leaves the worker). Add the public key shown in Settings → Connections to GitHub as a *signing key* so the commits show as Verified. If signing fails, the step stops; an unsigned commit is never pushed. The worker image now includes `openssh-client`.
+
 ## [1.0.0] - 2026-11-22
 
 ### Upgrading from 0.0.1

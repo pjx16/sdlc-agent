@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { CredentialView } from '@sdlc/shared';
 import { BotCard } from '@/components/bot-card';
+import { CommitSigningCard } from '@/components/commit-signing-card';
 import { CredentialsForm } from '@/components/credentials-form';
 import { apiGet } from '@/lib/server-api';
 import type { SetupStatus } from '@sdlc/shared';
@@ -8,7 +9,7 @@ import type { SetupStatus } from '@sdlc/shared';
 export const dynamic = 'force-dynamic';
 
 export default async function ConnectionsPage() {
-  const [views, status] = await Promise.all([apiGet<CredentialView[]>('/credentials'), apiGet<SetupStatus>('/setup/status')]);
+  const [views, status, signing] = await Promise.all([apiGet<CredentialView[]>('/credentials'), apiGet<SetupStatus>('/setup/status'), apiGet<{ publicKey: string | null }>('/system/commit-signing').catch(() => null)]);
   return (
     <section className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-semibold">Connections</h1>
@@ -20,6 +21,9 @@ export default async function ConnectionsPage() {
         <BotCard />
       </div>
       <CredentialsForm initial={views ?? []} encryptionKeyOk={status?.encryptionKeyOk ?? true} />
+      <div className="mt-6">
+        <CommitSigningCard publicKey={signing?.publicKey ?? null} />
+      </div>
       <div className="mt-6">
         <Link href="/" className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text">
           Go to dashboard
