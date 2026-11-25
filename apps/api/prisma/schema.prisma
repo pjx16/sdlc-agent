@@ -208,6 +208,7 @@ model GlobalSettings {
   pausedCode              String?
   resetsAt                DateTime? @db.Timestamptz(6)
   intakePaused            Boolean   @default(false)
+  pausedIntakeSources     TicketSource[] @default([])
   pollIntervalSec         Int       @default(120)
   stageTimeoutMin         Int       @default(20)
   verifyTimeoutSec        Int       @default(600)

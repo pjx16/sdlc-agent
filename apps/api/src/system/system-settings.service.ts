@@ -3,7 +3,7 @@ import { DEFAULT_GLOBAL_SETTINGS, DEFAULT_SUGGESTED_BUDGETS, ErrorCodes, GlobalS
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
-import type { GlobalSettings, Prisma } from '../generated/prisma/client';
+import type { GlobalSettings, Prisma, TicketSource } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { budgetDecision, spentSince } from '../usage/spend';
 
@@ -21,6 +21,7 @@ export interface GlobalSettingsView extends GlobalSettingsInput {
   /** When the budgets were approved (or "no limits" chosen); null while the dashboard should ask. */
   budgetsApprovedAt: string | null;
   intakePaused: boolean;
+  pausedIntakeSources: TicketSource[];
 }
 
 /** Spend in the current day, week and month against the budgets, for the banners. */
@@ -142,6 +143,7 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     usageIgnoredUntil: row.usageIgnoredUntil?.toISOString() ?? null,
     budgetsApprovedAt: row.budgetsApprovedAt?.toISOString() ?? null,
     intakePaused: row.intakePaused,
+    pausedIntakeSources: row.pausedIntakeSources,
   };
 }
 
@@ -291,6 +293,10 @@ export class SystemSettingsService {
     const row = await this.prisma.globalSettings.update({ where: { id: GLOBAL_ID }, data: { intakePaused: paused } });
     await this.event('state', paused ? 'Intake paused' : 'Intake resumed');
     return toView(row);
+  }
+
+  async setSourceIntakePaused(_source: unknown, _paused: boolean): Promise<GlobalSettingsView> {
+    throw new Error('Not implemented');
   }
 
   private event(type: string, message: string) {
