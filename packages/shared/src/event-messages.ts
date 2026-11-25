@@ -8,7 +8,7 @@ import { describeError, type ErrorCode } from './error-policy';
 export const EVENT_LEVELS = ['info', 'warn', 'error'] as const;
 export type EventLevel = (typeof EVENT_LEVELS)[number];
 
-export const EVENT_SOURCES = ['system', 'orchestrator', 'claude', 'agent', 'jira', 'confluence', 'github', 'git', 'ci', 'user'] as const;
+export const EVENT_SOURCES = ['system', 'orchestrator', 'claude', 'agent', 'jira', 'github', 'git', 'ci', 'user'] as const;
 export type EventSource = (typeof EVENT_SOURCES)[number];
 
 export const duration = (ms: number): string => {
@@ -43,7 +43,7 @@ export interface EventDraft {
 const subtaskLabel = (n?: number | null, of?: number | null): string => (n ? ` subtask ${n}${of ? `/${of}` : ''}` : '');
 
 const sourceOfCode = (code: ErrorCode): EventSource =>
-  code.startsWith('CLAUDE') ? 'claude' : code === 'JIRA_ERROR' ? 'jira' : code === 'CONFLUENCE_ERROR' ? 'confluence' : code === 'GITHUB_ERROR' ? 'github' : code === 'GIT_ERROR' ? 'git' : code === 'KILLED' ? 'user' : 'agent';
+  code.startsWith('CLAUDE') ? 'claude' : code === 'JIRA_ERROR' ? 'jira' : code === 'GITHUB_ERROR' ? 'github' : code === 'GIT_ERROR' ? 'git' : code === 'KILLED' ? 'user' : 'agent';
 
 function errorDraft(p: { code: ErrorCode; vars?: Record<string, string | number | undefined>; retryAt?: Date; retry?: { n: number; of: number }; source?: EventSource }): EventDraft {
   const message = describeError(p.code, { ...p.vars, n: p.retry?.n, time: p.retryAt ? clock(p.retryAt) : p.vars?.time });

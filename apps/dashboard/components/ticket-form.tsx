@@ -1,10 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { TICKET_KINDS } from '@sdlc/shared';
 import { FormProvider, Section, Select, Text, TextArea } from './form';
 import { setIn, type FormValues } from '@/lib/form';
+import { KbDocPicker } from './kb-doc-picker';
 
 /** Paste a ticket into a project (F3). Works in every Jira mode. */
 export function TicketForm({ projects, template = '' }: { projects: { id: string; name: string; mirrorStatus: string; enabled: boolean; onboardingStatus?: string }[]; /** The team's ticket format (guidelines/formats/ticket.md): the description starts with it. */ template?: string }) {
@@ -14,6 +15,9 @@ export function TicketForm({ projects, template = '' }: { projects: { id: string
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [attached, setAttached] = useState<string[]>([]);
+  // The docs belong to a project: choosing another one starts the choice again.
+  useEffect(() => setAttached([]), [values.projectId]);
 
   const set = (path: string, value: unknown) => {
     setValues((v) => setIn(v, path, value));
@@ -29,7 +33,7 @@ export function TicketForm({ projects, template = '' }: { projects: { id: string
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch('/api/tickets', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(values) });
+      const res = await fetch('/api/tickets', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(attached.length > 0 ? { ...values, kbAttachments: attached } : values) });
       const body = await res.json().catch(() => ({}));
       if (res.ok) {
         router.push(`/tickets/${body.id}`);
@@ -63,6 +67,9 @@ export function TicketForm({ projects, template = '' }: { projects: { id: string
             <TextArea path="body" label="Description" rows={8} hint="Markdown. This is all the agent knows about the work." />
           </div>
           <Text path="featureKey" label="Feature key (optional)" hint="Names the KB doc for this feature, e.g. billing-export." />
+          <div className="sm:col-span-2">
+            <KbDocPicker key={String(values.projectId)} projectId={String(values.projectId)} selected={attached} onChange={setAttached} error={errors.kbAttachments} />
+          </div>
         </Section>
         <div className="flex items-center gap-4">
           <button type="submit" disabled={busy} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-60">

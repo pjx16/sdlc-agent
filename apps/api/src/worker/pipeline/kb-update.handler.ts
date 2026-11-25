@@ -1,16 +1,25 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KbUpdateService } from './kb-update.service';
+import { PlanDocService } from './plan-doc.service';
 import type { StepHandler, StepOutcome } from './step-handler';
 
-/** KB_UPDATE -> AWAITING_CI (row 13): update the feature doc from the ticket's diff, then wait for CI. */
+/**
+ * KB_UPDATE -> AWAITING_CI (row 13): commit the plan to the repository's knowledge-base folder, update the feature doc from the ticket's
+ * diff, then wait for CI.
+ */
 @Injectable()
 export class KbUpdateHandler implements StepHandler {
   readonly status = 'KB_UPDATE' as const;
-  constructor(private readonly service: KbUpdateService) {}
+  constructor(
+    private readonly service: KbUpdateService,
+    @Optional() private readonly planDocs?: PlanDocService,
+  ) {}
 
   async run(ticket: Ticket): Promise<StepOutcome> {
+    const held = await this.planDocs?.commit(ticket);
+    if (held) return held;
     const result = await this.service.run(ticket);
     if (result.kind === 'outcome') return result.outcome;
     return { kind: 'transition', to: 'AWAITING_CI', reason: `KB update: ${result.note}` };

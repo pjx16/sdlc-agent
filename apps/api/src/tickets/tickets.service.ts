@@ -56,7 +56,6 @@ export interface ArtifactDto {
   supersededAt: string | null;
   stageRunId: string | null;
   createdAt: string;
-  externalUrl: string | null;
 }
 
 export interface TicketEventDto {
@@ -194,7 +193,7 @@ export class TicketsService {
   /** GET /tickets/:id/artifacts: every version of the plan, breakdown, review rounds and KB pointer, stale ones included. */
   async artifacts(id: string): Promise<ArtifactDto[]> {
     await this.findOr404(id);
-    return (await allArtifacts(this.prisma, id)).map((a) => ({ id: a.id, stage: a.stage, version: a.version, data: a.data, stale: a.supersededAt !== null, supersededAt: a.supersededAt?.toISOString() ?? null, stageRunId: a.stageRunId, createdAt: a.createdAt.toISOString(), externalUrl: a.externalUrl }));
+    return (await allArtifacts(this.prisma, id)).map((a) => ({ id: a.id, stage: a.stage, version: a.version, data: a.data, stale: a.supersededAt !== null, supersededAt: a.supersededAt?.toISOString() ?? null, stageRunId: a.stageRunId, createdAt: a.createdAt.toISOString() }));
   }
 
   /** GET /tickets/:id/decisions: what the orchestrator was asked at each decision point, the options, its answer and why, oldest first. */
@@ -239,6 +238,9 @@ export class TicketsService {
     if (!project) throw fieldError('projectId', 'unknown project');
     if (!project.enabled) throw fieldError('projectId', 'this project is disabled');
     if (!ProjectSettingsSchema.parse(project.settings).intake.paste) throw fieldError('projectId', 'pasting tickets is turned off for this project');
+    await this.checkAttachments(project, input.kbAttachments);
+    const global = await this.prisma.globalSettings.findUnique({ where: { id: 'global' }, select: { intakePasteEnabled: true } });
+    if (global && !global.intakePasteEnabled) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Pasting tickets is switched off in Settings (intake sources)');
     // F2: a project accepts tickets only when its mirror is ready.
     if (project.mirrorStatus !== 'ok') {
       throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `The repository mirror is ${project.mirrorStatus === 'pending' ? 'still being cloned' : 'not ready (it failed)'}`);
@@ -249,12 +251,36 @@ export class TicketsService {
       const updated = await tx.project.update({ where: { id: project.id }, data: { nextLocalNumber: { increment: 1 } }, select: { nextLocalNumber: true, localKeyPrefix: true } });
       const key = `${updated.localKeyPrefix}-${updated.nextLocalNumber - 1}`;
       const created = await tx.ticket.create({
-        data: { projectId: project.id, key, source: 'paste', type, kind, title: input.title, body: input.body, featureKey: input.featureKey ?? null, status: 'NEW' },
+        data: { projectId: project.id, key, source: 'paste', type, kind, title: input.title, body: input.body, featureKey: input.featureKey ?? null, kbAttachments: input.kbAttachments, status: 'NEW' },
       });
       await tx.event.create({ data: { ticketId: created.id, type: 'intake', message: `${key} pasted` } });
       return created;
     });
     return toTicketDto(ticket);
+  }
+
+  /** Attached docs must be docs of the project's KB: when the worker has listed them, each path has to be one of them. */
+  private async checkAttachments(project: { kbCatalog: unknown }, paths: string[]): Promise<void> {
+    if (paths.length === 0) return;
+    if (new Set(paths).size !== paths.length) throw fieldError('kbAttachments', 'the same doc is attached twice');
+    const catalog = project.kbCatalog as { docs?: { path: string }[] } | null;
+    const known = new Set((catalog?.docs ?? []).map((d) => d.path));
+    const unknown = paths.filter((p) => !known.has(p));
+    if (unknown.length > 0) throw fieldError('kbAttachments', `not a KB doc of this project: ${unknown.join(', ')}`);
+  }
+
+  /** PATCH /tickets/:id/kb-attachments: change the attached docs until the ticket starts to be coded. */
+  async setKbAttachments(id: string, body: unknown): Promise<TicketDto> {
+    const { kbAttachments } = parseBody(z.strictObject({ kbAttachments: PasteTicketSchema.shape.kbAttachments }), body);
+    const ticket = await this.prisma.ticket.findUnique({ where: { id }, include: { project: true } });
+    if (!ticket) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Ticket not found');
+    if (!['NEW', 'KB', 'PLANNING', 'AWAITING_PLAN_APPROVAL', 'BREAKDOWN', 'AWAITING_BREAKDOWN_APPROVAL', 'ON_HOLD'].includes(ticket.status)) {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `The attached docs can no longer be changed (the ticket is ${ticket.status})`);
+    }
+    await this.checkAttachments(ticket.project, kbAttachments);
+    const updated = await this.prisma.ticket.update({ where: { id }, data: { kbAttachments } });
+    await this.prisma.event.create({ data: { ticketId: id, type: 'kb', message: `Attached KB docs changed: ${kbAttachments.join(', ') || 'none'}` } });
+    return toTicketDto(updated);
   }
 
   /** The plan gate only exists while a ticket is awaiting plan approval (409 otherwise). */

@@ -43,7 +43,7 @@ export class OperationsService {
       this.prisma.ticket.findMany({ where: { status: { notIn: ['DONE', 'FAILED'] }, project: { enabled: true } }, select: { id: true, key: true, status: true, updatedAt: true } }),
       this.prisma.stageRun.findMany({ where: { status: { in: ['queued', 'running'] }, ticketId: { not: null } }, select: { ticketId: true } }),
       this.prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: since24h } } }),
-      this.prisma.event.findMany({ where: { at: { gte: since24h }, source: { in: ['jira', 'confluence', 'github'] } }, select: { source: true, level: true } }),
+      this.prisma.event.findMany({ where: { at: { gte: since24h }, source: { in: ['jira', 'github'] } }, select: { source: true, level: true } }),
       this.prisma.event.findMany({ where: { level: 'error' }, orderBy: { at: 'desc' }, take: 20, include: { ticket: { select: { key: true } } } }),
     ]);
 

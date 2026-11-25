@@ -197,3 +197,83 @@ describe('repoFacts (onboarding)', () => {
     await expect(client.repoFacts('acme/empty')).rejects.toThrow(/default branch/);
   });
 });
+
+describe('GhCliClient: GitHub issues and Projects', () => {
+  const board = (items: unknown[], extra: { nextPage?: boolean } = {}) => ({
+    stdout: JSON.stringify({
+      data: {
+        repositoryOwner: {
+          projectV2: {
+            id: 'PVT_1',
+            fields: { nodes: [{}, { id: 'F_status', name: 'Status', options: [{ id: 'O_todo', name: 'Todo' }, { id: 'O_prog', name: 'In Progress' }, { id: 'O_done', name: 'Done' }] }, { id: 'F_other', name: 'Priority' }] },
+            items: { pageInfo: { hasNextPage: Boolean(extra.nextPage), endCursor: 'c1' }, nodes: items },
+          },
+        },
+      },
+    }),
+  });
+  const card = (id: string, status: string | null, content: unknown) => ({ id, fieldValueByName: status ? { name: status } : null, content });
+  const issue = (number: number, repo = 'acme/billing', over: Record<string, unknown> = {}) => ({ __typename: 'Issue', number, title: `Issue ${number}`, body: 'b', url: `https://github.com/${repo}/issues/${number}`, state: 'OPEN', repository: { nameWithOwner: repo }, labels: { nodes: [{ name: 'bug' }] }, ...over });
+
+  it('lists the open issues with a label, as the repository they belong to', async () => {
+    reply({ 'issue list': { stdout: JSON.stringify([{ number: 7, title: 'Export', body: null, url: 'https://github.com/acme/billing/issues/7', labels: [{ name: 'sdlc-agent' }, { name: 'bug' }] }]) } });
+    const issues = await client.listIssues('acme/billing', 'sdlc-agent');
+    expect(issues).toEqual([{ number: 7, title: 'Export', body: '', url: 'https://github.com/acme/billing/issues/7', labels: ['sdlc-agent', 'bug'], repo: 'acme/billing' }]);
+    const c = calls().at(-1)!;
+    expect(c.args).toEqual(expect.arrayContaining(['issue', 'list', '-R', 'acme/billing', '--label', 'sdlc-agent', '--state', 'open']));
+    expect(c.token).toBe('ghs_secret_token_value');
+  });
+
+  it('reads the cards of a Projects board: issues only, with their column, through the GraphQL API without a repository', async () => {
+    reply({ 'api graphql': board([card('I1', 'Todo', issue(7)), card('I2', null, issue(8)), card('I3', 'Todo', { __typename: 'PullRequest' }), card('I4', 'Todo', null), card('I5', 'Done', issue(9, 'acme/billing', { state: 'CLOSED' }))]) });
+    const items = await client.listProjectItems('acme', 3, 'Status');
+    expect(items.map((i) => [i.id, i.status, i.issue.number, i.closed])).toEqual([['I1', 'Todo', 7, false], ['I2', null, 8, false], ['I5', 'Done', 9, true]]);
+    expect(items[0]?.issue).toMatchObject({ repo: 'acme/billing', labels: ['bug'], url: 'https://github.com/acme/billing/issues/7' });
+    const c = calls().at(-1)!;
+    expect(c.args.slice(0, 2)).toEqual(['api', 'graphql']);
+    expect(c.args).toEqual(expect.arrayContaining(['-f', 'owner=acme', '-F', 'number=3', '-f', 'field=Status']));
+    expect(c.args.some((a) => a === '-R')).toBe(false); // a board belongs to an owner, so no repository token is looked up
+  });
+
+  it('says what is wrong when the board cannot be read', async () => {
+    reply({ 'api graphql': { stdout: JSON.stringify({ data: { repositoryOwner: { projectV2: null } } }) } });
+    await expect(client.listProjectItems('acme', 99, 'Status')).rejects.toThrow(/project acme\/99 was not found.*"project" scope/);
+    reply({ 'api graphql': { stdout: JSON.stringify({ errors: [{ message: 'Resource not accessible' }] }) } });
+    await expect(client.listProjectItems('acme', 3, 'Status')).rejects.toThrow('Resource not accessible');
+  });
+
+  it('moves a card to a column, comparing names without regard to case, and does nothing when it is there already', async () => {
+    reply({ 'api graphql': board([card('I1', 'Todo', issue(7)), card('I2', 'In Progress', issue(8))]) });
+    expect(await client.setProjectItemStatus('acme', 3, { repo: 'acme/billing', number: 7 }, 'Status', 'in progress')).toBe(true);
+    const mutation = calls().at(-1)!.args.find((a) => a.includes('updateProjectV2ItemFieldValue'));
+    expect(mutation).toBeDefined();
+    expect(calls().at(-1)!.args).toEqual(expect.arrayContaining(['-f', 'project=PVT_1', '-f', 'item=I1', '-f', 'field=F_status', '-f', 'option=O_prog']));
+    const before = calls().length;
+    expect(await client.setProjectItemStatus('acme', 3, { repo: 'acme/billing', number: 8 }, 'Status', 'In Progress')).toBe(true);
+    expect(calls().length - before).toBe(1); // only the read: already in that column
+  });
+
+  it('says false for a column the board does not have, or a card that is not on it', async () => {
+    reply({ 'api graphql': board([card('I1', 'Todo', issue(7))]) });
+    expect(await client.setProjectItemStatus('acme', 3, { repo: 'acme/billing', number: 7 }, 'Status', 'Shipped')).toBe(false);
+    expect(await client.setProjectItemStatus('acme', 3, { repo: 'acme/billing', number: 99 }, 'Status', 'Done')).toBe(false);
+  });
+
+  it('creates the labels it adds, then edits the issue', async () => {
+    reply({});
+    await client.setIssueLabels('acme/billing', 7, ['sdlc:planning'], ['sdlc:new']);
+    const all = calls();
+    expect(all.at(-2)!.args).toEqual(expect.arrayContaining(['api', '-X', 'POST', 'repos/acme/billing/labels', '-f', 'name=sdlc:planning']));
+    expect(all.at(-1)!.args).toEqual(['issue', 'edit', '7', '-R', 'acme/billing', '--add-label', 'sdlc:planning', '--remove-label', 'sdlc:new']);
+  });
+
+  it('comments with the body in a file, and closes an issue', async () => {
+    reply({});
+    await client.commentIssue('acme/billing', 7, 'Done: $(not run)');
+    const c = calls().at(-1)!;
+    expect(c.args.slice(0, 3)).toEqual(['issue', 'comment', '7']);
+    expect(c.body).toBe('Done: $(not run)');
+    await client.closeIssue('acme/billing', 7);
+    expect(calls().at(-1)!.args).toEqual(['issue', 'close', '7', '-R', 'acme/billing']);
+  });
+});

@@ -24,7 +24,7 @@ export function ProjectSummary({ project }: { project: ProjectView }) {
           </>
         )}
         <dt className="text-muted">Plans</dt>
-        <dd>{project.settings.confluence ? `Confluence space ${project.settings.confluence.spaceKey}` : 'Jira comments'}</dd>
+        <dd>Committed to the knowledge-base folder of the repository</dd>
       </dl>
     </div>
   );

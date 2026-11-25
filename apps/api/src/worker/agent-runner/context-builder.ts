@@ -33,6 +33,8 @@ export interface FindingInfo {
 export interface StageInputs {
   ticket?: TicketInfo;
   kbDoc?: string;
+  /** KB docs the person attached to the ticket, in every stage that works on the ticket. */
+  kbAttachments?: { path: string; content: string }[];
   indexKeys?: string[];
   /** For kbBuild: where the doc goes and how long it may be. */
   kbDir?: string;
@@ -129,7 +131,7 @@ const DATA_SHAPES: Record<StageName, string> = {
   kbUpdate: '{ featureKey, docPath, changed }',
   repoProfile: '{ stack: "ts_node" | "nestjs" | "nextjs", installCmd, typecheckCmd, testCmdTemplate (must contain {files}), kbDir, testFilePattern, exampleTestFile (a path, or null) }',
   jiraConnector: '{ result, error }. `result` has exactly the shape given under "Result shape"; when the operation cannot be done, `result` is null and `error` says why in one sentence.',
-  onboardAdvise: '{ statusMap: { <internal state>: <Jira status name or null> }, approvalStatuses: { plan, breakdown }, issueTypeRouting: { <issue type>: "feature" | "bug" | "chore" | "ignore" }, intakeLabel, confluenceSpaceKey (a space key from the list, or null) }',
+  onboardAdvise: '{ statusMap: { <internal state>: <Jira status name or null> }, approvalStatuses: { plan, breakdown }, issueTypeRouting: { <issue type>: "feature" | "bug" | "chore" | "ignore" }, intakeLabel }',
   assist: '{ reply, draft }. `reply` is your answer to the person, in plain words. `draft` is null, or { kind: "answer" | "plan_edit" | "rerun_note", text } when you have something they can apply with one click: the answer to the question, the whole edited plan, or the note for a rerun.',
 };
 
@@ -171,6 +173,9 @@ interface Plan {
   sections: Section[];
   files: ContextFile[];
 }
+
+/** The stages that work on the ticket itself and so get the docs attached to it. */
+const ATTACHMENT_STAGES: ReadonlySet<StageName> = new Set(['solutionDesign', 'bugInvestigation', 'technicalDesign', 'tests', 'implement', 'fix', 'prReview', 'qualityReview', 'securityReview', 'kbUpdate']);
 
 const NO_KB = '_No knowledge-base document exists for this feature yet._';
 
@@ -297,6 +302,13 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'kbUpdate':
       sections.push({ heading: 'Mode', body: 'Mode: **refresh**. The doc exists; make it true again.' }, diff(), { heading: 'Existing doc', body: i.existingDoc ? fenced(i.existingDoc) : NO_KB }, { heading: 'Doc template', body: i.docTemplate ?? '_No template._' });
       break;
+  }
+  if (i.kbAttachments && i.kbAttachments.length > 0 && ATTACHMENT_STAGES.has(stage)) {
+    i.kbAttachments.forEach((a, n) => files.push({ name: `attachment-${n + 1}.md`, content: a.content }));
+    sections.push({
+      heading: 'Attached knowledge',
+      body: `The developer attached these knowledge-base documents to the ticket. Treat them as given context.\n\n${list(i.kbAttachments.map((a, n) => `/context/attachment-${n + 1}.md: ${a.path}`))}`,
+    });
   }
   if (i.rerun) {
     sections.push({
