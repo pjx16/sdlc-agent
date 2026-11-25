@@ -1,6 +1,8 @@
 /** Where a ticket's plan is kept in the repository: `<kbDir>/plans/<KEY>.md`. */
 export function planDocPath(kbDir: string, ticketKey: string): string {
-  return `${kbDir.replace(/\/+$/, '')}/plans/${ticketKey.replace(/[^A-Za-z0-9._-]/g, '_')}.md`;
+  let dir = kbDir;
+  while (dir.endsWith('/')) dir = dir.slice(0, -1); // a loop, not a regular expression: the folder name is user input
+  return `${dir}/plans/${ticketKey.replace(/[^A-Za-z0-9._-]/g, '_')}.md`;
 }
 
 /** The states in which the plan file is on the ticket's branch (it is committed when the ticket reaches the KB update). */
