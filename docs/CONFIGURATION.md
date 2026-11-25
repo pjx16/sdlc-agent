@@ -35,6 +35,8 @@ A variable set here overrides the dashboard value and makes the field read-only 
 | `LLM_GATEWAY_PORT`, `LLM_GATEWAY_UPSTREAM`, `LLM_GATEWAY_URL`, `NPM_REGISTRY_URL` | no | Worker settings for the LLM gateway and the npm mirror that agents use. The defaults match the shipped Compose file (`8080`, `https://api.anthropic.com`, `http://llm-gateway:8080`, `http://npm-mirror:4873/`). The API's connection test of the key uses `LLM_GATEWAY_UPSTREAM` too |
 | `LOG_LEVEL` | no | pino level of the API and worker (default `info`) |
 | `SDLC_VERSION`, `SDLC_REGISTRY` | release installs | The release to run (without the leading `v`) and the registry (default `ghcr.io/pjx16`). Used only by `deploy/docker-compose.yml` |
+| `CONNECTIVITY_CHECK` | no | `off` turns off the internet check. By default the worker checks every 10 s and pauses the pipeline (banner in the dashboard) after 3 rounds in a row with no answer; it resumes by itself |
+| `CONNECTIVITY_PROBES` | no | Comma-separated `https://` addresses the check asks (default: `api.anthropic.com`, `api.github.com`, `1.1.1.1`). Any answer, even an error status, counts as online. Replace them for a proxy or an air-gapped network |
 | `DOCKER_SOCK` | no | Docker socket path on the host if it is not `/var/run/docker.sock` (Colima, OrbStack). Release compose only |
 | `POSTGRES_PORT` | no | Loopback port of the development database (default `5433`, `npm run up:dev` only) |
 | `SDLC_AGENT_HOME`, `SDLC_AGENT_SKIP_DOCTOR` | no | CLI: install folder (default `~/.sdlc-agent`), and `1` to skip the preflight checks |

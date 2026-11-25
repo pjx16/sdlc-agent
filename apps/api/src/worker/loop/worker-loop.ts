@@ -94,6 +94,10 @@ export class WorkerLoop {
         await this.prisma.event.create({ data: { type: 'usage', message: 'A new budget period started: the pipeline resumes' } }).catch(() => undefined);
       }
       // Before a step, not only after one: a step must not start once a budget is used up.
+      if (settings?.networkOffline) {
+        await phase('paused', 'No internet connection');
+        return (outcome = 'paused');
+      }
       if (settings?.pipelinePaused || (await this.budgets?.check())) {
         await phase('paused');
         return (outcome = 'paused');
@@ -210,11 +214,14 @@ export class WorkerLoop {
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     const pollSec = settings?.pollIntervalSec ?? 120;
     const intervalMs = pollSec * 1000;
+    // With no internet only the connectivity check runs: every other part would fail and fill the log.
+    const offline = Boolean(settings?.networkOffline);
     for (const h of this.housekeepers) {
+      if (offline && h.name !== 'connectivity') continue;
       if (!this.schedule.due(h.name, typeof h.intervalMs === 'function' ? h.intervalMs(pollSec) * 1000 : h.intervalMs)) continue;
       await h.check().catch((err: unknown) => this.logger.error(`${h.name} check failed: ${String(err)}`));
     }
-    if (!this.schedule.due('jira', intervalMs)) return;
+    if (offline || !this.schedule.due('jira', intervalMs)) return;
 
     await setPhase(this.prisma, 'intake');
     // The intake poller applies the intake-pause switch and its own Jira backoff.

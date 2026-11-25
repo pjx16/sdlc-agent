@@ -21,6 +21,9 @@ export interface GlobalSettingsView extends GlobalSettingsInput {
   /** When the budgets were approved (or "no limits" chosen); null while the dashboard should ask. */
   budgetsApprovedAt: string | null;
   intakePaused: boolean;
+  /** True while the worker finds no internet connection: the pipeline waits and resumes by itself. */
+  networkOffline: boolean;
+  offlineSince: string | null;
 }
 
 /** Spend in the current day, week and month against the budgets, for the banners. */
@@ -145,6 +148,8 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     usageIgnoredUntil: row.usageIgnoredUntil?.toISOString() ?? null,
     budgetsApprovedAt: row.budgetsApprovedAt?.toISOString() ?? null,
     intakePaused: row.intakePaused,
+    networkOffline: row.networkOffline,
+    offlineSince: row.offlineSince?.toISOString() ?? null,
   };
 }
 

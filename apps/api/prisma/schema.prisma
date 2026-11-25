@@ -208,6 +208,9 @@ model GlobalSettings {
   /// Budgets are not enforced until then.
   usageIgnoredUntil       DateTime? @db.Timestamptz(6)
   pipelinePaused          Boolean   @default(false)
+  /// Set by the worker's connectivity monitor while there is no internet: no step starts, nothing is polled. Independent of the pause above.
+  networkOffline          Boolean   @default(false)
+  offlineSince            DateTime? @db.Timestamptz(6)
   pausedReason            String?
   /// The ERROR_CODES value behind the pause, when there is one (CLAUDE_AUTH, CLAUDE_CREDITS, SPEND_BUDGET_REACHED, ...).
   pausedCode              String?
