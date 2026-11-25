@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - **The Confluence integration is gone.** Plans are no longer published to Confluence. Each ticket's plan is committed to the repository as `<kb folder>/plans/<KEY>.md` on the ticket's branch (so it is part of the pull request), and is posted to Jira as a comment as before. **Upgrading:** the migration drops the Confluence page links of existing plans and removes the Confluence space from project settings; the plans themselves are kept. The Jira credential no longer checks Confluence, the onboarding review has no Confluence card, and the `CONFLUENCE_ERROR` code is removed. Old plan pages in Confluence are left as they are.
 
+### Added
+
+- **GitHub issues and Projects as a ticket source**, next to Jira and pasted tickets. A project can take the open issues that carry a label, or the cards that stand in a column of a GitHub Projects (v2) board (recommended). Progress is written back to the issue's label or the card's column, and the issue is closed when the ticket is done. Each source has its own switch in Settings → Intake sources; the existing intake switch still stops them all. A Projects board needs the personal token with the `project` scope. See `docs/GITHUB.md`. The migration adds the `github` ticket source, three switches (all on) and a column that remembers the last state written to GitHub.
+
 ## [1.0.0] - 2026-11-22
 
 ### Upgrading from 0.0.1

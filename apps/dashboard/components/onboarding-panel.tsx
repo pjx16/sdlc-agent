@@ -4,8 +4,10 @@ import { MUST_ACCEPT, ISSUE_KINDS, TICKET_STATUSES, type OnboardingProposal, typ
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { DryRunView, OnboardingView } from '@/lib/types';
+import { ProfilingModal } from './profiling-modal';
 
 const POLL_MS = 3000;
+const POLL_MODAL_MS = 2000;
 
 async function call<T>(url: string, method: string, body?: unknown): Promise<{ ok: true; data: T } | { ok: false; message: string }> {
   try {
@@ -58,6 +60,7 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(true);
   const base = `/api/projects/${encodeURIComponent(projectId)}/onboarding`;
 
   const load = useCallback(async () => {
@@ -67,9 +70,9 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
 
   useEffect(() => {
     if (view.status !== 'profiling') return;
-    const id = setInterval(() => void load(), POLL_MS);
+    const id = setInterval(() => void load(), modalOpen ? POLL_MODAL_MS : POLL_MS);
     return () => clearInterval(id);
-  }, [view.status, load]);
+  }, [view.status, load, modalOpen]);
 
   async function run<T>(what: string, fn: () => Promise<{ ok: true; data: T } | { ok: false; message: string }>, onOk: (d: T) => void) {
     setBusy(what);
@@ -88,10 +91,14 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
 
   if (view.status === 'profiling') {
     return (
-      <div role="status" className="panel p-4 text-sm">
-        <p className="font-medium">Reading the repository and your Jira project…</p>
-        <p className="mt-1 text-muted">This takes a few minutes. You can leave this page: the proposal waits for you in the inbox.</p>
-      </div>
+      <>
+        <div role="status" className="panel p-4 text-sm">
+          <p className="font-medium">Profiling the repository…</p>
+          <p className="mt-1 text-muted">This takes a few minutes. You can leave this page: the proposal waits for you in the inbox.</p>
+          {!modalOpen && <button type="button" onClick={() => setModalOpen(true)} className="mt-2 text-accent underline">Show progress</button>}
+        </div>
+        {modalOpen && <ProfilingModal progress={view.progress} onClose={() => setModalOpen(false)} />}
+      </>
     );
   }
 

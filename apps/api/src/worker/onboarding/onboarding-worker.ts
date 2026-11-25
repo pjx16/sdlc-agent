@@ -3,9 +3,9 @@ import path from 'node:path';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   DEFAULT_GLOBAL_SETTINGS, GlobalSettingsSchema, ProjectSettingsSchema, defaultRouting, describeError, events,
-  type CommandCheck, type JiraFacts, type ModelAlias, type OnboardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus, jiraOn } from '@sdlc/shared';
+  type CommandCheck, type OnboardingPhaseId, type OnboardingProgress, type JiraFacts, type ModelAlias, type OnboardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { logEvent } from '../../common/event-log';
-import type { Prisma, Project } from '../../generated/prisma/client';
+import { Prisma, type Project } from '../../generated/prisma/client';
 import { JiraClients, JiraNotConfiguredError } from '../../jira/jira-clients';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SupportRaiser } from '../../support/support-raiser';
@@ -20,6 +20,52 @@ import { VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
 
 const CHECKOUT_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * Writes where profiling is (`Project.onboardingProgress`) as phases start and end, so the dashboard can show them, and keeps how long each
+ * took. Phases may overlap: the Jira advice does not wait for the code profiling.
+ */
+export class ProgressTracker {
+  private readonly progress: OnboardingProgress;
+  private queue: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly projectId: string,
+    planned: OnboardingPhaseId[],
+    private readonly now: () => number = () => Date.now(),
+  ) {
+    this.progress = { startedAt: new Date(now()).toISOString(), planned, running: [], done: [] };
+  }
+
+  /** Phase durations so far, in milliseconds. */
+  timings(): Record<string, number> {
+    return Object.fromEntries(this.progress.done.map((d) => [d.id, d.ms]));
+  }
+
+  async track<T>(id: OnboardingPhaseId, fn: () => Promise<T>): Promise<T> {
+    const started = this.now();
+    this.progress.running.push(id);
+    this.save();
+    try {
+      return await fn();
+    } finally {
+      this.progress.running = this.progress.running.filter((r) => r !== id);
+      this.progress.done.push({ id, ms: this.now() - started });
+      this.save();
+    }
+  }
+
+  /** Saves in order and never fails the onboarding: progress is only for display. */
+  private save(): void {
+    const snapshot = JSON.parse(JSON.stringify(this.progress)) as Prisma.InputJsonValue;
+    this.queue = this.queue.then(() => this.prisma.project.update({ where: { id: this.projectId }, data: { onboardingProgress: snapshot } })).catch(() => undefined);
+  }
+
+  flush(): Promise<unknown> {
+    return this.queue;
+  }
+}
 
 /** The facts as plain text for the agents. */
 export function factsText(projectName: string, facts: OnboardingFacts): string {
@@ -113,42 +159,61 @@ export class OnboardingWorker implements Housekeeper {
   async onboard(project: Project): Promise<void> {
     const checkout = path.join(this.config.dataDir, 'onboarding', project.id);
     try {
+      const hasJira = jiraOn(project.jiraMode) && Boolean(project.jiraProjectKey);
+      const planned: OnboardingPhaseId[] = [...(this.access ? (['access'] as const) : []), 'facts', 'mirror', 'checkout', 'profile', 'install', 'typecheck', ...(hasJira ? (['advise'] as const) : [])];
+      const t = new ProgressTracker(this.prisma, project.id, planned);
+
       // First of all: a project that works as the bot must have the sdlc-agent GitHub App installed on its repository.
       if (this.access) {
-        const access = await this.access.ensure(project);
+        const access = await t.track('access', () => this.access!.ensure(project));
         if (!access.ok) throw new Error(access.message);
       }
-      const facts = await this.collectFacts(project);
+      const facts = await t.track('facts', () => this.collectFacts(project));
       const baseBranch = facts.github.defaultBranch;
-      await this.prisma.project.update({ where: { id: project.id }, data: { baseBranch, mirrorStatus: 'pending', mirrorError: null } });
-      await this.mirrors.clone(await this.prisma.project.findUniqueOrThrow({ where: { id: project.id } }));
-      const cloned = await this.prisma.project.findUniqueOrThrow({ where: { id: project.id } });
-      if (cloned.mirrorStatus !== 'ok') throw new Error(cloned.mirrorError ?? 'The repository could not be cloned');
-
       const text = factsText(project.name, facts);
       const global = await this.global();
       const settings = ProjectSettingsSchema.parse(project.settings);
 
-      await rm(checkout, { recursive: true, force: true });
-      await mkdir(path.dirname(checkout), { recursive: true });
-      await this.git.run(['clone', '--depth', '1', '--branch', baseBranch, '--', this.config.mirrorPath(project.id), checkout], { timeoutMs: CHECKOUT_TIMEOUT_MS });
-      await makeWritableForAgent(checkout);
+      // The Jira advice needs only the facts, so it runs while the repository is cloned, profiled and checked.
+      const advicePromise: Promise<OnboardAdvice | null> = facts.jira
+        ? t.track('advise', () => this.stage<OnboardAdvice>(project, 'onboardAdvise', { onboard: { facts: text } }, undefined, settings, global))
+        : Promise.resolve(null);
 
-      const profile = await this.stage<RepoProfile>(project, 'repoProfile', { onboard: { facts: text } }, checkout, settings, global);
-      const installCheck = await this.check1(project, 'install', profile.installCmd, checkout, global.verifyTimeoutSec);
-      const typecheckCheck = installCheck && !installCheck.ok ? null : await this.check1(project, 'typecheck', profile.typecheckCmd, checkout, global.verifyTimeoutSec);
+      const codeChain = async () => {
+        await this.prisma.project.update({ where: { id: project.id }, data: { baseBranch, mirrorStatus: 'pending', mirrorError: null } });
+        await t.track('mirror', async () => {
+          await this.mirrors.clone(await this.prisma.project.findUniqueOrThrow({ where: { id: project.id } }));
+          const cloned = await this.prisma.project.findUniqueOrThrow({ where: { id: project.id } });
+          if (cloned.mirrorStatus !== 'ok') throw new Error(cloned.mirrorError ?? 'The repository could not be cloned');
+        });
+        await t.track('checkout', async () => {
+          await rm(checkout, { recursive: true, force: true });
+          await mkdir(path.dirname(checkout), { recursive: true });
+          await this.git.run(['clone', '--depth', '1', '--branch', baseBranch, '--', this.config.mirrorPath(project.id), checkout], { timeoutMs: CHECKOUT_TIMEOUT_MS });
+          await makeWritableForAgent(checkout);
+        });
+        const profile = await t.track('profile', () => this.stage<RepoProfile>(project, 'repoProfile', { onboard: { facts: text } }, checkout, settings, global));
+        const installCheck = await t.track('install', () => this.check1(project, 'install', profile.installCmd, checkout, global.verifyTimeoutSec));
+        const typecheckCheck = installCheck && !installCheck.ok ? null : await t.track('typecheck', () => this.check1(project, 'typecheck', profile.typecheckCmd, checkout, global.verifyTimeoutSec));
+        return { profile, installCheck, typecheckCheck };
+      };
+      // Both are awaited to the end even when one fails: no agent keeps running after the onboarding was reported as failed.
+      const [code, adviceResult] = await Promise.allSettled([codeChain(), advicePromise]);
+      if (code.status === 'rejected') throw code.reason;
+      if (adviceResult.status === 'rejected') throw adviceResult.reason;
+      const { profile, installCheck, typecheckCheck } = code.value;
+      const advice = adviceResult.value;
+      await t.flush();
 
-      const advice = facts.jira
-        ? await this.stage<OnboardAdvice>(project, 'onboardAdvise', { onboard: { facts: text } }, undefined, settings, global)
-        : null;
       const proposal: OnboardingProposal = {
         facts,
         profile: { ...profile, baseBranch, installCheck, typecheckCheck },
         advice: sanitizeAdvice(advice, facts.jira),
         accepted: {},
         createdAt: new Date().toISOString(),
+        timings: t.timings(),
       };
-      await this.prisma.project.update({ where: { id: project.id }, data: { onboardingStatus: 'proposed', onboardingError: null, onboardingProposal: proposal as unknown as Prisma.InputJsonValue } });
+      await this.prisma.project.update({ where: { id: project.id }, data: { onboardingStatus: 'proposed', onboardingError: null, onboardingProgress: Prisma.DbNull, onboardingProposal: proposal as unknown as Prisma.InputJsonValue } });
       await this.raiser.raise({
         kind: 'onboarding', projectId: project.id, stage: 'onboarding', dedupeKey: `onboarding:${project.id}`,
         title: `Review the setup of ${project.name}`,
@@ -158,7 +223,7 @@ export class OnboardingWorker implements Housekeeper {
     } catch (err) {
       const message = (err instanceof Error ? err.message : String(err)).slice(0, 500);
       this.logger.warn(`Onboarding of "${project.name}" failed: ${message}`);
-      await this.prisma.project.update({ where: { id: project.id }, data: { onboardingStatus: 'draft', onboardingError: message } });
+      await this.prisma.project.update({ where: { id: project.id }, data: { onboardingStatus: 'draft', onboardingError: message, onboardingProgress: Prisma.DbNull } });
       await logEvent(this.prisma, events.note({ source: 'system', type: 'error', level: 'error', message: `Onboarding of ${project.name} failed: ${message}` }));
     } finally {
       await rm(checkout, { recursive: true, force: true }).catch(() => undefined);

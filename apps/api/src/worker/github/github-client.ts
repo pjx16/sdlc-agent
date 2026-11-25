@@ -32,8 +32,38 @@ export interface OpenedPr {
   url: string;
 }
 
+/** An issue as intake sees it. */
+export interface GithubIssue {
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+  labels: string[];
+  /** owner/name of the repository the issue is in. */
+  repo: string;
+}
+
+/** One issue on a GitHub Project (v2) board, with the value of its status column. */
+export interface ProjectItem {
+  id: string;
+  status: string | null;
+  issue: GithubIssue;
+  /** An issue that is closed on GitHub is not taken. */
+  closed: boolean;
+}
+
 /** What the pipeline needs from GitHub. `repo` is `owner/name`. */
 export interface GitHubClient {
+  /** Open issues of a repository that carry a label, newest first, at most 100. */
+  listIssues(repo: string, label: string): Promise<GithubIssue[]>;
+  /** The issues of a Project (v2) board (pull requests and draft items are left out). `owner` is a user or an organization. */
+  listProjectItems(owner: string, number: number, statusField: string): Promise<ProjectItem[]>;
+  /** Moves an issue's card to the column called `optionName` (compared without regard to case). False when the board has no such column. */
+  setProjectItemStatus(owner: string, number: number, issue: { repo: string; number: number }, statusField: string, optionName: string): Promise<boolean>;
+  /** Adds and removes labels on an issue, creating the ones that do not exist yet. */
+  setIssueLabels(repo: string, number: number, add: string[], remove: string[]): Promise<void>;
+  commentIssue(repo: string, number: number, body: string): Promise<void>;
+  closeIssue(repo: string, number: number): Promise<void>;
   openDraftPr(args: { repo: string; base: string; head: string; title: string; body: string }): Promise<OpenedPr>;
   markReady(repo: string, number: number): Promise<void>;
   comment(repo: string, number: number, body: string): Promise<void>;
@@ -155,6 +185,90 @@ export class GhCliClient implements GitHubClient {
 
   async comment(repo: string, number: number, body: string): Promise<void> {
     await this.withBodyFile(body, (file) => this.gh(['pr', 'comment', String(number), '-R', repo, '--body-file', file]));
+  }
+
+  async listIssues(repo: string, label: string): Promise<GithubIssue[]> {
+    const out = await this.gh(['issue', 'list', '-R', repo, '--label', label, '--state', 'open', '--limit', '100', '--json', 'number,title,body,labels,url']);
+    const rows = JSON.parse(out || '[]') as { number: number; title: string; body?: string | null; url: string; labels?: { name: string }[] }[];
+    return rows.map((r) => ({ number: r.number, title: r.title, body: r.body ?? '', url: r.url, labels: (r.labels ?? []).map((l) => l.name), repo }));
+  }
+
+  /** Projects belong to a user or an organization, not to a repository: these calls use the personal token (it needs the `project` scope). */
+  private async graphql<T>(query: string, vars: Record<string, string | number>): Promise<T> {
+    const args = ['api', 'graphql', '-f', `query=${query}`];
+    for (const [k, v] of Object.entries(vars)) args.push(typeof v === 'number' ? '-F' : '-f', `${k}=${v}`);
+    const parsed = JSON.parse(await this.gh(args)) as { data?: T; errors?: { message: string }[] };
+    if (parsed.errors?.length) throw new GitHubError(parsed.errors.map((e) => e.message).join('; ').slice(0, 300), ['api', 'graphql']);
+    return parsed.data as T;
+  }
+
+  /** The board with its status column's options: one query per 100 items, at most 5 pages. */
+  private async board(owner: string, number: number, statusField: string): Promise<{ id: string; fieldId: string | null; options: { id: string; name: string }[]; items: ProjectItem[] }> {
+    const query = `query($owner:String!,$number:Int!,$field:String!,$after:String){ repositoryOwner(login:$owner){ ... on ProjectV2Owner { projectV2(number:$number){ id
+      fields(first:50){ nodes{ ... on ProjectV2SingleSelectField{ id name options{ id name } } } }
+      items(first:100, after:$after){ pageInfo{ hasNextPage endCursor } nodes{ id
+        fieldValueByName(name:$field){ ... on ProjectV2ItemFieldSingleSelectValue{ name } }
+        content{ __typename ... on Issue{ number title body url state repository{ nameWithOwner } labels(first:20){ nodes{ name } } } } } } } } } }`;
+    type Page = { repositoryOwner: { projectV2: null | { id: string; fields: { nodes: ({ id?: string; name?: string; options?: { id: string; name: string }[] } | null)[] }; items: { pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: { id: string; fieldValueByName?: { name?: string } | null; content?: { __typename: string; number?: number; title?: string; body?: string; url?: string; state?: string; repository?: { nameWithOwner: string }; labels?: { nodes: { name: string }[] } } | null }[] } } } | null };
+    let after: string | null = null;
+    let id = '';
+    let fieldId: string | null = null;
+    let options: { id: string; name: string }[] = [];
+    const items: ProjectItem[] = [];
+    for (let page = 0; page < 5; page++) {
+      const data: Page = await this.graphql<Page>(query, { owner, number, field: statusField, ...(after ? { after } : {}) });
+      const project = data.repositoryOwner?.projectV2;
+      if (!project) throw new GitHubError(`project ${owner}/${number} was not found, or the token cannot read projects (it needs the "project" scope)`, ['api', 'graphql']);
+      id = project.id;
+      const field = project.fields.nodes.find((f) => f?.name?.toLowerCase() === statusField.toLowerCase() && f.options);
+      if (field) {
+        fieldId = field.id ?? null;
+        options = field.options ?? [];
+      }
+      for (const n of project.items.nodes) {
+        const c = n.content;
+        if (!c || c.__typename !== 'Issue' || c.number === undefined || !c.repository) continue;
+        items.push({ id: n.id, status: n.fieldValueByName?.name ?? null, closed: c.state === 'CLOSED', issue: { number: c.number, title: c.title ?? '', body: c.body ?? '', url: c.url ?? '', labels: (c.labels?.nodes ?? []).map((l) => l.name), repo: c.repository.nameWithOwner } });
+      }
+      if (!project.items.pageInfo.hasNextPage) break;
+      after = project.items.pageInfo.endCursor;
+    }
+    return { id, fieldId, options, items };
+  }
+
+  async listProjectItems(owner: string, number: number, statusField: string): Promise<ProjectItem[]> {
+    return (await this.board(owner, number, statusField)).items;
+  }
+
+  async setProjectItemStatus(owner: string, number: number, issue: { repo: string; number: number }, statusField: string, optionName: string): Promise<boolean> {
+    const board = await this.board(owner, number, statusField);
+    const item = board.items.find((i) => i.issue.number === issue.number && i.issue.repo.toLowerCase() === issue.repo.toLowerCase());
+    const option = board.options.find((o) => o.name.toLowerCase() === optionName.toLowerCase());
+    if (!item || !option || !board.fieldId) return false;
+    if ((item.status ?? '').toLowerCase() === option.name.toLowerCase()) return true;
+    await this.graphql(`mutation($project:ID!,$item:ID!,$field:ID!,$option:String!){ updateProjectV2ItemFieldValue(input:{ projectId:$project, itemId:$item, fieldId:$field, value:{ singleSelectOptionId:$option } }){ projectV2Item{ id } } }`, { project: board.id, item: item.id, field: board.fieldId, option: option.id });
+    return true;
+  }
+
+  async setIssueLabels(repo: string, number: number, add: string[], remove: string[]): Promise<void> {
+    for (const name of add) {
+      // A label that exists already answers 422: that is fine.
+      await this.gh(['api', '-X', 'POST', `repos/${repo}/labels`, '-f', `name=${name}`, '-f', 'color=0e8a16']).catch((err: unknown) => {
+        if (!(err instanceof GitHubError && /already_exists|already exists|422/i.test(err.message))) throw err;
+      });
+    }
+    const args = ['issue', 'edit', String(number), '-R', repo];
+    for (const a of add) args.push('--add-label', a);
+    for (const r of remove) args.push('--remove-label', r);
+    if (args.length > 5) await this.gh(args);
+  }
+
+  async commentIssue(repo: string, number: number, body: string): Promise<void> {
+    await this.withBodyFile(body, (file) => this.gh(['issue', 'comment', String(number), '-R', repo, '--body-file', file]));
+  }
+
+  async closeIssue(repo: string, number: number): Promise<void> {
+    await this.gh(['issue', 'close', String(number), '-R', repo]);
   }
 
   async checks(repo: string, number: number): Promise<PrCheck[]> {
