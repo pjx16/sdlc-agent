@@ -13,6 +13,7 @@ import { PlanPanel } from '@/components/plan-panel';
 import { TicketTimeline } from '@/components/charts/ticket-timeline';
 import { RunsTable } from '@/components/runs-table';
 import { TicketOverview } from '@/components/ticket-overview';
+import { TicketKbAttachments } from '@/components/ticket-kb-attachments';
 import { TicketActions } from '@/components/ticket-actions';
 import { StateBadge } from '@/components/state-badge';
 import { TransitionHistory } from '@/components/transition-history';
@@ -70,7 +71,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         )}
         <span className="text-muted">Updated <LocalTime iso={ticket.updatedAt} /></span>
       </div>
-      {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} />}
+      {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} prUrl={ticket.prUrl} />}
       <div className="mt-4">
         <RerunPicker ticketId={ticket.id} moves={moves} />
       </div>
@@ -80,13 +81,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           <AssistantToggle supportTicketId={current.id} />
         </div>
       )}
-      {ticket.kbAttachments && ticket.kbAttachments.length > 0 && (
-        <p className="mt-4 text-sm text-muted">
-          Attached knowledge: {ticket.kbAttachments.map((p) => (
-            <code key={p} className="mr-2 rounded border border-border px-1.5 py-0.5 font-mono text-xs">{p}</code>
-          ))}
-        </p>
-      )}
+      <TicketKbAttachments ticketId={ticket.id} projectId={ticket.projectId} status={ticket.status} attached={ticket.kbAttachments ?? []} />
       {ticket.body && <pre className="mt-6 whitespace-pre-wrap panel p-4 font-sans text-sm">{ticket.body}</pre>}
 
       <nav aria-label="Ticket sections" className="mt-8 flex gap-1 border-b border-border">
@@ -103,7 +98,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       </nav>
       <div className="mt-6">
         {active === 'overview' && <TicketOverview stats={ticketStats(ticket.stageRuns, ticket.subtasks, ticket.createdAt, ticket.updatedAt)} pr={ticket.prSoftLines !== undefined && ticket.prHardLines !== undefined ? { lines: ticket.prDiffLines ?? null, soft: ticket.prSoftLines, hard: ticket.prHardLines } : undefined} />}
-        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} openQuestions={needs.find((n) => n.kind === 'approval' && n.stage === 'plan' && n.status === 'open')?.openQuestions ?? []} />}
+        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} openQuestions={needs.find((n) => n.kind === 'approval' && n.stage === 'plan' && n.status === 'open')?.openQuestions ?? []} planFileUrl={ticket.planFileUrl ?? null} />}
         {active === 'breakdown' && <BreakdownPanel key={ticket.updatedAt} ticketId={ticket.id} status={ticket.status} draft={ticket.breakdownDraft} subtasks={ticket.subtasks} maxSubtasks={ticket.maxSubtasks} />}
         {active === 'versions' && <ArtifactVersions artifacts={artifacts} />}
         {active === 'timeline' && <EventTimeline events={events} runs={ticket.stageRuns} />}
