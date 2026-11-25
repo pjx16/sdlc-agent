@@ -51,6 +51,7 @@ enum MirrorStatus {
 enum TicketSource {
   jira
   paste
+  github
 }
 
 enum TicketType {
@@ -208,6 +209,10 @@ model GlobalSettings {
   pausedCode              String?
   resetsAt                DateTime? @db.Timestamptz(6)
   intakePaused            Boolean   @default(false)
+  /// Per-source intake switches (the intake switch above pauses every source).
+  intakeJiraEnabled       Boolean   @default(true)
+  intakeGithubEnabled     Boolean   @default(true)
+  intakePasteEnabled      Boolean   @default(true)
   pollIntervalSec         Int       @default(120)
   stageTimeoutMin         Int       @default(20)
   verifyTimeoutSec        Int       @default(600)
@@ -227,6 +232,8 @@ model Ticket {
   key             String
   source          TicketSource
   externalKey     String?
+  /// For a GitHub ticket: the status last written to the issue or the project board (so it is written once per change).
+  externalStatus  String?
   type            TicketType    @default(story)
   title           String
   body            String        @default("")

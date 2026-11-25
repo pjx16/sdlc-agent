@@ -45,6 +45,16 @@ describe('Jira intake polling (F3)', () => {
     clock += INTAKE_BACKOFF_MS * 2; // clear any backoff left by an earlier test
   });
 
+  it('the Jira switch stops Jira intake on its own and says so; the intake switch still stops everything', async () => {
+    await project();
+    jira.tickets = [jt('ABC-1')];
+    await prisma.globalSettings.create({ data: { id: 'global', intakeJiraEnabled: false } });
+    expect(await poller.poll('rest')).toMatchObject({ skipped: 'source_off', created: 0 });
+    expect(jira.searches).toHaveLength(0); // Jira was not even asked
+    await prisma.globalSettings.update({ where: { id: 'global' }, data: { intakeJiraEnabled: true } });
+    expect(await poller.poll('rest')).toMatchObject({ created: 1 });
+  });
+
   it('never takes sub-tasks as tickets: by type name, by Jira flag, and the ones the pipeline published itself', async () => {
     const p = await project();
     const parent = await prisma.ticket.create({ data: { projectId: p.id, key: 'ABC-1', externalKey: 'ABC-1', source: 'jira', title: 'parent', status: 'IN_PROGRESS' } });

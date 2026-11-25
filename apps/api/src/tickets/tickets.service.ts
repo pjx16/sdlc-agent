@@ -232,6 +232,8 @@ export class TicketsService {
     if (!project) throw fieldError('projectId', 'unknown project');
     if (!project.enabled) throw fieldError('projectId', 'this project is disabled');
     if (!ProjectSettingsSchema.parse(project.settings).intake.paste) throw fieldError('projectId', 'pasting tickets is turned off for this project');
+    const global = await this.prisma.globalSettings.findUnique({ where: { id: 'global' }, select: { intakePasteEnabled: true } });
+    if (global && !global.intakePasteEnabled) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Pasting tickets is switched off in Settings (intake sources)');
     // F2: a project accepts tickets only when its mirror is ready.
     if (project.mirrorStatus !== 'ok') {
       throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `The repository mirror is ${project.mirrorStatus === 'pending' ? 'still being cloned' : 'not ready (it failed)'}`);

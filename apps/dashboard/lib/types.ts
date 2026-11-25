@@ -42,6 +42,9 @@ export interface GlobalSettingsView {
   /** Null until the budgets are approved (or "no limits" is chosen): the dashboard asks. */
   budgetsApprovedAt: string | null;
   intakePaused: boolean;
+  intakeJiraEnabled?: boolean;
+  intakeGithubEnabled?: boolean;
+  intakePasteEnabled?: boolean;
 }
 
 export type BudgetPeriodName = 'daily' | 'weekly' | 'monthly';
@@ -167,7 +170,7 @@ export interface TicketListItem {
   projectId: string;
   projectName: string;
   key: string;
-  source: 'jira' | 'paste';
+  source: 'jira' | 'paste' | 'github';
   type: 'story' | 'bug' | 'tech';
   title: string;
   status: string;
