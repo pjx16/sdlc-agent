@@ -1,4 +1,5 @@
 import { assertStagedChangeIsSafe } from './commit-guard';
+import { SigningError, type CommitSigner } from './commit-signer';
 import { GitError, type GitRunner } from './git-runner';
 
 export class CommitMessageError extends Error {
@@ -45,7 +46,7 @@ export type CommitResult = { committed: false } | { committed: true; sha: string
  * Stages everything and commits it as the configured identity. Repository hooks never run
  * (`core.hooksPath=/dev/null`) and the commit uses `--no-verify`. Returns `committed: false` when nothing changed.
  */
-export async function commitAll(git: GitRunner, workspace: string, message: string, identity: GitIdentity, opts: { paths?: readonly string[] } = {}): Promise<CommitResult> {
+export async function commitAll(git: GitRunner, workspace: string, message: string, identity: GitIdentity, opts: { paths?: readonly string[]; signer?: CommitSigner } = {}): Promise<CommitResult> {
   assertCommitMessage(message);
   if (!identity.name.trim() || !identity.email.trim()) throw new Error('GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL must be set to commit');
 
@@ -54,10 +55,22 @@ export async function commitAll(git: GitRunner, workspace: string, message: stri
   if ((await git.out(['diff', '--cached', '--name-only'], { cwd: workspace })) === '') return { committed: false };
   await assertStagedChangeIsSafe(git, workspace); // node_modules, .env*, keys and files over 1 MB fail the stage
 
-  await git.run(['commit', '--no-verify', '-m', message], {
-    cwd: workspace,
-    env: { GIT_AUTHOR_NAME: identity.name, GIT_AUTHOR_EMAIL: identity.email, GIT_COMMITTER_NAME: identity.name, GIT_COMMITTER_EMAIL: identity.email },
-  });
+  const env = { GIT_AUTHOR_NAME: identity.name, GIT_AUTHOR_EMAIL: identity.email, GIT_COMMITTER_NAME: identity.name, GIT_COMMITTER_EMAIL: identity.email };
+  if (!opts.signer) {
+    await git.run(['commit', '--no-verify', '-m', message], { cwd: workspace, env });
+  } else {
+    // Every commit of the pipeline is signed. If signing fails, nothing is committed and the step stops; an unsigned commit is never pushed.
+    try {
+      await opts.signer.withSigning((signing) => git.run([...signing, 'commit', '--no-verify', '-m', message], { cwd: workspace, env }));
+    } catch (err) {
+      if (err instanceof SigningError) throw err;
+      throw new SigningError(err instanceof GitError ? err.message : err instanceof Error ? err.message : String(err), { cause: err });
+    }
+    if (!(await git.out(['cat-file', 'commit', 'HEAD'], { cwd: workspace })).includes('-----BEGIN SSH SIGNATURE-----')) {
+      await git.run(['reset', '--soft', 'HEAD~1'], { cwd: workspace }).catch(() => undefined);
+      throw new SigningError('the commit has no signature');
+    }
+  }
   return { committed: true, sha: await git.out(['rev-parse', 'HEAD'], { cwd: workspace }) };
 }
 

@@ -261,6 +261,12 @@ export class SystemSettingsService {
     return toView(row);
   }
 
+  /** The public half of the key that signs the pipeline's commits. The private half never leaves the worker. */
+  async commitSigning(): Promise<{ publicKey: string | null }> {
+    const row = await this.prisma.globalSettings.findUnique({ where: { id: GLOBAL_ID }, select: { signingPublicKey: true } });
+    return { publicKey: row?.signingPublicKey ?? null };
+  }
+
   async pause(): Promise<GlobalSettingsView> {
     await this.row();
     const row = await this.prisma.globalSettings.update({ where: { id: GLOBAL_ID }, data: { pipelinePaused: true, pausedReason: 'manual' } });

@@ -10,6 +10,12 @@ export class SystemController {
     return this.system.system();
   }
 
+  /** The public key that signs the pipeline's commits, to add to GitHub as a signing key (null until the worker has made it). */
+  @Get('commit-signing')
+  commitSigning(): Promise<{ publicKey: string | null }> {
+    return this.system.commitSigning();
+  }
+
   @Patch('settings')
   update(@Body() body: unknown): Promise<GlobalSettingsView> {
     return this.system.update(body);

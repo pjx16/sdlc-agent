@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - **GitHub issues and Projects as a ticket source**, next to Jira and pasted tickets. A project can take the open issues that carry a label, or the cards that stand in a column of a GitHub Projects (v2) board (recommended). Progress is written back to the issue's label or the card's column, and the issue is closed when the ticket is done. Each source has its own switch in Settings → Intake sources; the existing intake switch still stops them all. A Projects board needs the personal token with the `project` scope. See `docs/GITHUB.md`. The migration adds the `github` ticket source, three switches (all on) and a column that remembers the last state written to GitHub.
+- **Every commit the pipeline makes is now signed** with an SSH key the worker makes on first start (the private half is encrypted with `ENCRYPTION_KEY` and never leaves the worker). Add the public key shown in Settings → Connections to GitHub as a *signing key* so the commits show as Verified. If signing fails, the step stops; an unsigned commit is never pushed. The worker image now includes `openssh-client`.
 
 ## [1.0.0] - 2026-11-22
 

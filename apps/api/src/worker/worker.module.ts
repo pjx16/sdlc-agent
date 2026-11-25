@@ -60,6 +60,7 @@ import { CleanupService } from './cleanup/cleanup.service';
 import { OrphanCleanup } from './cleanup/orphan-cleanup';
 import { AgentImageCheck } from './agent-runner/agent-image-check';
 import { MergePoller } from './ci/merge-poller';
+import { CommitSigner } from './git/commit-signer';
 import { ConnectivityMonitor, probesFromEnv } from './connectivity/connectivity-monitor';
 import { KbCatalogSync } from './kb/kb-catalog-sync';
 import { GithubIntake } from './intake/github-intake';
@@ -77,6 +78,7 @@ import { WorkerRunner } from './worker-runner';
     MirrorService,
     { provide: GitRunner, useFactory: (auth: GitHubAuth) => new GitRunner({ token: (ctx) => auth.tokenFor(ctx) }), inject: [GitHubAuth] },
     WorkspaceService,
+    { provide: CommitSigner, useFactory: (p: PrismaService) => new CommitSigner(p), inject: [PrismaService] },
     { provide: CONTAINER_ENGINE, useFactory: () => new DockerodeEngine() },
     ContainerRunner,
     { provide: STAGE_RUN_STORE, useClass: PrismaStageRunStore },

@@ -18,6 +18,7 @@ import { setPhase } from '../status/worker-status';
 import { GitRunner } from './git-runner';
 import { makeWritableForAgent, prepareWorkspace } from './workspace';
 import { revertRange, type RevertResult } from './revert';
+import type { CommitSigner } from './commit-signer';
 
 export interface WorkspaceResult {
   path: string;
@@ -59,6 +60,7 @@ export class WorkspaceService {
     private readonly creds: CredentialsService,
     @Optional() private readonly jira?: JiraClients,
     @Optional() private readonly auth?: GitHubAuth,
+    @Optional() private readonly signer?: CommitSigner,
   ) {}
 
   /** Waits and scale of the retry policy; tests shrink them. */
@@ -105,7 +107,7 @@ export class WorkspaceService {
   /** `Git.commit(ticket, message)`: commits the workspace as the configured identity; hooks never run. */
   async commit(ticketId: string, message: string, opts: { paths?: readonly string[] } = {}): Promise<CommitResult> {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
-    const result = await commitAll(this.git, this.config.workspacePath(ticket.projectId, ticket.key), message, await this.identity(ticket.projectId), opts);
+    const result = await commitAll(this.git, this.config.workspacePath(ticket.projectId, ticket.key), message, await this.identity(ticket.projectId), { ...opts, signer: this.signer });
     if (result.committed) {
       await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Committed ${result.sha.slice(0, 8)}: ${message.split('\n')[0]}`.slice(0, 500) } });
       // The stage that made this commit ends here: its range is startSha..endSha.
@@ -129,7 +131,7 @@ export class WorkspaceService {
   /** Removes work with a revert commit: history is append-only and nothing is ever force-pushed. */
   async revertRange(ticketId: string, range: string, message: string): Promise<RevertResult> {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
-    const result = await revertRange(this.git, this.config.workspacePath(ticket.projectId, ticket.key), range, message, await this.identity(ticket.projectId));
+    const result = await revertRange(this.git, this.config.workspacePath(ticket.projectId, ticket.key), range, message, await this.identity(ticket.projectId), this.signer);
     if (result.status === 'reverted') await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Reverted ${result.commits} commit${result.commits === 1 ? '' : 's'} (${result.sha.slice(0, 8)}): ${message.split('\n')[0]}`.slice(0, 500) } });
     return result;
   }

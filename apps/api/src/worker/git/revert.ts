@@ -1,3 +1,4 @@
+import type { CommitSigner } from './commit-signer';
 import { commitAll, type GitIdentity } from './commit';
 import { type GitRunner } from './git-runner';
 
@@ -14,7 +15,7 @@ export type RevertResult =
  * `range` is a git revision range such as `<sha>..HEAD`. The orchestrator is the only author of the commits it may revert:
  * if anyone else committed in the range, nothing is touched. A conflict aborts cleanly and names the files.
  */
-export async function revertRange(git: GitRunner, workspace: string, range: string, message: string, identity: GitIdentity): Promise<RevertResult> {
+export async function revertRange(git: GitRunner, workspace: string, range: string, message: string, identity: GitIdentity, signer?: CommitSigner): Promise<RevertResult> {
   const log = (await git.out(['log', '--format=%H%x09%ae', range], { cwd: workspace })).split('\n').filter(Boolean);
   if (log.length === 0) return { status: 'nothing' };
   const others = log.map((l) => l.split('\t') as [string, string]).filter(([, email]) => email.trim().toLowerCase() !== identity.email.trim().toLowerCase());
@@ -34,7 +35,7 @@ export async function revertRange(git: GitRunner, workspace: string, range: stri
   }
   let result;
   try {
-    result = await commitAll(git, workspace, message, identity);
+    result = await commitAll(git, workspace, message, identity, { signer });
   } catch (err) {
     // A refused message or a guard failure must not leave the staged revert in the workspace.
     await git.run(['reset', '--hard', 'HEAD'], { cwd: workspace }).catch(() => undefined);
