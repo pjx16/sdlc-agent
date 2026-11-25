@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import {
   ErrorCodes, GITHUB_AUTHS, GlobalSettingsSchema, ISSUE_KINDS, MUST_ACCEPT, ONBOARDING_SECTIONS, PLANS_PARENT_PAGE_TITLE, ProjectSettingsSchema, RepoProfileData, TICKET_STATUSES, buildIntakeJql, defaultLocalKeyPrefix, events, jiraOn,
-  type OnboardingProposal, type OnboardingSection, type OnboardingStatus, type TicketStatus,
+  type OnboardingProgress, type OnboardingProposal, type OnboardingSection, type OnboardingStatus, type TicketStatus,
 } from '@sdlc/shared';
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
@@ -31,6 +31,8 @@ export interface OnboardingDto {
   status: OnboardingStatus;
   error: string | null;
   proposal: OnboardingProposal | null;
+  /** While profiling: which phases are planned, running and done. */
+  progress: OnboardingProgress | null;
 }
 
 export interface DryRunDto {
@@ -100,7 +102,7 @@ export class OnboardingService {
 
   async get(id: string): Promise<OnboardingDto> {
     const p = await this.project(id);
-    return { status: p.onboardingStatus, error: p.onboardingError, proposal: this.proposalOf(p) };
+    return { status: p.onboardingStatus, error: p.onboardingError, proposal: this.proposalOf(p), progress: p.onboardingStatus === 'profiling' ? ((p.onboardingProgress as unknown as OnboardingProgress | null) ?? null) : null };
   }
 
   /** POST /projects/:id/onboarding/rerun: a new proposal. Settings do not change until it is confirmed again, and the worker ignores the project meanwhile. */

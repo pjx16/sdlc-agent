@@ -6,6 +6,27 @@ import { PROJECT_STACKS, TICKET_STATUSES, type TicketStatus } from './enums';
 export const ONBOARDING_STATUSES = ['draft', 'profiling', 'proposed', 'confirmed'] as const;
 export type OnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
 
+/** The steps of profiling a repository, in the order a person sees them. Several run at the same time (see `OnboardingProgress`). */
+export const ONBOARDING_PHASES = [
+  { id: 'access', label: 'Checking access to the repository' },
+  { id: 'facts', label: 'Reading the repository and your Jira project' },
+  { id: 'mirror', label: 'Cloning the repository' },
+  { id: 'checkout', label: 'Preparing a working copy' },
+  { id: 'profile', label: 'Profiling the code (stack, commands, tests)' },
+  { id: 'install', label: 'Checking the install command' },
+  { id: 'typecheck', label: 'Checking the type-check command' },
+  { id: 'advise', label: 'Proposing the Jira setup' },
+] as const;
+export type OnboardingPhaseId = (typeof ONBOARDING_PHASES)[number]['id'];
+
+/** Where profiling is, written by the worker as it goes. `planned` lists the phases this run will do. */
+export interface OnboardingProgress {
+  startedAt: string;
+  planned: OnboardingPhaseId[];
+  running: OnboardingPhaseId[];
+  done: { id: OnboardingPhaseId; ms: number }[];
+}
+
 /** What a ticket of an issue type becomes. `ignore` types are not picked up. */
 export const ISSUE_KINDS = ['feature', 'bug', 'chore', 'ignore'] as const;
 export type IssueKind = (typeof ISSUE_KINDS)[number];
@@ -90,6 +111,8 @@ export interface OnboardingProposal {
   /** Which sections the person accepted (or edited, which counts as accepting). */
   accepted: Partial<Record<OnboardingSection, boolean>>;
   createdAt: string;
+  /** How long each profiling phase took, in milliseconds. Absent in proposals made before phases were timed. */
+  timings?: Record<string, number>;
 }
 
 export const DEFAULT_ROUTING_KINDS: Record<string, IssueKind> = {

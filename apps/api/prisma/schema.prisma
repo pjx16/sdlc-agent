@@ -172,6 +172,8 @@ model Project {
   onboardingStatus   OnboardingStatus @default(confirmed)
   onboardingProposal Json?
   onboardingError    String?
+  /// OnboardingProgress while the status is `profiling`; the phase timings are also kept in the proposal.
+  onboardingProgress Json?
   jiraProjectKey     String?
   jiraJql            String?
   localKeyPrefix     String
