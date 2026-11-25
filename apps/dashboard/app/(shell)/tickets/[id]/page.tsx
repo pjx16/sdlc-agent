@@ -98,7 +98,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       </nav>
       <div className="mt-6">
         {active === 'overview' && <TicketOverview stats={ticketStats(ticket.stageRuns, ticket.subtasks, ticket.createdAt, ticket.updatedAt)} pr={ticket.prSoftLines !== undefined && ticket.prHardLines !== undefined ? { lines: ticket.prDiffLines ?? null, soft: ticket.prSoftLines, hard: ticket.prHardLines } : undefined} />}
-        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} planFileUrl={ticket.planFileUrl ?? null} />}
+        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} openQuestions={needs.find((n) => n.kind === 'approval' && n.stage === 'plan' && n.status === 'open')?.openQuestions ?? []} planFileUrl={ticket.planFileUrl ?? null} />}
         {active === 'breakdown' && <BreakdownPanel key={ticket.updatedAt} ticketId={ticket.id} status={ticket.status} draft={ticket.breakdownDraft} subtasks={ticket.subtasks} maxSubtasks={ticket.maxSubtasks} />}
         {active === 'versions' && <ArtifactVersions artifacts={artifacts} />}
         {active === 'timeline' && <EventTimeline events={events} runs={ticket.stageRuns} />}

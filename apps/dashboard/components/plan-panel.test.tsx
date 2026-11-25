@@ -23,6 +23,25 @@ describe('PlanPanel (F7)', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
+  it('at the gate: the plan cannot be approved until every open question is answered, and the answers go with the approval', async () => {
+    fetchMock.mockResolvedValue(reply({ status: 'BREAKDOWN' }));
+    const questions = [
+      { id: 'q1', title: 'Which repo?', body: 'Which repo?', defaultAnswer: 'billing', response: null },
+      { id: 'q2', title: 'Which currency?', body: 'Which currency?', defaultAnswer: null, response: null },
+    ];
+    render(<PlanPanel ticketId="t1" status="AWAITING_PLAN_APPROVAL" planMarkdown="# Plan v1" openQuestions={questions} />);
+    const approve = screen.getByRole('button', { name: 'Approve' });
+    expect(approve).toBeDisabled();
+    expect(screen.getByText('(0 of 2 answered)')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Use the plan’s assumption: billing/ }));
+    expect(approve).toBeDisabled(); // one is still open
+    await userEvent.type(screen.getByLabelText(/Which currency\?/), 'EUR');
+    expect(approve).toBeEnabled();
+    await userEvent.click(approve);
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(body()).toEqual({ answers: [{ id: 'q1', answer: 'billing' }, { id: 'q2', answer: 'EUR' }] });
+  });
+
   it('links the plan file in the repository once it is committed, and only then', () => {
     const { rerender } = render(<PlanPanel ticketId="t1" status="IN_HUMAN_REVIEW" planMarkdown="# P" planFileUrl="https://github.com/acme/billing/blob/feature/x/docs/kb/plans/ABC-1.md" />);
     const link = screen.getByRole('link', { name: 'Open the plan file in the repository' });

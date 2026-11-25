@@ -2,11 +2,15 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import type { OpenQuestionView } from '@/lib/types';
+import { OpenQuestions, answersToSend, unanswered } from './open-questions';
 
 interface Props {
   ticketId: string;
   status: string;
   planMarkdown: string | null;
+  /** The open questions of the plan: all need an answer before it can be approved. */
+  openQuestions?: OpenQuestionView[];
   /** A link to the plan file in the repository, once it is committed to the ticket's branch. */
   planFileUrl?: string | null;
 }
@@ -17,7 +21,7 @@ type Notice = { kind: 'ok' | 'error'; text: string } | null;
  * The plan and its gate (F7). While the ticket awaits plan approval the plan can be edited, approved or rejected with a
  * note; at any other time it is shown read-only.
  */
-export function PlanPanel({ ticketId, status, planMarkdown, planFileUrl }: Props) {
+export function PlanPanel({ ticketId, status, planMarkdown, planFileUrl, openQuestions = [] }: Props) {
   const router = useRouter();
   const awaiting = status === 'AWAITING_PLAN_APPROVAL';
   const [text, setText] = useState(planMarkdown ?? '');
@@ -26,8 +30,10 @@ export function PlanPanel({ ticketId, status, planMarkdown, planFileUrl }: Props
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const blocked = unanswered(openQuestions, typed) > 0;
 
-  async function send(action: 'approve' | 'reject', body: Record<string, string>) {
+  async function send(action: 'approve' | 'reject', body: Record<string, unknown>) {
     setBusy(true);
     setNotice(null);
     setErrors({});
@@ -90,6 +96,8 @@ export function PlanPanel({ ticketId, status, planMarkdown, planFileUrl }: Props
         )}
       </div>
 
+      {openQuestions.length > 0 && <OpenQuestions id={ticketId} questions={openQuestions} typed={typed} onChange={setTyped} />}
+
       {rejecting && (
         <div>
           <label htmlFor="reject-note" className="block text-sm">
@@ -114,8 +122,8 @@ export function PlanPanel({ ticketId, status, planMarkdown, planFileUrl }: Props
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          disabled={busy || text.trim() === ''}
-          onClick={() => send('approve', edited ? { planMarkdown: text } : {})}
+          disabled={busy || text.trim() === '' || blocked}
+          onClick={() => send('approve', { ...(edited ? { planMarkdown: text } : {}), ...(openQuestions.length > 0 ? { answers: answersToSend(openQuestions, typed) } : {}) })}
           className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-60"
         >
           {edited ? 'Approve with edits' : 'Approve'}
