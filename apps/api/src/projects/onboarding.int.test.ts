@@ -91,7 +91,7 @@ describe('Project onboarding API', () => {
 
     it('the worker ignores it until confirmed, so it is also absent from nothing but its own queue', async () => {
       const res = await t.agent.post('/projects/onboard').send({ repoUrl: 'https://github.com/acme/ledger' }).expect(201);
-      expect((await t.agent.get(`/projects/${res.body.id}/onboarding`).expect(200)).body).toEqual({ status: 'profiling', error: null, proposal: null });
+      expect((await t.agent.get(`/projects/${res.body.id}/onboarding`).expect(200)).body).toEqual({ status: 'profiling', error: null, proposal: null, progress: null });
       await t.prisma.project.delete({ where: { id: res.body.id } });
     });
   });

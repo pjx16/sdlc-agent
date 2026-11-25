@@ -1,4 +1,4 @@
-import type { OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
+import type { OnboardingProgress, OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
 
 /** A project as returned by the API. */
 export type ProjectView = Omit<ProjectInput, 'settings' | 'jiraProjectKey' | 'jiraJql' | 'githubAuth'> & {
@@ -337,6 +337,7 @@ export interface OnboardingView {
   status: OnboardingStatus;
   error: string | null;
   proposal: OnboardingProposal | null;
+  progress?: OnboardingProgress | null;
 }
 
 export interface DryRunView {
