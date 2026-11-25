@@ -7,13 +7,13 @@ export const ERROR_SOURCES = ['claude', 'agent', 'workspace', 'integration', 'us
 export type ErrorSource = (typeof ERROR_SOURCES)[number];
 
 /** Who the dashboard names on the badge. Integrations are split so the badge says Jira, GitHub, Git or Confluence. */
-export type ErrorBadge = 'Claude' | 'Agent' | 'Workspace' | 'Jira' | 'Confluence' | 'GitHub' | 'Git' | 'User';
+export type ErrorBadge = 'Claude' | 'Agent' | 'Workspace' | 'Jira' | 'Confluence' | 'GitHub' | 'Git' | 'Network' | 'User';
 
 export const ERROR_CODES = [
   'CLAUDE_AUTH', 'CLAUDE_RATE_LIMIT', 'CLAUDE_CREDITS', 'CLAUDE_API_ERROR', 'CLAUDE_CONTEXT_TOO_LONG', 'SPEND_BUDGET_REACHED',
   'TURN_LIMIT', 'INVALID_OUTPUT', 'NEEDS_INPUT', 'BLOCKED', 'GUARD_VIOLATION',
   'TESTS_STILL_FAILING', 'CONTAINER_ERROR', 'TIMEOUT',
-  'GIT_ERROR', 'GITHUB_ERROR', 'JIRA_ERROR', 'CONFLUENCE_ERROR', 'KILLED',
+  'GIT_ERROR', 'GITHUB_ERROR', 'JIRA_ERROR', 'CONFLUENCE_ERROR', 'NETWORK_ERROR', 'KILLED',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -24,6 +24,8 @@ export type Recovery =
   | { kind: 'pause_until_reset' }
   /** Retry automatically, waiting `backoffMin[n]` minutes before attempt n+1, then do `then`. */
   | { kind: 'retry'; retries: number; backoffMin: readonly number[]; then: 'hold' | 'fail'; turnFactor?: number; withErrors?: boolean }
+  /** The connection to an outside service failed: nothing is wrong with the work. The step is tried again a little later, without using a retry, until the connection is back. */
+  | { kind: 'retry_until_online' }
   | { kind: 'hold' }
   /** A write-back to an outside system: retry, log a warning, never block the ticket. */
   | { kind: 'retry_never_block'; retries: number; backoffMin: readonly number[] }
@@ -61,6 +63,7 @@ export const ERROR_POLICY: Record<ErrorCode, ErrorPolicy> = {
   GITHUB_ERROR: { source: 'integration', badge: 'GitHub', recovery: { kind: 'retry', retries: 3, backoffMin: [1, 4, 10], then: 'hold' }, message: 'GitHub failed: {detail}.', action: 'Check the GitHub token and its permissions, then resume.' },
   JIRA_ERROR: { source: 'integration', badge: 'Jira', recovery: { kind: 'retry_never_block', retries: 3, backoffMin: [1, 4, 10] }, message: 'Jira failed: {detail}.', action: 'Check the Atlassian credential. The ticket carries on without Jira.' },
   CONFLUENCE_ERROR: { source: 'integration', badge: 'Confluence', recovery: { kind: 'retry_never_block', retries: 3, backoffMin: [1, 4, 10] }, message: 'Confluence failed: {detail}. The plan was posted to Jira instead.', action: 'Check the Atlassian credential and the Confluence space.' },
+  NETWORK_ERROR: { source: 'integration', badge: 'Network', recovery: { kind: 'retry_until_online' }, message: 'The network connection failed: {detail}. Trying again when it is back.', action: 'Nothing: the ticket carries on by itself when the connection is back.' },
   KILLED: { source: 'user', badge: 'User', recovery: { kind: 'none' }, message: 'Stopped from the dashboard.', action: 'Resume the ticket when you are ready.' },
 };
 
@@ -85,7 +88,10 @@ const AUTH = /authentication_error|invalid bearer token|oauth token (has )?(expi
 const CREDITS = /credit balance is too low|insufficient (credit|balance)|billing_error/i;
 const RATE = /rate.?limit|too many requests|\b429\b/i;
 const CONTEXT = /prompt is too long|context (length|window)|maximum context|input is too long|too many tokens/i;
-const API = /overloaded|\b529\b|\b5\d\d\b (error|internal)|internal server error|service unavailable|bad gateway|gateway timeout|econnreset|etimedout|enotfound|socket hang up|network error|fetch failed|api error/i;
+const API = /overloaded|\b529\b|\b5\d\d\b (error|internal)|internal server error|service unavailable|bad gateway|gateway timeout|api error/i;
+/** The text of a failure that happened because the connection to the outside world failed (DNS, refused, reset, timed out), not because a service said no. */
+const NETWORK = /\b(enotfound|eai_again|econnreset|econnrefused|etimedout|ehostunreach|enetunreach|epipe)\b|could not resolve host|temporary failure in name resolution|network is unreachable|no route to host|connection (timed out|reset by peer|refused)|socket hang up|network error|fetch failed|unable to access '[^']*': (could not|failed to connect|connection)|failed to connect to|the remote end hung up/i;
+export const isNetworkErrorText = (text: string | null | undefined): boolean => Boolean(text) && NETWORK.test(text as string);
 
 /**
  * Names a Claude-side failure from the CLI's result text or stderr (and the HTTP status when the result had one).
@@ -96,6 +102,7 @@ export function classifyClaudeError(text: string, status?: number | null): Error
   if (CONTEXT.test(text)) return 'CLAUDE_CONTEXT_TOO_LONG';
   if (CREDITS.test(text)) return 'CLAUDE_CREDITS';
   if (status === 429 || RATE.test(text)) return 'CLAUDE_RATE_LIMIT';
+  if (NETWORK.test(text)) return 'NETWORK_ERROR';
   if ((typeof status === 'number' && status >= 500) || API.test(text)) return 'CLAUDE_API_ERROR';
   return null;
 }

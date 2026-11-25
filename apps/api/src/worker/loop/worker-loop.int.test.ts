@@ -16,7 +16,7 @@ import { IntakePoller } from '../intake/intake-poller';
 import type { StepHandler, StepOutcome } from '../pipeline/step-handler';
 import { MirrorService } from '../git/mirror.service';
 import { WorkerConfig } from '../worker-config';
-import { WorkerLoop } from './worker-loop';
+import { NETWORK_COOLDOWN_MS, WorkerLoop } from './worker-loop';
 
 
 /** The loop's data folder: a fresh private temp directory, so no other user can plant files in it. */
@@ -221,6 +221,48 @@ describe('worker loop', () => {
     clock += 10_000;
     expect(await loop.tick()).toBe('stepped');
     expect(ran2).toContain('other');
+  });
+
+  describe('a step stopped by the network', () => {
+    it('does not fail the ticket when the step throws a lost connection, and tries it again after a short wait', async () => {
+      const t = await ticket('NEW');
+      let offline = true;
+      const loop = loopWith([handler('NEW', () => {
+        if (offline) throw new Error("fatal: unable to access 'https://github.com/a/b.git/': Could not resolve host: github.com");
+        return { kind: 'transition', to: 'KB' };
+      })]);
+      expect(await loop.tick()).toBe('idle'); // the step ran and stopped: nothing changed
+      expect(await status(t.id)).toBe('NEW');
+      expect(await prisma.event.count({ where: { ticketId: t.id, type: 'network' } })).toBe(1);
+      expect(await loop.tick()).toBe('idle');
+      expect(ran).toHaveLength(1); // still waiting: the step did not run again
+      clock += NETWORK_COOLDOWN_MS + 1;
+      offline = false;
+      expect(await loop.tick()).toBe('stepped');
+      expect(await status(t.id)).toBe('KB');
+    });
+
+    it('does not hold or fail a ticket whose step ended with a lost connection as its reason; other holds still hold', async () => {
+      const a = await ticket('NEW');
+      const loop = loopWith([handler('NEW', () => ({ kind: 'hold', reason: 'needs_help', note: 'push failed: connect ETIMEDOUT 140.82.112.3:443' }))]);
+      await loop.tick();
+      expect(await status(a.id)).toBe('NEW');
+      clock += NETWORK_COOLDOWN_MS + 1;
+      const b = await ticket('NEW');
+      await prisma.ticket.update({ where: { id: a.id }, data: { status: 'DONE' } });
+      const loop2 = loopWith([handler('NEW', () => ({ kind: 'hold', reason: 'needs_help', note: 'Tests still fail' }))]);
+      await loop2.tick();
+      expect(await status(b.id)).toBe('ON_HOLD');
+    });
+
+    it('an ordinary error still fails the ticket', async () => {
+      const t = await ticket('NEW');
+      const loop = loopWith([handler('NEW', () => {
+        throw new Error('something broke');
+      })]);
+      await loop.tick();
+      expect(await status(t.id)).toBe('FAILED');
+    });
   });
 
   it('never runs two steps at once: a second iteration while one is running does nothing', async () => {
