@@ -42,6 +42,15 @@ describe('PlanPanel (F7)', () => {
     expect(body()).toEqual({ answers: [{ id: 'q1', answer: 'billing' }, { id: 'q2', answer: 'EUR' }] });
   });
 
+  it('links the plan file in the repository once it is committed, and only then', () => {
+    const { rerender } = render(<PlanPanel ticketId="t1" status="IN_HUMAN_REVIEW" planMarkdown="# P" planFileUrl="https://github.com/acme/billing/blob/feature/x/docs/kb/plans/ABC-1.md" />);
+    const link = screen.getByRole('link', { name: 'Open the plan file in the repository' });
+    expect(link).toHaveAttribute('href', 'https://github.com/acme/billing/blob/feature/x/docs/kb/plans/ABC-1.md');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    rerender(<PlanPanel ticketId="t1" status="BREAKDOWN" planMarkdown="# P" planFileUrl={null} />);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
   it('says there is no plan yet', () => {
     render(<PlanPanel ticketId="t1" status="PLANNING" planMarkdown={null} />);
     expect(screen.getByText(/No plan yet/)).toBeInTheDocument();

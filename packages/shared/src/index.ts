@@ -9,6 +9,7 @@ export * from './project-settings';
 export * from './zod-utils';
 export * from './stage-envelope';
 export * from './state-machine';
+export * from './plan-doc';
 export * from './ticket';
 export * from './breakdown';
 export * from './subtask-flow';

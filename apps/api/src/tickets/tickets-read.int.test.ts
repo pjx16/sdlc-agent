@@ -40,6 +40,16 @@ describe('Tickets API: list, detail, history, timeline', () => {
     await t.anonymous.get('/tickets/x/transitions').expect(401);
   });
 
+  it('the detail links the plan file on GitHub once the plan is on the branch', async () => {
+    const gh = await t.prisma.project.create({ data: { name: 'Gamma', repoUrl: 'https://github.com/acme/billing', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'GAM', mirrorStatus: 'ok' } });
+    const early = await ticket(gh.id, { status: 'PLANNING', branch: 'feature/K-1-x' });
+    expect((await t.agent.get(`/tickets/${early.id}`).expect(200)).body.planFileUrl).toBeNull();
+    const later = await ticket(gh.id, { status: 'IN_HUMAN_REVIEW', branch: 'feature/K-2-x', key: 'GAM-2' });
+    expect((await t.agent.get(`/tickets/${later.id}`).expect(200)).body.planFileUrl).toBe('https://github.com/acme/billing/blob/feature/K-2-x/docs/kb/plans/GAM-2.md');
+    const other = await ticket(a, { status: 'IN_HUMAN_REVIEW', branch: 'feature/x' }); // a repository that is not on github.com
+    expect((await t.agent.get(`/tickets/${other.id}`).expect(200)).body.planFileUrl).toBeNull();
+  });
+
   it('lists tickets with their project, newest activity first', async () => {
     const first = await ticket(a);
     const second = await ticket(b);
