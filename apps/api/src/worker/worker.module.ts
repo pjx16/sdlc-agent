@@ -131,7 +131,7 @@ import { WorkerRunner } from './worker-runner';
     AgentImageCheck,
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
-    { provide: ConnectivityMonitor, useFactory: (p: PrismaService) => new ConnectivityMonitor(p, probesFromEnv() ?? []), inject: [PrismaService] },
+    { provide: ConnectivityMonitor, useFactory: (p: PrismaService, st: StateMachine) => new ConnectivityMonitor(p, probesFromEnv() ?? [], undefined, st), inject: [PrismaService, StateMachine] },
     { provide: KbCatalogSync, useFactory: (p: PrismaService, g: GitRunner, c: WorkerConfig) => new KbCatalogSync(p, g, c), inject: [PrismaService, GitRunner, WorkerConfig] },
     { provide: GithubIntake, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubIntake(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
     { provide: GithubSync, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubSync(p, gh), inject: [PrismaService, GITHUB_CLIENT] },

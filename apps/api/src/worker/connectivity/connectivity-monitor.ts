@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isNetworkErrorText } from '@sdlc/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Housekeeper } from '../loop/worker-loop';
 
@@ -46,7 +47,10 @@ export class ConnectivityMonitor implements Housekeeper {
     private readonly prisma: PrismaService,
     private readonly probes: Probe[],
     private readonly now: () => Date = () => new Date(),
+    private readonly states?: { resume(ticketId: string, actor: 'system', note?: string): Promise<unknown> },
   ) {}
+
+  private swept = false;
 
   async check(): Promise<void> {
     const row = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
@@ -56,10 +60,32 @@ export class ConnectivityMonitor implements Housekeeper {
     if (online) {
       this.failedRounds = 0;
       if (offline) await this.set(false, row?.offlineSince ?? null);
+      // Once after an outage ends, and once after a start (the worker may have been stopped during one): tickets that were held or failed only
+      // because of the network carry on.
+      if (offline || !this.swept) {
+        this.swept = true;
+        await this.resumeNetworkHolds().catch((err: unknown) => this.logger.warn(`Could not resume the tickets stopped by the network: ${err instanceof Error ? err.message : String(err)}`));
+      }
       return;
     }
     this.failedRounds++;
     if (!offline && this.failedRounds >= FAILED_ROUNDS_TO_OFFLINE) await this.set(true, null);
+  }
+
+  /** Resumes the held or failed tickets whose last stop, in the past 24 hours, was a lost connection. Returns how many. */
+  async resumeNetworkHolds(): Promise<number> {
+    if (!this.states) return 0;
+    const since = new Date(this.now().getTime() - 24 * 3600_000);
+    const stopped = await this.prisma.ticket.findMany({ where: { status: { in: ['ON_HOLD', 'FAILED'] }, project: { enabled: true } }, select: { id: true, key: true } });
+    let resumed = 0;
+    for (const t of stopped) {
+      const last = await this.prisma.stateTransition.findFirst({ where: { ticketId: t.id, toStatus: { in: ['ON_HOLD', 'FAILED'] } }, orderBy: [{ at: 'desc' }, { id: 'desc' }] });
+      if (!last || last.at < since || !isNetworkErrorText(`${last.reason ?? ''} ${last.note ?? ''}`)) continue;
+      await this.states.resume(t.id, 'system', 'The internet connection is back: carrying on');
+      resumed++;
+    }
+    if (resumed > 0) this.logger.warn(`${resumed} ticket(s) that had stopped because of the network were resumed`);
+    return resumed;
   }
 
   private async set(offline: boolean, since: Date | null): Promise<void> {

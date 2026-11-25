@@ -92,3 +92,37 @@ describe('probesFromEnv', () => {
     expect(probesFromEnv({ CONNECTIVITY_PROBES: 'ftp://nope' })).toHaveLength(3);
   });
 });
+
+describe('resuming what the network stopped', () => {
+  const NOW = new Date('2026-11-25T10:00:00Z');
+  function world(transitions: Record<string, { at: Date; reason: string | null; note: string | null } | null>) {
+    const resume = vi.fn(async () => undefined);
+    const flag = { networkOffline: true, offlineSince: new Date(NOW.getTime() - 60_000) as Date | null };
+    const prisma = {
+      globalSettings: { findUnique: vi.fn(async () => flag), upsert: vi.fn(async ({ update }: { update: typeof flag }) => void Object.assign(flag, update)) },
+      event: { create: vi.fn(async () => undefined) },
+      ticket: { findMany: vi.fn(async () => Object.keys(transitions).map((id) => ({ id, key: id }))) },
+      stateTransition: { findFirst: vi.fn(async ({ where }: { where: { ticketId: string } }) => transitions[where.ticketId] ?? null) },
+    };
+    return { resume, monitor: new ConnectivityMonitor(prisma as never, [up], () => NOW, { resume }) };
+  }
+  const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3600_000);
+
+  it('resumes held or failed tickets whose last stop was a lost connection, when the connection is back', async () => {
+    const { resume, monitor } = world({
+      net: { at: hoursAgo(2), reason: 'push failed', note: "unable to access 'https://github.com/a/b.git/': Could not resolve host: github.com" },
+      other: { at: hoursAgo(2), reason: 'Tests still fail', note: null },
+      old: { at: hoursAgo(30), reason: 'connect ETIMEDOUT 1.2.3.4:443', note: null },
+      none: null,
+    });
+    await monitor.check();
+    expect(resume.mock.calls.map((c) => (c as unknown as string[])[0])).toEqual(['net']);
+  });
+
+  it('does it once after a start too, but not again on every round', async () => {
+    const { resume, monitor } = world({ net: { at: hoursAgo(1), reason: 'ENOTFOUND api.github.com', note: null } });
+    await monitor.check(); // back from offline: the sweep
+    await monitor.check(); // online already: nothing more
+    expect(resume).toHaveBeenCalledTimes(1);
+  });
+});

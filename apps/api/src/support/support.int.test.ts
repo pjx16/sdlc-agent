@@ -3,7 +3,7 @@ import { CredentialsService } from '../credentials/credentials.service';
 import { FakeGitHub } from '../testing/fake-github';
 import { SupportNotifier } from '../worker/support-notifier';
 import { StageLauncher } from '../worker/pipeline/stage-launcher';
-import { StageOutcomes } from '../worker/pipeline/stage-outcomes';
+import { MAX_NETWORK_FAILURES_PER_DAY, StageOutcomes } from '../worker/pipeline/stage-outcomes';
 import { WorkerConfig } from '../worker/worker-config';
 import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
@@ -98,6 +98,33 @@ describe('Support tickets', () => {
       const out = await outcomes.forResult(tk.id, 'solutionDesign', { kind: 'needs_input', question: 'Which currency?', stageRunId: r.id } as never);
       expect(out).toMatchObject({ kind: 'hold', reason: 'awaiting_answer' });
       expect(await tickets(tk.id)).toMatchObject([{ kind: 'question', stage: 'solutionDesign', body: 'Which currency?', status: 'open', priority: 'blocking', projectId }]);
+    });
+
+    describe('a stage that failed because of the network', () => {
+      const failed = (stageRunId: string) => ({ kind: 'failed', reason: 'getaddrinfo ENOTFOUND api.anthropic.com', errorCode: 'NETWORK_ERROR', stageRunId, attempts: 1 }) as never;
+
+      it('leaves the ticket where it is: no hold, no support ticket, only one timeline line for the outage', async () => {
+        const tk = await ticket({ status: 'PLANNING' });
+        const r = await run(tk.id);
+        expect(await outcomes.forResult(tk.id, 'solutionDesign', failed(r.id))).toEqual({ kind: 'stay', network: true });
+        expect(await outcomes.forResult(tk.id, 'solutionDesign', failed(r.id))).toEqual({ kind: 'stay', network: true });
+        expect((await reload(tk.id)).status).toBe('PLANNING');
+        expect(await tickets(tk.id)).toEqual([]);
+        expect(await t.prisma.event.count({ where: { ticketId: tk.id, type: 'network' } })).toBeLessThanOrEqual(2);
+      });
+
+      it('holds the ticket only after an outage that has gone on for a day of failures', async () => {
+        const tk = await ticket({ status: 'PLANNING' });
+        const r = await run(tk.id);
+        await t.prisma.stageRun.createMany({ data: Array.from({ length: MAX_NETWORK_FAILURES_PER_DAY }, () => ({ projectId, ticketId: tk.id, stage: 'solutionDesign' as never, model: 'm', attempt: 1, status: 'failed' as never, errorCode: 'NETWORK_ERROR', startedAt: new Date() })) });
+        expect(await outcomes.forResult(tk.id, 'solutionDesign', failed(r.id))).toMatchObject({ kind: 'hold', reason: 'needs_help' });
+      });
+
+      it('another failure still holds as before', async () => {
+        const tk = await ticket({ status: 'PLANNING' });
+        const r = await run(tk.id);
+        expect(await outcomes.forResult(tk.id, 'solutionDesign', { kind: 'failed', reason: 'bad output', errorCode: 'INVALID_OUTPUT', stageRunId: r.id, attempts: 2 } as never)).toMatchObject({ kind: 'hold', reason: 'needs_help' });
+      });
     });
 
     it('the same question asked twice is still one ticket', async () => {
