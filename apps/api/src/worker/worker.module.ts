@@ -61,6 +61,8 @@ import { OrphanCleanup } from './cleanup/orphan-cleanup';
 import { AgentImageCheck } from './agent-runner/agent-image-check';
 import { MergePoller } from './ci/merge-poller';
 import { PlanPageSync } from './plan-pages/plan-page-sync';
+import { GithubIntake } from './intake/github-intake';
+import { GithubSync } from './github/github-sync';
 import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { RecoveryService } from './orchestrator/recovery.service';
 import { CiFixHandler } from './ci/ci-fix.handler';
@@ -127,10 +129,12 @@ import { WorkerRunner } from './worker-runner';
     AgentImageCheck,
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
+    { provide: GithubIntake, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubIntake(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
+    { provide: GithubSync, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubSync(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
     { provide: RecoveryService, useFactory: (p: PrismaService, o: OrchestratorService) => new RecoveryService(p, o), inject: [PrismaService, OrchestratorService] },
     { provide: OrchestratorService, useFactory: (p: PrismaService, l: StageLauncher, j: JiraClients) => new OrchestratorService(p, l, j), inject: [PrismaService, StageLauncher, JiraClients] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, onboarding: OnboardingWorker, pages: PlanPageSync, image: AgentImageCheck): Housekeeper[] => [ci, merge, cleanup, orphans, onboarding, pages, image], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, OnboardingWorker, PlanPageSync, AgentImageCheck] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, onboarding: OnboardingWorker, pages: PlanPageSync, image: AgentImageCheck, ghIntake: GithubIntake, ghSync: GithubSync): Housekeeper[] => [ci, merge, cleanup, orphans, onboarding, pages, image, ghIntake, ghSync], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, OnboardingWorker, PlanPageSync, AgentImageCheck, GithubIntake, GithubSync] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },
