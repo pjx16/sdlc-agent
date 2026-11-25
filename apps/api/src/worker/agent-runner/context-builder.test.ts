@@ -97,6 +97,19 @@ describe('prompt.md', () => {
     expect(prompt).toContain('Use the existing queue, not a new table');
   });
 
+  it('lists the KB docs attached to the ticket, with each doc as a context file, in every ticket stage and none of the others', async () => {
+    const attachments = [{ path: 'billing/overview.md', content: '# Billing\nrules' }, { path: 'auth.md', content: '# Auth' }];
+    for (const stage of ['solutionDesign', 'technicalDesign', 'tests', 'implement', 'fix', 'prReview', 'kbUpdate'] as const) {
+      const built = await build(stage, {}, { kbAttachments: attachments });
+      const prompt = read(built.runDir, 'prompt.md');
+      expect(headings(prompt), stage).toContain('Attached knowledge');
+      expect(prompt).toContain('/context/attachment-1.md: billing/overview.md');
+      expect(read(built.runDir, 'attachment-2.md')).toBe('# Auth');
+    }
+    expect(headings(read((await build('ciTriage', {}, { kbAttachments: attachments })).runDir, 'prompt.md'))).not.toContain('Attached knowledge');
+    expect(headings(read((await build('solutionDesign')).runDir, 'prompt.md'))).not.toContain('Attached knowledge');
+  });
+
   it('gives breakdown its limit, and on a re-run the previous breakdown and the note', async () => {
     const first = await build('technicalDesign', {}, { maxSubtasks: 6 });
     expect(headings(read(first.runDir, 'prompt.md'))).toEqual(['Ticket', 'Approved plan', 'KB doc', 'Limits', 'Output']);

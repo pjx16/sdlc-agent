@@ -8,6 +8,7 @@ import { WorkerConfig } from '../worker/worker-config';
 import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { StateMachine } from '../state/state-machine.service';
+import { PrReviewBackfill } from './pr-review-backfill';
 import { SupportRaiser } from './support-raiser';
 import { SupportModule } from './support.module';
 
@@ -305,14 +306,125 @@ describe('Support tickets', () => {
       await states.transition(tk.id, 'AWAITING_PLAN_APPROVAL', 'system');
       await act(oq.id, { action: 'answer', answer: 'the booking one' }).expect(200);
       expect((await reload(tk.id)).status).toBe('AWAITING_PLAN_APPROVAL'); // answering does not move the ticket
-      // an answered open question stays in the inbox until it is used
-      expect((await t.agent.get('/support-tickets').expect(200)).body.some((q: { id: string }) => q.id === oq.id)).toBe(true);
+      // an answered open question stays in the inbox until it is used (asked for by kind: the open plan approval carries it in the main list)
+      expect((await t.agent.get('/support-tickets?kind=open_question').expect(200)).body.some((q: { id: string }) => q.id === oq.id)).toBe(true);
       await act(oq.id, { action: 'rerun_with_answers' }).expect(200);
       expect((await reload(tk.id)).status).toBe('PLANNING');
       const last = (await t.prisma.stateTransition.findMany({ where: { ticketId: tk.id } })).at(-1);
       expect(last?.reason).toContain('Which repository?');
       expect(last?.reason).toContain('the booking one');
       expect((await t.prisma.supportTicket.findUniqueOrThrow({ where: { id: oq.id } })).status).toBe('resolved');
+    });
+
+    describe('approving a plan with open questions', () => {
+      const planWithQuestions = async (n = 2) => {
+        const tk = await ticket({ status: 'PLANNING', planMarkdown: '# Plan\n\nDo the thing.' });
+        const r = await run(tk.id);
+        const oqs = [];
+        for (let i = 0; i < n; i++) oqs.push((await raiser.raise({ kind: 'open_question', ticketId: tk.id, stageRunId: r.id, stage: 'solutionDesign', title: `Question ${i + 1}?`, body: `Question ${i + 1}?`, dedupeKey: `oq:${tk.id}:${i}` })).ticket);
+        await states.transition(tk.id, 'AWAITING_PLAN_APPROVAL', 'system');
+        const [approval] = await tickets(tk.id, 'approval');
+        return { tk, oqs, approval: approval! };
+      };
+
+      it('puts the questions on the approval and keeps them out of the main list', async () => {
+        const { tk, oqs, approval } = await planWithQuestions();
+        const list = (await t.agent.get('/support-tickets').expect(200)).body as { id: string; kind: string; openQuestions?: { id: string }[] }[];
+        expect(list.some((q) => q.id === oqs[0]!.id)).toBe(false);
+        expect(list.find((q) => q.id === approval.id)?.openQuestions?.map((q) => q.id)).toEqual(oqs.map((q) => q.id));
+        expect((await t.agent.get(`/support-tickets?ticketId=${tk.id}&kind=open_question`).expect(200)).body).toHaveLength(2);
+      });
+
+      it('refuses to approve while a question has no answer, from the inbox and from the ticket', async () => {
+        const { tk, oqs, approval } = await planWithQuestions();
+        const res = await act(approval.id, { action: 'approve', answers: [{ id: oqs[0]!.id, answer: 'the booking one' }] }).expect(400);
+        expect(res.body.fields.answers).toContain('1 open question');
+        await t.agent.post(`/tickets/${tk.id}/plan/approve`).send({}).expect(400);
+        expect((await reload(tk.id)).status).toBe('AWAITING_PLAN_APPROVAL');
+      });
+
+      it('approves once every question is answered, and the answers become part of the plan', async () => {
+        const { tk, oqs, approval } = await planWithQuestions();
+        await act(approval.id, { action: 'approve', answers: [{ id: oqs[0]!.id, answer: 'the booking one' }, { id: oqs[1]!.id, answer: 'EUR' }] }).expect(200);
+        const after = await reload(tk.id);
+        expect(after.status).toBe('BREAKDOWN');
+        expect(after.planMarkdown).toContain('## Decisions from open questions');
+        expect(after.planMarkdown).toContain('Question 1?');
+        expect(after.planMarkdown).toContain('the booking one');
+        expect(after.planMarkdown).toContain('EUR');
+        expect((await tickets(tk.id, 'open_question')).map((q) => q.status)).toEqual(['resolved', 'resolved']);
+      });
+
+      it('accepts questions answered earlier, and a plan without questions approves as before', async () => {
+        const { tk, oqs, approval } = await planWithQuestions(1);
+        await act(oqs[0]!.id, { action: 'answer', answer: 'earlier answer' }).expect(200);
+        await act(approval.id, { action: 'approve' }).expect(200);
+        expect((await reload(tk.id)).planMarkdown).toContain('earlier answer');
+        const plain = await ticket({ status: 'PLANNING', planMarkdown: '# Plan' });
+        await states.transition(plain.id, 'AWAITING_PLAN_APPROVAL', 'system');
+        await t.agent.post(`/tickets/${plain.id}/plan/approve`).send({}).expect(200);
+        expect((await reload(plain.id)).planMarkdown).toBe('# Plan');
+      });
+    });
+
+    describe('a PR in human review', () => {
+      const review = async () => {
+        const tk = await ticket({ status: 'AWAITING_CI', prUrl: 'https://github.com/a/b/pull/1' });
+        await states.transition(tk.id, 'IN_HUMAN_REVIEW', 'system');
+        const [q] = await tickets(tk.id, 'pr_ready');
+        return { tk, q: q! };
+      };
+
+      it('shows the PR and the actions a person can take', async () => {
+        const { q } = await review();
+        expect((await t.agent.get(`/support-tickets/${q.id}`).expect(200)).body).toMatchObject({ ticketPrUrl: 'https://github.com/a/b/pull/1', actions: ['done', 'fail'] });
+      });
+
+      it('cannot be dismissed: the person must say how the review ended', async () => {
+        const { tk, q } = await review();
+        await act(q.id, { action: 'dismiss' }).expect(400);
+        expect((await t.prisma.supportTicket.findUniqueOrThrow({ where: { id: q.id } })).status).toBe('open');
+        expect((await t.prisma.ticket.findUniqueOrThrow({ where: { id: tk.id } })).status).toBe('IN_HUMAN_REVIEW');
+      });
+
+      it('is raised again at start-up for a ticket whose item was dismissed earlier', async () => {
+        const { tk, q } = await review();
+        await t.prisma.supportTicket.update({ where: { id: q.id }, data: { status: 'dismissed', resolvedBy: 'user', resolvedAt: new Date() } });
+        const backfill = new PrReviewBackfill(t.prisma, raiser);
+        expect(await backfill.run()).toBeGreaterThanOrEqual(1); // other tickets of this suite may be in review too
+        expect(await tickets(tk.id, 'pr_ready')).toHaveLength(2);
+        expect((await tickets(tk.id, 'pr_ready')).filter((x) => x.status === 'open')).toHaveLength(1);
+        expect(await backfill.run()).toBe(0); // nothing left to do
+      });
+
+      it('a note about the PR (its size) can only be dismissed, never ended as done or failed', async () => {
+        const { tk } = await review();
+        const { ticket: note } = await raiser.raise({ kind: 'pr_ready', ticketId: tk.id, stage: 'pr_size', title: 'large', body: 'b' });
+        expect((await t.agent.get(`/support-tickets/${note.id}`).expect(200)).body.actions).toEqual(['dismiss']);
+        await act(note.id, { action: 'done' }).expect(400);
+        expect((await t.prisma.ticket.findUniqueOrThrow({ where: { id: tk.id } })).status).toBe('IN_HUMAN_REVIEW');
+      });
+
+      it('"done" moves the ticket to DONE and closes the item, saying it was a person', async () => {
+        const { tk, q } = await review();
+        await act(q.id, { action: 'done' }).expect(200);
+        expect((await t.prisma.ticket.findUniqueOrThrow({ where: { id: tk.id } })).status).toBe('DONE');
+        expect(await tickets(tk.id, 'pr_ready')).toMatchObject([{ status: 'resolved', response: 'Marked done from the inbox' }]);
+      });
+
+      it('"fail" needs a reason, then fails the ticket', async () => {
+        const { tk, q } = await review();
+        await act(q.id, { action: 'fail' }).expect(400);
+        await act(q.id, { action: 'fail', note: 'Rejected by the reviewers' }).expect(200);
+        expect((await t.prisma.ticket.findUniqueOrThrow({ where: { id: tk.id } })).status).toBe('FAILED');
+      });
+
+      it('"done" is refused once the ticket has left human review', async () => {
+        const { tk, q } = await review();
+        await states.transition(tk.id, 'DONE', 'system', 'PR merged');
+        await t.prisma.supportTicket.update({ where: { id: q.id }, data: { status: 'open' } });
+        await act(q.id, { action: 'done' }).expect(409);
+      });
     });
 
     it('dismiss works on any open ticket', async () => {

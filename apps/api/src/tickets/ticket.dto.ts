@@ -4,12 +4,14 @@ export interface TicketDto {
   id: string;
   projectId: string;
   key: string;
-  source: 'jira' | 'paste';
+  source: 'jira' | 'paste' | 'github';
   externalKey: string | null;
   type: 'story' | 'bug' | 'tech';
   title: string;
   body: string;
   featureKey: string | null;
+  /** KB docs attached to the ticket (paths inside the project's KB folder). */
+  kbAttachments: string[];
   labels: unknown;
   status: string;
   holdReason: string | null;
@@ -32,6 +34,7 @@ export function toTicketDto(t: Ticket): TicketDto {
     title: t.title,
     body: t.body,
     featureKey: t.featureKey,
+    kbAttachments: Array.isArray(t.kbAttachments) ? (t.kbAttachments as string[]) : [],
     labels: t.labels,
     status: t.status,
     holdReason: t.holdReason,

@@ -6,14 +6,33 @@ import { PROJECT_STACKS, TICKET_STATUSES, type TicketStatus } from './enums';
 export const ONBOARDING_STATUSES = ['draft', 'profiling', 'proposed', 'confirmed'] as const;
 export type OnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
 
+/** The steps of profiling a repository, in the order a person sees them. Several run at the same time (see `OnboardingProgress`). */
+export const ONBOARDING_PHASES = [
+  { id: 'access', label: 'Checking access to the repository' },
+  { id: 'facts', label: 'Reading the repository and your Jira project' },
+  { id: 'mirror', label: 'Cloning the repository' },
+  { id: 'checkout', label: 'Preparing a working copy' },
+  { id: 'profile', label: 'Profiling the code (stack, commands, tests)' },
+  { id: 'install', label: 'Checking the install command' },
+  { id: 'typecheck', label: 'Checking the type-check command' },
+  { id: 'advise', label: 'Proposing the Jira setup' },
+] as const;
+export type OnboardingPhaseId = (typeof ONBOARDING_PHASES)[number]['id'];
+
+/** Where profiling is, written by the worker as it goes. `planned` lists the phases this run will do. */
+export interface OnboardingProgress {
+  startedAt: string;
+  planned: OnboardingPhaseId[];
+  running: OnboardingPhaseId[];
+  done: { id: OnboardingPhaseId; ms: number }[];
+}
+
 /** What a ticket of an issue type becomes. `ignore` types are not picked up. */
 export const ISSUE_KINDS = ['feature', 'bug', 'chore', 'ignore'] as const;
 export type IssueKind = (typeof ISSUE_KINDS)[number];
 /** What a pipeline ticket is. */
 export const TICKET_KINDS = ['feature', 'bug', 'chore'] as const;
 export type TicketKind = (typeof TICKET_KINDS)[number];
-
-export const PLANS_PARENT_PAGE_TITLE = 'sdlc-agent plans';
 
 // ------------------------------------------------------------------------------------------------ agent output
 
@@ -40,7 +59,6 @@ export const OnboardAdviseData = z.object({
   approvalStatuses: z.object({ plan: z.string().min(1).nullable(), breakdown: z.string().min(1).nullable() }),
   issueTypeRouting: z.record(z.string(), z.enum(ISSUE_KINDS)),
   intakeLabel: z.string().trim().min(1).regex(/^[^\s]+$/, 'must not contain spaces'),
-  confluenceSpaceKey: z.string().nullable(),
 });
 export type OnboardAdvice = z.infer<typeof OnboardAdviseData>;
 
@@ -58,15 +76,9 @@ export interface GithubFacts {
   defaultBranch: string;
   languages: string[];
 }
-export interface ConfluenceSpace {
-  key: string;
-  name: string;
-}
 export interface OnboardingFacts {
   github: GithubFacts;
   jira: JiraFacts | null;
-  /** Spaces the person can write to, or null with the reason when Confluence cannot be reached. */
-  confluence: { spaces: ConfluenceSpace[] } | { spaces: null; reason: string };
 }
 
 export interface CommandCheck {
@@ -78,7 +90,7 @@ export interface CommandCheck {
 
 // ------------------------------------------------------------------------------------------------ the proposal
 
-export const ONBOARDING_SECTIONS = ['commands', 'statusMap', 'routing', 'label', 'confluence'] as const;
+export const ONBOARDING_SECTIONS = ['commands', 'statusMap', 'routing', 'label'] as const;
 export type OnboardingSection = (typeof ONBOARDING_SECTIONS)[number];
 /** These two change what the pipeline does to Jira, so they must be accepted explicitly. */
 export const MUST_ACCEPT: readonly OnboardingSection[] = ['statusMap', 'label'];
@@ -90,6 +102,8 @@ export interface OnboardingProposal {
   /** Which sections the person accepted (or edited, which counts as accepting). */
   accepted: Partial<Record<OnboardingSection, boolean>>;
   createdAt: string;
+  /** How long each profiling phase took, in milliseconds. Absent in proposals made before phases were timed. */
+  timings?: Record<string, number>;
 }
 
 export const DEFAULT_ROUTING_KINDS: Record<string, IssueKind> = {
