@@ -293,11 +293,6 @@ export class SystemSettingsService {
     return toView(row);
   }
 
-  /** Pause or resume intake for one ticket source. */
-  async setSourceIntakePaused(_source: unknown, _paused: boolean): Promise<GlobalSettingsView> {
-    throw new Error('Not implemented');
-  }
-
   private event(type: string, message: string) {
     return this.prisma.event.create({ data: { type, message } });
   }

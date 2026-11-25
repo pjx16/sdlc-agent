@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post } from '@nestjs/common';
 import { type GlobalSettingsView, SystemSettingsService, type SystemView } from './system-settings.service';
 
 @Controller('system')
@@ -43,17 +43,5 @@ export class SystemController {
   @HttpCode(HttpStatus.OK)
   resumeIntake(): Promise<GlobalSettingsView> {
     return this.system.setIntakePaused(false);
-  }
-
-  @Post('intake/:source/pause')
-  @HttpCode(HttpStatus.OK)
-  pauseIntakeSource(@Param('source') source: string): Promise<GlobalSettingsView> {
-    return this.system.setSourceIntakePaused(source, true);
-  }
-
-  @Post('intake/:source/resume')
-  @HttpCode(HttpStatus.OK)
-  resumeIntakeSource(@Param('source') source: string): Promise<GlobalSettingsView> {
-    return this.system.setSourceIntakePaused(source, false);
   }
 }

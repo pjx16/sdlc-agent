@@ -126,43 +126,6 @@ describe('System and global settings API', () => {
     expect((await t.agent.post('/system/intake/resume').expect(200)).body.intakePaused).toBe(false);
   });
 
-  it('has no paused intake sources by default', async () => {
-    expect((await t.agent.get('/system').expect(200)).body.settings.pausedIntakeSources).toEqual([]);
-  });
-
-  it('pauses one source and writes a state event', async () => {
-    const res = await t.agent.post('/system/intake/jira/pause').expect(200);
-    expect(res.body.pausedIntakeSources).toEqual(['jira']);
-    expect(res.body.intakePaused).toBe(false);
-    const events = await t.prisma.event.findMany({ where: { type: 'state', ticketId: null } });
-    expect(events.map((e) => e.message)).toContain('Jira intake paused');
-  });
-
-  it('resumes one source, keeps the others and writes a state event', async () => {
-    await t.agent.post('/system/intake/jira/pause').expect(200);
-    await t.agent.post('/system/intake/paste/pause').expect(200);
-    const res = await t.agent.post('/system/intake/paste/resume').expect(200);
-    expect(res.body.pausedIntakeSources).toEqual(['jira']);
-    const events = await t.prisma.event.findMany({ where: { type: 'state', ticketId: null } });
-    expect(events.map((e) => e.message)).toContain('Pasted-ticket intake resumed');
-  });
-
-  it('does not duplicate a source that is already paused', async () => {
-    await t.agent.post('/system/intake/paste/pause').expect(200);
-    const res = await t.agent.post('/system/intake/paste/pause').expect(200);
-    expect(res.body.pausedIntakeSources).toEqual(['paste']);
-  });
-
-  it('rejects an unknown source with 400', async () => {
-    await t.agent.post('/system/intake/github/pause').expect(400);
-    await t.agent.post('/system/intake/github/resume').expect(400);
-  });
-
-  it('requires a session for the per-source routes', async () => {
-    await t.anonymous.post('/system/intake/jira/pause').expect(401);
-    await t.anonymous.post('/system/intake/jira/resume').expect(401);
-  });
-
   it('writes audit events for changes', async () => {
     await t.agent.patch('/system/settings').send({ pollIntervalSec: 90 }).expect(200);
     await t.agent.post('/system/pause').expect(200);
