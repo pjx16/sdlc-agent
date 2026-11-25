@@ -70,7 +70,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         )}
         <span className="text-muted">Updated <LocalTime iso={ticket.updatedAt} /></span>
       </div>
-      {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} />}
+      {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} prUrl={ticket.prUrl} />}
       <div className="mt-4">
         <RerunPicker ticketId={ticket.id} moves={moves} />
       </div>
