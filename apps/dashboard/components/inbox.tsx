@@ -80,11 +80,48 @@ function InboxRerun({ ticketId }: { ticketId: string }) {
   return moves ? <RerunPicker ticketId={ticketId} moves={moves} /> : null;
 }
 
+/** What a person can do with a ticket that waits for a human to review its PR. */
+function PrReadyActions({ t, busy, simple, failing, setFailing, done }: { t: SupportTicketView; busy: Busy; simple: (action: string) => Promise<void>; failing: boolean; setFailing: (v: boolean) => void; done: (error: string | null) => void }) {
+  const [kbBusy, setKbBusy] = useState(false);
+  async function rerunKb() {
+    setKbBusy(true);
+    try {
+      const res = await fetch(`/api/tickets/${encodeURIComponent(t.ticketId ?? '')}/kb-update/rerun`, { method: 'POST' });
+      done(res.ok ? null : String(((await res.json().catch(() => ({}))) as { message?: string }).message ?? 'Something went wrong.'));
+    } catch {
+      done('Cannot reach the server.');
+    }
+    setKbBusy(false);
+  }
+  const base = 'rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50';
+  return (
+    <>
+      {t.ticketPrUrl && (
+        <a href={t.ticketPrUrl} target="_blank" rel="noopener noreferrer" className={`${base} bg-accent text-accent-text`}>
+          Open PR
+        </a>
+      )}
+      <button type="button" disabled={busy !== null} onClick={() => void simple('done')} className={`${base} border border-border`}>
+        {busy === 'done' ? 'Working…' : 'Mark done'}
+      </button>
+      <button type="button" aria-expanded={failing} onClick={() => setFailing(!failing)} className={`${base} border border-border`}>
+        Mark failed…
+      </button>
+      {t.ticketId && (
+        <button type="button" disabled={kbBusy} onClick={() => void rerunKb()} className={`${base} border border-border`}>
+          {kbBusy ? 'Working…' : 'Re-run KB update'}
+        </button>
+      )}
+    </>
+  );
+}
+
 function Item({ t, now }: { t: SupportTicketView; now: number }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
+  const [failing, setFailing] = useState(false);
   const open = t.status === 'open' || (t.status === 'answered' && t.kind === 'open_question');
   const has = (a: string) => t.actions.includes(a);
 
@@ -157,7 +194,9 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
               </button>
             )}
             {has('retry') && button('retry', 'Retry')}
+            {t.kind === 'pr_ready' && has('done') && <PrReadyActions t={t} busy={busy} simple={simple} failing={failing} setFailing={setFailing} done={done} />}
           </div>
+          {failing && <TextAction id={t.id} label="Why did the review fail?" placeholder="For example: the change was rejected, or the PR was closed" action="fail" submit="Mark failed" onDone={done} busy={busy} setBusy={setBusy} tone="plain" />}
           {rejecting && <TextAction id={t.id} label="What should change?" placeholder="The note goes back to the stage with the previous attempt" action="reject" submit="Send back" onDone={done} busy={busy} setBusy={setBusy} />}
           {has('answer') && t.status === 'open' && <TextAction id={t.id} label="Your answer" placeholder="" action="answer" submit="Answer" onDone={done} busy={busy} setBusy={setBusy} />}
 
@@ -172,7 +211,7 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
                 <summary className="cursor-pointer list-none rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted hover:text-text">More</summary>
                 <div className="absolute left-0 z-10 mt-1 flex min-w-48 flex-col gap-1 rounded-md border border-border bg-surface p-2 shadow-lg">
                   {has('hold') && button('hold', 'Hold the ticket')}
-                  {has('fail') && button('fail', 'Mark failed')}
+                  {has('fail') && t.kind !== 'pr_ready' && button('fail', 'Mark failed')}
                   {has('dismiss') && button('dismiss', 'Dismiss')}
                 </div>
               </details>

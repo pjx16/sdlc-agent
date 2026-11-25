@@ -38,6 +38,26 @@ describe('Inbox', () => {
     expect(screen.getAllByText(/waiting 2 h/).length).toBe(4);
   });
 
+  it('offers the actions of a PR in review: open it, mark it done or failed, re-run the KB update', async () => {
+    fetchMock.mockResolvedValue(reply({}));
+    render(<Inbox tab="open" now={NOW} tickets={[t({ id: 'c', kind: 'pr_ready', group: 'fyi', priority: 'fyi', title: 'SDA-3 is ready', ticketPrUrl: 'https://github.com/acme/app/pull/7', actions: ['done', 'fail', 'dismiss'] })]} />);
+    expect(screen.getByRole('link', { name: 'Open PR' })).toHaveAttribute('href', 'https://github.com/acme/app/pull/7');
+    await userEvent.click(screen.getByRole('button', { name: 'Mark done' }));
+    expect(sentBody()).toEqual({ action: 'done' });
+
+    fetchMock.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: 'Mark failed…' }));
+    const send = screen.getByRole('button', { name: 'Mark failed' });
+    expect(send).toBeDisabled(); // a reason is required
+    await userEvent.type(screen.getByLabelText('Why did the review fail?'), 'PR closed unmerged');
+    await userEvent.click(send);
+    expect(sentBody()).toEqual({ action: 'fail', note: 'PR closed unmerged' });
+
+    fetchMock.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: 'Re-run KB update' }));
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tickets/t1/kb-update/rerun');
+  });
+
   it('makes the PR link of a human review item clickable', () => {
     const body = 'The pull request for **SDA-3: Invoices** is ready.\n\nhttps://github.com/acme/app/pull/7';
     render(<Inbox tab="open" now={NOW} tickets={[t({ id: 'c', kind: 'pr_ready', group: 'fyi', priority: 'fyi', title: 'SDA-3 is ready for human review', body, actions: ['dismiss'] })]} />);

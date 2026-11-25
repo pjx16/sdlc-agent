@@ -31,6 +31,17 @@ describe('TicketActions', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it('offers the pull request while the ticket waits for human review, and not otherwise', () => {
+    const { rerender } = render(<TicketActions ticketId="t1" status="IN_HUMAN_REVIEW" prUrl="https://github.com/acme/app/pull/7" />);
+    const link = screen.getByRole('link', { name: 'Open PR' });
+    expect(link).toHaveAttribute('href', 'https://github.com/acme/app/pull/7');
+    expect(link).toHaveAttribute('target', '_blank');
+    rerender(<TicketActions ticketId="t1" status="IN_PROGRESS" prUrl="https://github.com/acme/app/pull/7" />);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    rerender(<TicketActions ticketId="t1" status="IN_HUMAN_REVIEW" prUrl={null} />);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
+
   it('posts the chosen action and refreshes', async () => {
     fetchMock.mockResolvedValue(reply({}));
     render(<TicketActions ticketId="t1" status="ON_HOLD" />);
