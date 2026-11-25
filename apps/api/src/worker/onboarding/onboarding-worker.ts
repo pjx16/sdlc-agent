@@ -3,8 +3,7 @@ import path from 'node:path';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   DEFAULT_GLOBAL_SETTINGS, GlobalSettingsSchema, ProjectSettingsSchema, defaultRouting, describeError, events,
-  type CommandCheck, type ConfluenceSpace, type JiraFacts, type ModelAlias, type OnboardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus, jiraOn } from '@sdlc/shared';
-import { ConfluenceClients } from '../../confluence/confluence-clients';
+  type CommandCheck, type JiraFacts, type ModelAlias, type OnboardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { logEvent } from '../../common/event-log';
 import type { Prisma, Project } from '../../generated/prisma/client';
 import { JiraClients, JiraNotConfiguredError } from '../../jira/jira-clients';
@@ -30,16 +29,14 @@ export function factsText(projectName: string, facts: OnboardingFacts): string {
     out.push('', 'Statuses per issue type (name [category]):', ...facts.jira.statusesByType.map((t) => `- ${t.type}: ${t.statuses.map((s) => `${s.name} [${s.category}]`).join(', ')}`));
     out.push('', `Labels already in use: ${facts.jira.labels.join(', ') || 'none'}`);
   }
-  if (facts.confluence.spaces) out.push('', 'Confluence spaces the person can write to:', ...(facts.confluence.spaces.length ? facts.confluence.spaces.map((s) => `- ${s.key}: ${s.name}`) : ['- none']));
-  else out.push('', `Confluence is not available: ${facts.confluence.reason}`);
   return out.join('\n');
 }
 
 /**
  * The advisor only proposes: code checks that every name it used exists in the facts, so a proposal never carries an invented
- * status, issue type or space.
+ * status or issue type.
  */
-export function sanitizeAdvice(advice: OnboardAdvice | null, jira: JiraFacts | null, spaces: ConfluenceSpace[] | null): OnboardAdvice {
+export function sanitizeAdvice(advice: OnboardAdvice | null, jira: JiraFacts | null): OnboardAdvice {
   const statuses = new Set((jira?.statusesByType ?? []).flatMap((t) => t.statuses.map((s) => s.name)));
   const known = (name: string | null | undefined) => (name && statuses.has(name) ? name : null);
   const fallback = defaultRouting(jira?.issueTypes ?? []);
@@ -51,8 +48,7 @@ export function sanitizeAdvice(advice: OnboardAdvice | null, jira: JiraFacts | n
   const statusMap: OnboardAdvice['statusMap'] = {};
   for (const [state, name] of Object.entries(advice?.statusMap ?? {})) statusMap[state as TicketStatus] = known(name as string | null);
   const label = advice?.intakeLabel && /^\S+$/.test(advice.intakeLabel) ? advice.intakeLabel : 'sdlc-agent';
-  const space = advice?.confluenceSpaceKey && spaces?.some((s) => s.key === advice.confluenceSpaceKey) ? advice.confluenceSpaceKey : null;
-  return { statusMap, approvalStatuses: { plan: known(advice?.approvalStatuses.plan), breakdown: known(advice?.approvalStatuses.breakdown) }, issueTypeRouting: routing, intakeLabel: label, confluenceSpaceKey: space };
+  return { statusMap, approvalStatuses: { plan: known(advice?.approvalStatuses.plan), breakdown: known(advice?.approvalStatuses.breakdown) }, issueTypeRouting: routing, intakeLabel: label };
 }
 
 /** Why an agent run did not return data, in the words of the error policy. */
@@ -92,7 +88,6 @@ export class OnboardingWorker implements Housekeeper {
     private readonly git: GitRunner,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     private readonly jira: JiraClients,
-    private readonly confluence: ConfluenceClients,
     private readonly runner: AgentRunner,
     private readonly verify: VerifyService,
     private readonly raiser: SupportRaiser,
@@ -149,7 +144,7 @@ export class OnboardingWorker implements Housekeeper {
       const proposal: OnboardingProposal = {
         facts,
         profile: { ...profile, baseBranch, installCheck, typecheckCheck },
-        advice: sanitizeAdvice(advice, facts.jira, facts.confluence.spaces),
+        advice: sanitizeAdvice(advice, facts.jira),
         accepted: {},
         createdAt: new Date().toISOString(),
       };
@@ -157,7 +152,7 @@ export class OnboardingWorker implements Housekeeper {
       await this.raiser.raise({
         kind: 'onboarding', projectId: project.id, stage: 'onboarding', dedupeKey: `onboarding:${project.id}`,
         title: `Review the setup of ${project.name}`,
-        body: `The proposal for **${project.name}** is ready: commands, Jira statuses, issue types, the intake label and the Confluence space. Review each part, then confirm. Nothing is used until you do.`,
+        body: `The proposal for **${project.name}** is ready: commands, Jira statuses, issue types, and the intake label. Review each part, then confirm. Nothing is used until you do.`,
       });
       await logEvent(this.prisma, events.note({ source: 'system', type: 'system', message: `Onboarding proposal for ${project.name} is ready for review` }));
     } catch (err) {
@@ -187,13 +182,7 @@ export class OnboardingWorker implements Housekeeper {
         throw new Error(`Jira: ${err instanceof Error ? err.message : String(err)}. Check the project key and the Jira credential.`, { cause: err });
       }
     }
-    let confluence: OnboardingFacts['confluence'];
-    try {
-      confluence = { spaces: await (await this.confluence.forRest()).listWritableSpaces() };
-    } catch (err) {
-      confluence = { spaces: null, reason: err instanceof Error ? err.message : String(err) };
-    }
-    return { github, jira, confluence };
+    return { github, jira };
   }
 
   private async stage<T>(project: Project, stage: 'repoProfile' | 'onboardAdvise', inputs: { onboard: { facts: string } }, workspacePath: string | undefined, settings: ReturnType<typeof ProjectSettingsSchema.parse>, global: typeof DEFAULT_GLOBAL_SETTINGS): Promise<T> {

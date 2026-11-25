@@ -126,7 +126,7 @@ export interface IntegrationRate {
 /** Error rate for each outside system: Claude from the stage runs, the others from their events (warnings and errors count). */
 export function integrationRates(claude: { total: number; errors: number }, events: { source: string; level: string }[]): IntegrationRate[] {
   const out: IntegrationRate[] = [{ source: 'claude', total: claude.total, errors: claude.errors, rate: claude.total ? claude.errors / claude.total : 0 }];
-  for (const source of ['jira', 'confluence', 'github']) {
+  for (const source of ['jira', 'github']) {
     const mine = events.filter((e) => e.source === source);
     const errors = mine.filter((e) => e.level !== 'info').length;
     out.push({ source, total: mine.length, errors, rate: mine.length ? errors / mine.length : 0 });

@@ -6,7 +6,6 @@ Start with the root [`README.md`](../README.md) (what it is, install, security m
 | --- | --- |
 | [`CONFIGURATION.md`](./CONFIGURATION.md) | See every environment variable, the token permissions, and what is set per project |
 | [`TRACKER.md`](./TRACKER.md) | Connect Jira: which tickets are picked up, approvals, write-back, failures |
-| [`CONFLUENCE.md`](./CONFLUENCE.md) | Publish plans to Confluence |
 | [`BOT.md`](./BOT.md) | Work as `sdlc-agent[bot]` instead of with a personal token, or run the token broker |
 | [`architecture/`](./architecture/README.md) | Understand how the system is put together, per version, with diagrams |
 | [`LIVE_RUNS.md`](./LIVE_RUNS.md) | See what has been run against live Claude, and what went wrong |

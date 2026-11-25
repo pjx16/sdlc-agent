@@ -361,7 +361,6 @@ export interface ArtifactView {
   supersededAt: string | null;
   stageRunId: string | null;
   createdAt: string;
-  externalUrl: string | null;
 }
 
 export interface DecisionView {

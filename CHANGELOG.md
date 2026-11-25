@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Removed
+
+- **The Confluence integration is gone.** Plans are no longer published to Confluence. Each ticket's plan is committed to the repository as `<kb folder>/plans/<KEY>.md` on the ticket's branch (so it is part of the pull request), and is posted to Jira as a comment as before. **Upgrading:** the migration drops the Confluence page links of existing plans and removes the Confluence space from project settings; the plans themselves are kept. The Jira credential no longer checks Confluence, the onboarding review has no Confluence card, and the `CONFLUENCE_ERROR` code is removed. Old plan pages in Confluence are left as they are.
+
 ## [1.0.0] - 2026-11-22
 
 ### Upgrading from 0.0.1

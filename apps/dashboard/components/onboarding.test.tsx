@@ -61,10 +61,9 @@ const proposal = (over: Partial<OnboardingProposal> = {}): OnboardingProposal =>
   facts: {
     github: { defaultBranch: 'main', languages: ['TypeScript'] },
     jira: { projectName: 'Billing', issueTypes: [{ name: 'Story', subtask: false }, { name: 'Epic', subtask: false }], statusesByType: [], labels: [] },
-    confluence: { spaces: [{ key: 'ENG', name: 'Engineering' }] },
   },
   profile: { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '', exampleTestFile: null, baseBranch: 'main', installCheck: { command: 'npm ci', ok: true, tail: '' }, typecheckCheck: { command: 'npx tsc --noEmit', ok: false, tail: 'error TS2304' } },
-  advice: { statusMap: { KB: 'In Progress' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature', Epic: 'ignore' }, intakeLabel: 'sdlc-agent', confluenceSpaceKey: 'ENG' },
+  advice: { statusMap: { KB: 'In Progress' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature', Epic: 'ignore' }, intakeLabel: 'sdlc-agent' },
   accepted: {},
   createdAt: '2026-11-14T10:00:00Z',
   ...over,
@@ -95,7 +94,7 @@ describe('OnboardingPanel', () => {
 
   it('has one card per section, with the command checks and which cards must be accepted', () => {
     render(<OnboardingPanel projectId="p1" initial={view()} />);
-    for (const name of ['Commands', 'Jira statuses', 'Issue types', 'Intake label', 'Confluence']) expect(screen.getByRole('region', { name })).toBeInTheDocument();
+    for (const name of ['Commands', 'Jira statuses', 'Issue types', 'Intake label']) expect(screen.getByRole('region', { name })).toBeInTheDocument();
     const commands = screen.getByRole('region', { name: 'Commands' });
     expect(within(commands).getByText('npx jest {files}')).toBeInTheDocument();
     expect(within(commands).getByText(/Install check: passed/)).toBeInTheDocument();
@@ -168,19 +167,18 @@ describe('OnboardingPanel', () => {
 
   it('confirms, shows any warning and refreshes the page', async () => {
     const accepted = proposal({ accepted: { statusMap: true, label: true } });
-    fetchMock.mockResolvedValue(reply({ warnings: ['Confluence: no access. The project works without it.'] }));
+    fetchMock.mockResolvedValue(reply({ warnings: ['The label could not be created in Jira.'] }));
     render(<OnboardingPanel projectId="p1" initial={view({ proposal: accepted })} />);
     await userEvent.click(screen.getByRole('button', { name: 'Confirm the project' }));
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/confirm');
-    expect(await screen.findByText(/Confluence: no access/)).toBeInTheDocument();
+    expect(await screen.findByText(/The label could not be created/)).toBeInTheDocument();
     expect(refresh).toHaveBeenCalled();
   });
 
   it('a project without Jira needs no accepting and says it takes pasted tickets only', () => {
-    const p = proposal({ facts: { github: { defaultBranch: 'main', languages: [] }, jira: null, confluence: { spaces: null, reason: 'not configured' } } });
+    const p = proposal({ facts: { github: { defaultBranch: 'main', languages: [] }, jira: null } });
     render(<OnboardingPanel projectId="p1" initial={view({ proposal: p })} />);
     expect(screen.getByText(/pasted tickets only/)).toBeInTheDocument();
-    expect(screen.getByText(/Confluence is not available \(not configured\)/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm the project' })).toBeEnabled();
     expect(screen.queryByRole('region', { name: 'Jira statuses' })).not.toBeInTheDocument();
   });
@@ -192,11 +190,10 @@ describe('ProjectSummary', () => {
     render(<ProjectSummary project={project} />);
     expect(screen.getByText('Jira SDA (REST API), and pasted tickets')).toBeInTheDocument();
     expect(screen.getByText('Story → feature, Epic → ignored')).toBeInTheDocument();
-    expect(screen.getByText('Confluence space ENG')).toBeInTheDocument();
+    expect(screen.getByText('Committed to the knowledge-base folder of the repository')).toBeInTheDocument();
   });
-  it('says pasted tickets only without Jira, and Jira comments without Confluence', () => {
-    render(<ProjectSummary project={{ ...project, jiraMode: 'off', jiraProjectKey: undefined, settings: { ...project.settings, confluence: null, jiraIssueTypeRouting: {} } }} />);
+  it('says pasted tickets only without Jira', () => {
+    render(<ProjectSummary project={{ ...project, jiraMode: 'off', jiraProjectKey: undefined, settings: { ...project.settings, jiraIssueTypeRouting: {} } }} />);
     expect(screen.getByText('Pasted tickets only')).toBeInTheDocument();
-    expect(screen.getByText('Jira comments')).toBeInTheDocument();
   });
 });

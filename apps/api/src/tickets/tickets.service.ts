@@ -56,7 +56,6 @@ export interface ArtifactDto {
   supersededAt: string | null;
   stageRunId: string | null;
   createdAt: string;
-  externalUrl: string | null;
 }
 
 export interface TicketEventDto {
@@ -187,7 +186,7 @@ export class TicketsService {
   /** GET /tickets/:id/artifacts: every version of the plan, breakdown, review rounds and KB pointer, stale ones included. */
   async artifacts(id: string): Promise<ArtifactDto[]> {
     await this.findOr404(id);
-    return (await allArtifacts(this.prisma, id)).map((a) => ({ id: a.id, stage: a.stage, version: a.version, data: a.data, stale: a.supersededAt !== null, supersededAt: a.supersededAt?.toISOString() ?? null, stageRunId: a.stageRunId, createdAt: a.createdAt.toISOString(), externalUrl: a.externalUrl }));
+    return (await allArtifacts(this.prisma, id)).map((a) => ({ id: a.id, stage: a.stage, version: a.version, data: a.data, stale: a.supersededAt !== null, supersededAt: a.supersededAt?.toISOString() ?? null, stageRunId: a.stageRunId, createdAt: a.createdAt.toISOString() }));
   }
 
   /** GET /tickets/:id/decisions: what the orchestrator was asked at each decision point, the options, its answer and why, oldest first. */
