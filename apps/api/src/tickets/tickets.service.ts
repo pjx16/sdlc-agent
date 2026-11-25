@@ -98,7 +98,14 @@ export interface HoldInfo {
   canRedoTests: boolean;
 }
 
-const ApproveBody = z.object({ planMarkdown: z.string().trim().min(1, 'must not be empty').max(100_000, 'must be at most 100000 characters').optional() });
+const ApproveBody = z.object({
+  planMarkdown: z.string().trim().min(1, 'must not be empty').max(100_000, 'must be at most 100000 characters').optional(),
+  /** Answers to the plan's open questions (support ticket id and the answer). Every open question must be answered to approve. */
+  answers: z.array(z.object({ id: z.string().min(1), answer: z.string().trim().min(1, 'is required').max(10_000, 'must be at most 10000 characters') })).max(50).optional(),
+});
+
+/** Heading of the section that carries the answers into the approved plan. */
+export const DECISIONS_HEADING = '## Decisions from open questions';
 const BreakdownApproveBody = z.object({ subtasks: z.array(z.unknown()).optional() });
 const RejectBody = z.object({ note: z.string({ error: 'required' }).trim().min(1, 'required').max(2000, 'must be at most 2000 characters') });
 
@@ -261,18 +268,50 @@ export class TicketsService {
   }
 
   /**
+   * Stores the answers sent with an approval and returns every question with its answer. A question nobody answered stops the approval:
+   * the person answers the questions, and then approves.
+   */
+  private async collectAnswers(ticketId: string, sent: { id: string; answer: string }[]): Promise<{ question: string; answer: string }[]> {
+    const questions = await this.prisma.supportTicket.findMany({ where: { ticketId, kind: 'open_question', status: { in: ['open', 'answered'] } }, orderBy: { createdAt: 'asc' } });
+    const result: { question: string; answer: string }[] = [];
+    const missing: string[] = [];
+    for (const q of questions) {
+      const answer = sent.find((a) => a.id === q.id)?.answer ?? q.response ?? null;
+      if (!answer) missing.push(q.title);
+      else result.push({ question: q.body || q.title, answer });
+    }
+    if (missing.length > 0) {
+      throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Answer the open questions first', { answers: `${missing.length} open question${missing.length === 1 ? '' : 's'} still need an answer` });
+    }
+    for (const q of questions) {
+      const answer = sent.find((a) => a.id === q.id)?.answer;
+      if (answer && answer !== q.response) await this.prisma.supportTicket.update({ where: { id: q.id }, data: { response: answer, status: 'answered' } });
+    }
+    return result;
+  }
+
+  /**
    * POST /tickets/:id/plan/approve: stores the edited plan if one is sent, and in REST mode re-reads the issue's title and
    * description so edits made in Jira reach the breakdown stage (F7). Then BREAKDOWN (row 5).
    */
   async approvePlan(id: string, body: unknown): Promise<TicketDto> {
-    const { planMarkdown } = parseBody(ApproveBody, body ?? {});
+    const { planMarkdown: edited, answers } = parseBody(ApproveBody, body ?? {});
     const ticket = await this.awaitingPlan(id);
+
+    // The open questions of the plan are answered first: the answers become part of the approved plan.
+    const decisions = await this.collectAnswers(id, answers ?? []);
+    let planMarkdown = edited;
+    if (decisions.length > 0) {
+      const base = planMarkdown ?? ticket.planMarkdown ?? '';
+      planMarkdown = `${base.split(DECISIONS_HEADING)[0]!.trimEnd()}\n\n${DECISIONS_HEADING}\n\n${decisions.map((d, i) => `${i + 1}. **${d.question}**\n   ${d.answer.replace(/\n/g, '\n   ')}`).join('\n')}\n`;
+    }
 
     if (planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown) {
       const { count } = await this.prisma.ticket.updateMany({ where: { id, status: 'AWAITING_PLAN_APPROVAL' }, data: { planMarkdown } });
       if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket changed while it was being updated');
       await writeArtifact(this.prisma, id, 'plan', { planMarkdown, editedBy: 'user' }).catch(() => undefined);
     }
+    if (decisions.length > 0) await this.prisma.supportTicket.updateMany({ where: { ticketId: id, kind: 'open_question', status: { in: ['open', 'answered'] } }, data: { status: 'resolved', resolvedBy: 'user', resolvedAt: new Date() } });
     if (ticket.source === 'jira' && ticket.externalKey && jiraOn(ticket.project.jiraMode)) await this.refreshFromJira(ticket.id, ticket.key, ticket.externalKey, ticket.project.jiraMode);
 
     const { ticket: updated } = await this.states.transition(id, 'BREAKDOWN', 'user', planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown ? 'Plan approved with edits' : 'Plan approved', undefined, { kind: 'approve' });

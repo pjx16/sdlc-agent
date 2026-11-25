@@ -17,6 +17,8 @@ const ActionBody = z.object({
   answer: z.string().trim().min(1, 'is required').max(10_000, 'must be at most 10000 characters').optional(),
   /** Approve with an edited plan (an assistant draft, or an edit in the inbox). */
   planMarkdown: z.string().trim().min(1, 'must not be empty').max(100_000, 'must be at most 100000 characters').optional(),
+  /** Answers to the plan's open questions, sent together with the approval. */
+  answers: z.array(z.object({ id: z.string().min(1), answer: z.string().trim().min(1, 'is required').max(10_000) })).max(50).optional(),
 });
 
 export interface SupportTicketDto {
@@ -39,6 +41,8 @@ export interface SupportTicketDto {
   resolvedAt: string | null;
   /** What a person can do with it now. Empty once it is closed. */
   actions: readonly SupportAction[];
+  /** On a plan approval: the plan's open questions, which must be answered before it can be approved. */
+  openQuestions?: { id: string; title: string; body: string; defaultAnswer: string | null; response: string | null }[];
 }
 
 export interface InboxCounts {
@@ -84,12 +88,25 @@ export class SupportService {
     });
     // An answered open_question stays in the inbox until it is used; an answered question is history.
     const shown = rows.filter((r) => (history ? !(r.status === 'answered' && r.kind === 'open_question') : !(r.status === 'answered' && r.kind !== 'open_question')));
-    const dtos = shown.map(toDto);
+    // The open questions of a plan are answered on its approval, so they have no row of their own while that approval is open.
+    const approving = new Set(rows.filter((r) => r.kind === 'approval' && r.stage === 'plan' && r.status === 'open').map((r) => r.ticketId));
+    const visible = history || query.kind ? shown : shown.filter((r) => !(r.kind === 'open_question' && r.ticketId && approving.has(r.ticketId)));
+    const dtos = await this.withQuestions(visible.map(toDto));
     return history ? dtos.sort((a, b) => (b.resolvedAt ?? b.createdAt).localeCompare(a.resolvedAt ?? a.createdAt)) : dtos;
   }
 
   async get(id: string): Promise<SupportTicketDto> {
-    return toDto(await this.find(id));
+    return (await this.withQuestions([toDto(await this.find(id))]))[0]!;
+  }
+
+  /** Puts the open questions of a plan on its open approval. */
+  private async withQuestions(dtos: SupportTicketDto[]): Promise<SupportTicketDto[]> {
+    const ids = [...new Set(dtos.filter((d) => d.kind === 'approval' && d.stage === 'plan' && d.status === 'open' && d.ticketId).map((d) => d.ticketId as string))];
+    if (ids.length === 0) return dtos;
+    const rows = await this.prisma.supportTicket.findMany({ where: { ticketId: { in: ids }, kind: 'open_question', status: { in: ['open', 'answered'] } }, orderBy: { createdAt: 'asc' } });
+    return dtos.map((d) => (d.kind === 'approval' && d.stage === 'plan' && d.status === 'open' && d.ticketId
+      ? { ...d, openQuestions: rows.filter((r) => r.ticketId === d.ticketId).map((r) => ({ id: r.id, title: r.title, body: r.body, defaultAnswer: r.defaultAnswer, response: r.response })) }
+      : d));
   }
 
   /** GET /support-tickets/counts: the sidebar badge and the size of each inbox group. */
@@ -113,7 +130,7 @@ export class SupportService {
 
   /** POST /support-tickets/:id/action: one endpoint for every action in the plan's table. */
   async act(id: string, body: unknown): Promise<SupportTicketDto> {
-    const { action, note, answer, planMarkdown } = parseBody(ActionBody, body);
+    const { action, note, answer, planMarkdown, answers } = parseBody(ActionBody, body);
     const q = await this.find(id);
     const kind = q.kind as SupportKind;
     if (q.status !== 'open' && !(q.status === 'answered' && kind === 'open_question')) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `This ticket is already ${q.status}`);
@@ -126,7 +143,7 @@ export class SupportService {
     switch (action) {
       case 'approve':
         if (q.stage === 'breakdown') await this.tickets.approveBreakdown(needTicket(), {});
-        else await this.tickets.approvePlan(needTicket(), planMarkdown ? { planMarkdown } : {});
+        else await this.tickets.approvePlan(needTicket(), { ...(planMarkdown ? { planMarkdown } : {}), ...(answers ? { answers } : {}) });
         break;
       case 'reject':
         if (!note) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { note: 'required' });
@@ -166,7 +183,7 @@ export class SupportService {
     }
     // Make sure the ticket the person acted on is closed, even if no transition did it (an open_question answered, a fixed CI).
     const after = await this.find(id);
-    return toDto(after);
+    return (await this.withQuestions([toDto(after)]))[0]!;
   }
 
   private async answer(q: Row, answer: string): Promise<void> {

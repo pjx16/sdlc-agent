@@ -296,6 +296,14 @@ export interface TicketFull extends TicketWithPlan {
 export type SupportKindView = 'approval' | 'question' | 'open_question' | 'hold' | 'ci_infra' | 'onboarding' | 'credential' | 'pr_ready';
 export type InboxGroupView = 'blocking' | 'approvals' | 'questions' | 'fyi';
 
+export interface OpenQuestionView {
+  id: string;
+  title: string;
+  body: string;
+  defaultAnswer: string | null;
+  response: string | null;
+}
+
 export interface SupportTicketView {
   id: string;
   kind: SupportKindView;
@@ -315,6 +323,8 @@ export interface SupportTicketView {
   createdAt: string;
   resolvedAt: string | null;
   actions: string[];
+  /** On a plan approval: the questions to answer before approving. */
+  openQuestions?: OpenQuestionView[];
 }
 
 export interface AssistantView {

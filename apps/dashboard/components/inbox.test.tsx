@@ -38,6 +38,18 @@ describe('Inbox', () => {
     expect(screen.getAllByText(/waiting 2 h/).length).toBe(4);
   });
 
+  it('an approval carries the open questions: Approve waits for every answer, then sends them with the approval', async () => {
+    fetchMock.mockResolvedValue(reply({}));
+    const approval = t({ id: 'a1', kind: 'approval', group: 'approvals', title: 'Approve the plan for SDA-1', body: 'ready', actions: ['approve', 'reject', 'dismiss'], openQuestions: [{ id: 'oq1', title: 'Which repo?', body: 'Which repo?', defaultAnswer: null, response: null }] });
+    render(<Inbox tab="open" now={NOW} tickets={[approval]} />);
+    const approve = screen.getByRole('button', { name: 'Approve' });
+    expect(approve).toBeDisabled();
+    expect(screen.getByText('Answer the open questions to approve.')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Which repo\?/), 'billing');
+    await userEvent.click(approve);
+    expect(sentBody()).toEqual({ action: 'approve', answers: [{ id: 'oq1', answer: 'billing' }] });
+  });
+
   it('shows a calm empty state', () => {
     render(<Inbox tickets={[]} tab="open" />);
     expect(screen.getByText(/Nothing is waiting for you/)).toBeInTheDocument();

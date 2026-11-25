@@ -9,6 +9,7 @@ import { ApprovalPreview } from './approval-preview';
 import { AssistantToggle } from './assistant-chat';
 import { InboxRedoTests } from './inbox-redo-tests';
 import { RerunPicker } from './rerun-picker';
+import { OpenQuestions, answersToSend, unanswered } from './open-questions';
 import type { InboxGroupView, MoveView, SupportTicketView } from '@/lib/types';
 
 const KIND_LABEL: Record<SupportTicketView['kind'], string> = {
@@ -84,6 +85,9 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const questions = t.openQuestions ?? [];
+  const blocked = questions.length > 0 && unanswered(questions, typed) > 0;
   const open = t.status === 'open' || (t.status === 'answered' && t.kind === 'open_question');
   const has = (a: string) => t.actions.includes(a);
 
@@ -136,7 +140,13 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
         <div className="mt-4 border-t border-border pt-4">
           {/* 1. The decision: the one or two things that move the ticket on. */}
           <div className="flex flex-wrap items-center gap-2">
-            {has('approve') && button('approve', 'Approve', true)}
+            {has('approve') && !questions.length && button('approve', 'Approve', true)}
+            {has('approve') && questions.length > 0 && (
+              <button type="button" disabled={busy !== null || blocked} onClick={() => void simple('approve', { answers: answersToSend(questions, typed) })} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-text disabled:opacity-50">
+                {busy === 'approve' ? 'Working…' : 'Approve'}
+              </button>
+            )}
+            {has('approve') && blocked && <span className="text-xs text-muted">Answer the open questions to approve.</span>}
             {has('fixed') && button('fixed', 'Fixed, re-run CI', true)}
             {has('rerun_with_answers') && t.status === 'answered' && button('rerun_with_answers', 'Rerun the plan with answers', true)}
             {has('resume') && button('resume', 'Resume', true)}
@@ -157,6 +167,7 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
             )}
             {has('retry') && button('retry', 'Retry')}
           </div>
+          {questions.length > 0 && <OpenQuestions id={t.id} questions={questions} typed={typed} onChange={setTyped} />}
           {rejecting && <TextAction id={t.id} label="What should change?" placeholder="The note goes back to the stage with the previous attempt" action="reject" submit="Send back" onDone={done} busy={busy} setBusy={setBusy} />}
           {has('answer') && t.status === 'open' && <TextAction id={t.id} label="Your answer" placeholder="" action="answer" submit="Answer" onDone={done} busy={busy} setBusy={setBusy} />}
 

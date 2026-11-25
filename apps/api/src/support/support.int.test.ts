@@ -278,14 +278,65 @@ describe('Support tickets', () => {
       await states.transition(tk.id, 'AWAITING_PLAN_APPROVAL', 'system');
       await act(oq.id, { action: 'answer', answer: 'the booking one' }).expect(200);
       expect((await reload(tk.id)).status).toBe('AWAITING_PLAN_APPROVAL'); // answering does not move the ticket
-      // an answered open question stays in the inbox until it is used
-      expect((await t.agent.get('/support-tickets').expect(200)).body.some((q: { id: string }) => q.id === oq.id)).toBe(true);
+      // an answered open question stays in the inbox until it is used (asked for by kind: the open plan approval carries it in the main list)
+      expect((await t.agent.get('/support-tickets?kind=open_question').expect(200)).body.some((q: { id: string }) => q.id === oq.id)).toBe(true);
       await act(oq.id, { action: 'rerun_with_answers' }).expect(200);
       expect((await reload(tk.id)).status).toBe('PLANNING');
       const last = (await t.prisma.stateTransition.findMany({ where: { ticketId: tk.id } })).at(-1);
       expect(last?.reason).toContain('Which repository?');
       expect(last?.reason).toContain('the booking one');
       expect((await t.prisma.supportTicket.findUniqueOrThrow({ where: { id: oq.id } })).status).toBe('resolved');
+    });
+
+    describe('approving a plan with open questions', () => {
+      const planWithQuestions = async (n = 2) => {
+        const tk = await ticket({ status: 'PLANNING', planMarkdown: '# Plan\n\nDo the thing.' });
+        const r = await run(tk.id);
+        const oqs = [];
+        for (let i = 0; i < n; i++) oqs.push((await raiser.raise({ kind: 'open_question', ticketId: tk.id, stageRunId: r.id, stage: 'solutionDesign', title: `Question ${i + 1}?`, body: `Question ${i + 1}?`, dedupeKey: `oq:${tk.id}:${i}` })).ticket);
+        await states.transition(tk.id, 'AWAITING_PLAN_APPROVAL', 'system');
+        const [approval] = await tickets(tk.id, 'approval');
+        return { tk, oqs, approval: approval! };
+      };
+
+      it('puts the questions on the approval and keeps them out of the main list', async () => {
+        const { tk, oqs, approval } = await planWithQuestions();
+        const list = (await t.agent.get('/support-tickets').expect(200)).body as { id: string; kind: string; openQuestions?: { id: string }[] }[];
+        expect(list.some((q) => q.id === oqs[0]!.id)).toBe(false);
+        expect(list.find((q) => q.id === approval.id)?.openQuestions?.map((q) => q.id)).toEqual(oqs.map((q) => q.id));
+        expect((await t.agent.get(`/support-tickets?ticketId=${tk.id}&kind=open_question`).expect(200)).body).toHaveLength(2);
+      });
+
+      it('refuses to approve while a question has no answer, from the inbox and from the ticket', async () => {
+        const { tk, oqs, approval } = await planWithQuestions();
+        const res = await act(approval.id, { action: 'approve', answers: [{ id: oqs[0]!.id, answer: 'the booking one' }] }).expect(400);
+        expect(res.body.fields.answers).toContain('1 open question');
+        await t.agent.post(`/tickets/${tk.id}/plan/approve`).send({}).expect(400);
+        expect((await reload(tk.id)).status).toBe('AWAITING_PLAN_APPROVAL');
+      });
+
+      it('approves once every question is answered, and the answers become part of the plan', async () => {
+        const { tk, oqs, approval } = await planWithQuestions();
+        await act(approval.id, { action: 'approve', answers: [{ id: oqs[0]!.id, answer: 'the booking one' }, { id: oqs[1]!.id, answer: 'EUR' }] }).expect(200);
+        const after = await reload(tk.id);
+        expect(after.status).toBe('BREAKDOWN');
+        expect(after.planMarkdown).toContain('## Decisions from open questions');
+        expect(after.planMarkdown).toContain('Question 1?');
+        expect(after.planMarkdown).toContain('the booking one');
+        expect(after.planMarkdown).toContain('EUR');
+        expect((await tickets(tk.id, 'open_question')).map((q) => q.status)).toEqual(['resolved', 'resolved']);
+      });
+
+      it('accepts questions answered earlier, and a plan without questions approves as before', async () => {
+        const { tk, oqs, approval } = await planWithQuestions(1);
+        await act(oqs[0]!.id, { action: 'answer', answer: 'earlier answer' }).expect(200);
+        await act(approval.id, { action: 'approve' }).expect(200);
+        expect((await reload(tk.id)).planMarkdown).toContain('earlier answer');
+        const plain = await ticket({ status: 'PLANNING', planMarkdown: '# Plan' });
+        await states.transition(plain.id, 'AWAITING_PLAN_APPROVAL', 'system');
+        await t.agent.post(`/tickets/${plain.id}/plan/approve`).send({}).expect(200);
+        expect((await reload(plain.id)).planMarkdown).toBe('# Plan');
+      });
     });
 
     it('dismiss works on any open ticket', async () => {
