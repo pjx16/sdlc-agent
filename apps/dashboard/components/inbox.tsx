@@ -193,7 +193,7 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
               </button>
             )}
             {has('retry') && button('retry', 'Retry')}
-            {t.kind === 'pr_ready' && <PrReadyActions t={t} busy={busy} simple={simple} failing={failing} setFailing={setFailing} done={done} />}
+            {t.kind === 'pr_ready' && has('done') && <PrReadyActions t={t} busy={busy} simple={simple} failing={failing} setFailing={setFailing} done={done} />}
           </div>
           {failing && <TextAction id={t.id} label="Why did the review fail?" placeholder="For example: the change was rejected, or the PR was closed" action="fail" submit="Mark failed" onDone={done} busy={busy} setBusy={setBusy} tone="plain" />}
           {rejecting && <TextAction id={t.id} label="What should change?" placeholder="The note goes back to the stage with the previous attempt" action="reject" submit="Send back" onDone={done} busy={busy} setBusy={setBusy} />}
