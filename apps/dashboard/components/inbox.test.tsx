@@ -40,7 +40,8 @@ describe('Inbox', () => {
 
   it('offers the actions of a PR in review: open it, mark it done or failed, re-run the KB update', async () => {
     fetchMock.mockResolvedValue(reply({}));
-    render(<Inbox tab="open" now={NOW} tickets={[t({ id: 'c', kind: 'pr_ready', group: 'fyi', priority: 'fyi', title: 'SDA-3 is ready', ticketPrUrl: 'https://github.com/acme/app/pull/7', actions: ['done', 'fail', 'dismiss'] })]} />);
+    render(<Inbox tab="open" now={NOW} tickets={[t({ id: 'c', kind: 'pr_ready', group: 'fyi', priority: 'fyi', title: 'SDA-3 is ready', ticketPrUrl: 'https://github.com/acme/app/pull/7', actions: ['done', 'fail'] })]} />);
+    expect(screen.queryByText('Dismiss')).not.toBeInTheDocument(); // the review ends as done or failed, never silently
     expect(screen.getByRole('link', { name: 'Open PR' })).toHaveAttribute('href', 'https://github.com/acme/app/pull/7');
     await userEvent.click(screen.getByRole('button', { name: 'Mark done' }));
     expect(sentBody()).toEqual({ action: 'done' });
