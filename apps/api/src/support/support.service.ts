@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, SUPPORT_ACTIONS, countsForBadge, inboxGroup, type InboxGroup, type SupportAction, type SupportKind, type SupportPriority, type SupportStatus } from '@sdlc/shared';
+import { ErrorCodes, countsForBadge, inboxGroup, supportActionsFor, type InboxGroup, type SupportAction, type SupportKind, type SupportPriority, type SupportStatus } from '@sdlc/shared';
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
 import { logEvent } from '../common/event-log';
@@ -59,7 +59,7 @@ const toDto = (q: Row): SupportTicketDto => {
     id: q.id, kind, title: q.title, body: q.body, priority, status, group: inboxGroup({ kind, priority }),
     projectId: q.projectId, ticketId: q.ticketId, ticketKey: q.ticket?.key ?? null, ticketTitle: q.ticket?.title ?? null, ticketPrUrl: q.ticket?.prUrl ?? null, stage: q.stage,
     defaultAnswer: q.defaultAnswer, response: q.response, resolvedBy: q.resolvedBy, createdAt: q.createdAt.toISOString(), resolvedAt: q.resolvedAt?.toISOString() ?? null,
-    actions: status === 'open' || (status === 'answered' && kind === 'open_question') ? SUPPORT_ACTIONS[kind] : [],
+    actions: status === 'open' || (status === 'answered' && kind === 'open_question') ? supportActionsFor(kind, q.stage) : [],
   };
 };
 
@@ -119,7 +119,7 @@ export class SupportService {
     const q = await this.find(id);
     const kind = q.kind as SupportKind;
     if (q.status !== 'open' && !(q.status === 'answered' && kind === 'open_question')) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `This ticket is already ${q.status}`);
-    if (!SUPPORT_ACTIONS[kind].includes(action)) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, `A ${kind.replace('_', ' ')} ticket cannot be ${action}`, { action: 'not allowed for this kind' });
+    if (!supportActionsFor(kind, q.stage).includes(action)) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, `A ${kind.replace('_', ' ')} ticket cannot be ${action}`, { action: 'not allowed for this kind' });
     const needTicket = () => {
       if (!q.ticketId) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'This ticket is not about a pipeline ticket');
       return q.ticketId;

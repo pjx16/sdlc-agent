@@ -301,6 +301,14 @@ describe('Support tickets', () => {
         expect((await t.agent.get(`/support-tickets/${q.id}`).expect(200)).body).toMatchObject({ ticketPrUrl: 'https://github.com/a/b/pull/1', actions: ['done', 'fail', 'dismiss'] });
       });
 
+      it('a note about the PR (its size) can only be dismissed, never ended as done or failed', async () => {
+        const { tk } = await review();
+        const { ticket: note } = await raiser.raise({ kind: 'pr_ready', ticketId: tk.id, stage: 'pr_size', title: 'large', body: 'b' });
+        expect((await t.agent.get(`/support-tickets/${note.id}`).expect(200)).body.actions).toEqual(['dismiss']);
+        await act(note.id, { action: 'done' }).expect(400);
+        expect((await t.prisma.ticket.findUniqueOrThrow({ where: { id: tk.id } })).status).toBe('IN_HUMAN_REVIEW');
+      });
+
       it('"done" moves the ticket to DONE and closes the item, saying it was a person', async () => {
         const { tk, q } = await review();
         await act(q.id, { action: 'done' }).expect(200);
