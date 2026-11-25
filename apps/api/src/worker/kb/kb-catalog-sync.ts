@@ -7,9 +7,16 @@ import type { Housekeeper } from '../loop/worker-loop';
 import { WorkerConfig } from '../worker-config';
 import { INDEX_FILE, KbIndexSchema } from './kb-index';
 
+/** A folder name without its trailing slashes. A loop, not a regular expression: the folder name is user input. */
+export function trimSlashes(dir: string): string {
+  let out = dir;
+  while (out.endsWith('/')) out = out.slice(0, -1);
+  return out;
+}
+
 /** Titles come from the first heading of a doc, or the index. */
 export function buildCatalog(kbDir: string, files: string[], index: { doc: string; title: string; key: string }[], now: string): KbCatalog {
-  const prefix = `${kbDir.replace(/\/+$/, '')}/`;
+  const prefix = `${trimSlashes(kbDir)}/`;
   const docs = files
     .filter((f) => f.startsWith(prefix) && f.endsWith('.md'))
     .map((f) => f.slice(prefix.length))
@@ -42,7 +49,7 @@ export class KbCatalogSync implements Housekeeper {
         const gitDir = this.config.mirrorPath(project.id);
         const ref = project.baseBranch;
         const tree = await this.git.out(['--git-dir', gitDir, 'ls-tree', '-r', '--name-only', ref, '--', project.kbDir]);
-        const indexText = await this.git.out(['--git-dir', gitDir, 'show', `${ref}:${project.kbDir.replace(/\/+$/, '')}/${INDEX_FILE}`]).catch(() => '');
+        const indexText = await this.git.out(['--git-dir', gitDir, 'show', `${ref}:${trimSlashes(project.kbDir)}/${INDEX_FILE}`]).catch(() => '');
         let entries: { doc: string; title: string; key: string }[] = [];
         try {
           entries = indexText ? KbIndexSchema.parse(JSON.parse(indexText)).features : [];
