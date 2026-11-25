@@ -119,6 +119,9 @@ export class SupportService {
     const q = await this.find(id);
     const kind = q.kind as SupportKind;
     if (q.status !== 'open' && !(q.status === 'answered' && kind === 'open_question')) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `This ticket is already ${q.status}`);
+    if (action === 'dismiss' && kind === 'pr_ready' && q.stage === 'review') {
+      throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Mark the ticket as done or failed instead: dismissing would leave it in human review', { action: 'use done or fail' });
+    }
     if (!supportActionsFor(kind, q.stage).includes(action)) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, `A ${kind.replace('_', ' ')} ticket cannot be ${action}`, { action: 'not allowed for this kind' });
     const needTicket = () => {
       if (!q.ticketId) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'This ticket is not about a pipeline ticket');

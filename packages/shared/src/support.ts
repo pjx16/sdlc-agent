@@ -48,6 +48,6 @@ export const SUPPORT_ACTIONS: Record<SupportKind, readonly SupportAction[]> = {
   ci_infra: ['fixed', 'hold', 'dismiss'],
   onboarding: ['dismiss'],
   credential: ['dismiss'],
-  /** The ticket waits in IN_HUMAN_REVIEW: the person says how the review ended (done, failed) or leaves it to the merge poller. */
-  pr_ready: ['done', 'fail', 'dismiss'],
+  /** The ticket waits in IN_HUMAN_REVIEW: the person says how the review ended. There is no plain dismiss: it would leave the ticket in review for ever. */
+  pr_ready: ['done', 'fail'],
 };

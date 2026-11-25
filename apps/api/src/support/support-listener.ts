@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import type { TransitionListener, TransitionResult } from '../state/state-machine.service';
 import { SupportRaiser } from './support-raiser';
 
+/** The "ready for human review" item of a ticket. */
+export function prReadyItem(ticket: { id: string; key: string; title: string; prUrl: string | null; projectId: string }) {
+  return { ticketId: ticket.id, projectId: ticket.projectId, kind: 'pr_ready' as const, stage: 'review', dedupeKey: `pr_ready:${ticket.id}`, title: `${ticket.key} is ready for human review`, body: `The pull request for **${ticket.key}: ${ticket.title}** is ready.${ticket.prUrl ? `\n\n${ticket.prUrl}` : ''}` };
+}
+
 const APPROVALS = ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] as const;
 
 /**
@@ -34,7 +39,7 @@ export class SupportTransitionListener implements TransitionListener {
     } else if (to === 'FAILED') {
       await this.raiser.raise({ ...base, kind: 'hold', stage: ticket.holdFromStatus ?? '', dedupeKey: `hold:${ticket.id}`, title: `${ticket.key} failed`, body: `**${ticket.key}: ${ticket.title}** failed.\n\n${transition.reason ?? ''}`.trim() });
     } else if (to === 'IN_HUMAN_REVIEW') {
-      await this.raiser.raise({ ...base, kind: 'pr_ready', stage: 'review', dedupeKey: `pr_ready:${ticket.id}`, title: `${ticket.key} is ready for human review`, body: `The pull request for **${ticket.key}: ${ticket.title}** is ready.${ticket.prUrl ? `\n\n${ticket.prUrl}` : ''}` });
+      await this.raiser.raise(prReadyItem(ticket));
     }
   }
 }
