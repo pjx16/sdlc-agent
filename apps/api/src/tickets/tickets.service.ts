@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { DECISION_POINTS, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus, jiraOn } from '@sdlc/shared';
+import { DECISION_POINTS, planFileUrl, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { allArtifacts, writeArtifact } from '../common/artifacts';
 import { parseBody } from '../common/parse-body';
@@ -135,7 +135,7 @@ export class TicketsService {
     const t = await this.prisma.ticket.findUniqueOrThrow({
       where: { id },
       include: {
-        project: { select: { name: true, settings: true } },
+        project: { select: { name: true, settings: true, repoUrl: true, kbDir: true } },
         subtasks: { orderBy: { seq: 'asc' } },
         stageRuns: { orderBy: [{ startedAt: 'asc' }, { id: 'asc' }] },
         findings: { orderBy: [{ round: 'asc' }, { id: 'asc' }] },
@@ -152,6 +152,7 @@ export class TicketsService {
       prSoftLines: limits.prSoftLines,
       prHardLines: Math.max(limits.prHardLines, limits.prSoftLines),
       planMarkdown: ticket.planMarkdown,
+      planFileUrl: planFileUrl({ repoUrl: project.repoUrl, branch: ticket.branch, kbDir: project.kbDir, key: ticket.key, status: ticket.status }),
       breakdownDraft: ticket.breakdownDraft,
       subtasks: subtasks.map((s) => ({ id: s.id, seq: s.seq, title: s.title, description: s.description, status: s.status, fixRounds: s.fixRounds, acceptanceCriteria: s.acceptanceCriteria, files: s.files, dependsOn: s.dependsOn })),
       stageRuns: stageRuns.map((r) => ({
