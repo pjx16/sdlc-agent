@@ -487,12 +487,6 @@ model StageArtifact {
   data            Json
   stageRunId      String?
   supersededAt    DateTime? @db.Timestamptz(6)
-  /// The Confluence page of a plan.
-  externalUrl     String?
-  externalId      String?
-  externalVersion Int?
-  /// Hash of what was last sent to Confluence, so a page is only updated when its content changed.
-  externalSig     String?
   createdAt       DateTime  @default(now()) @db.Timestamptz(6)
 
   @@unique([ticketId, stage, version])
@@ -509,7 +503,7 @@ model Event {
   at         DateTime @default(now()) @db.Timestamptz(6)
   /// info | warn | error
   level      String   @default("info")
-  /// system | orchestrator | claude | agent | jira | confluence | github | git | ci | user
+  /// system | orchestrator | claude | agent | jira | github | git | ci | user
   source     String   @default("system")
   stageRunId String?
   subtaskId  String?

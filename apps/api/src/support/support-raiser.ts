@@ -85,8 +85,8 @@ export class SupportRaiser {
    * A credential the system relies on was refused (Claude, Jira, GitHub). One global ticket per credential, closed by itself
    * when the credential test passes (see CredentialsService.markVerified).
    */
-  async credentialFailed(group: 'claude' | 'jira' | 'github' | 'confluence', detail: string): Promise<void> {
-    const name = { claude: 'Claude', jira: 'Jira', github: 'GitHub', confluence: 'Confluence' }[group];
+  async credentialFailed(group: 'claude' | 'jira' | 'github', detail: string): Promise<void> {
+    const name = { claude: 'Claude', jira: 'Jira', github: 'GitHub' }[group];
     await this.raise({ kind: 'credential', dedupeKey: `credential:${group}`, stage: '', title: `${name} rejected the credential`, body: `${detail}\n\nUpdate it in Settings → Connections. This ticket closes by itself when the credential test passes.` });
   }
 

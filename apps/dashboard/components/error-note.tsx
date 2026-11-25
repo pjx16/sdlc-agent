@@ -7,13 +7,12 @@ const TONE: Record<string, string> = {
   Agent: 'border-border text-muted',
   Workspace: 'border-red text-red',
   Jira: 'border-border text-muted',
-  Confluence: 'border-border text-muted',
   GitHub: 'border-border text-muted',
   Git: 'border-border text-muted',
   User: 'border-border text-muted',
 };
 
-/** Who the failure belongs to: Claude, Agent, Workspace, Jira, Confluence, GitHub, Git or User. */
+/** Who the failure belongs to: Claude, Agent, Workspace, Jira, GitHub, Git or User. */
 export function SourceBadge({ code }: { code: ErrorCode }) {
   const badge = ERROR_POLICY[code].badge;
   return (

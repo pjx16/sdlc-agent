@@ -34,8 +34,6 @@ export type IssueKind = (typeof ISSUE_KINDS)[number];
 export const TICKET_KINDS = ['feature', 'bug', 'chore'] as const;
 export type TicketKind = (typeof TICKET_KINDS)[number];
 
-export const PLANS_PARENT_PAGE_TITLE = 'sdlc-agent plans';
-
 // ------------------------------------------------------------------------------------------------ agent output
 
 const text = z.string().min(1, 'must not be empty');
@@ -61,7 +59,6 @@ export const OnboardAdviseData = z.object({
   approvalStatuses: z.object({ plan: z.string().min(1).nullable(), breakdown: z.string().min(1).nullable() }),
   issueTypeRouting: z.record(z.string(), z.enum(ISSUE_KINDS)),
   intakeLabel: z.string().trim().min(1).regex(/^[^\s]+$/, 'must not contain spaces'),
-  confluenceSpaceKey: z.string().nullable(),
 });
 export type OnboardAdvice = z.infer<typeof OnboardAdviseData>;
 
@@ -79,15 +76,9 @@ export interface GithubFacts {
   defaultBranch: string;
   languages: string[];
 }
-export interface ConfluenceSpace {
-  key: string;
-  name: string;
-}
 export interface OnboardingFacts {
   github: GithubFacts;
   jira: JiraFacts | null;
-  /** Spaces the person can write to, or null with the reason when Confluence cannot be reached. */
-  confluence: { spaces: ConfluenceSpace[] } | { spaces: null; reason: string };
 }
 
 export interface CommandCheck {
@@ -99,7 +90,7 @@ export interface CommandCheck {
 
 // ------------------------------------------------------------------------------------------------ the proposal
 
-export const ONBOARDING_SECTIONS = ['commands', 'statusMap', 'routing', 'label', 'confluence'] as const;
+export const ONBOARDING_SECTIONS = ['commands', 'statusMap', 'routing', 'label'] as const;
 export type OnboardingSection = (typeof ONBOARDING_SECTIONS)[number];
 /** These two change what the pipeline does to Jira, so they must be accepted explicitly. */
 export const MUST_ACCEPT: readonly OnboardingSection[] = ['statusMap', 'label'];

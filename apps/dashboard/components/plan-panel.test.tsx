@@ -23,13 +23,13 @@ describe('PlanPanel (F7)', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('links to the Confluence page of the plan, at the gate and after it, and only when there is one', () => {
-    const { rerender } = render(<PlanPanel ticketId="t1" status="AWAITING_PLAN_APPROVAL" planMarkdown="# P" confluenceUrl="https://acme.atlassian.net/wiki/pages/1" />);
-    expect(screen.getByRole('link', { name: 'Open in Confluence' })).toHaveAttribute('href', 'https://acme.atlassian.net/wiki/pages/1');
-    rerender(<PlanPanel ticketId="t1" status="BREAKDOWN" planMarkdown="# P" confluenceUrl="https://acme.atlassian.net/wiki/pages/1" />);
-    expect(screen.getByRole('link', { name: 'Open in Confluence' })).toBeInTheDocument();
-    rerender(<PlanPanel ticketId="t1" status="BREAKDOWN" planMarkdown="# P" />);
-    expect(screen.queryByRole('link', { name: 'Open in Confluence' })).not.toBeInTheDocument();
+  it('links the plan file in the repository once it is committed, and only then', () => {
+    const { rerender } = render(<PlanPanel ticketId="t1" status="IN_HUMAN_REVIEW" planMarkdown="# P" planFileUrl="https://github.com/acme/billing/blob/feature/x/docs/kb/plans/ABC-1.md" />);
+    const link = screen.getByRole('link', { name: 'Open the plan file in the repository' });
+    expect(link).toHaveAttribute('href', 'https://github.com/acme/billing/blob/feature/x/docs/kb/plans/ABC-1.md');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    rerender(<PlanPanel ticketId="t1" status="BREAKDOWN" planMarkdown="# P" planFileUrl={null} />);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('says there is no plan yet', () => {

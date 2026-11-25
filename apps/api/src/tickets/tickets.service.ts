@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { DECISION_POINTS, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus, jiraOn } from '@sdlc/shared';
+import { DECISION_POINTS, planFileUrl, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { allArtifacts, writeArtifact } from '../common/artifacts';
 import { parseBody } from '../common/parse-body';
@@ -56,7 +56,6 @@ export interface ArtifactDto {
   supersededAt: string | null;
   stageRunId: string | null;
   createdAt: string;
-  externalUrl: string | null;
 }
 
 export interface TicketEventDto {
@@ -136,7 +135,7 @@ export class TicketsService {
     const t = await this.prisma.ticket.findUniqueOrThrow({
       where: { id },
       include: {
-        project: { select: { name: true, settings: true } },
+        project: { select: { name: true, settings: true, repoUrl: true, kbDir: true } },
         subtasks: { orderBy: { seq: 'asc' } },
         stageRuns: { orderBy: [{ startedAt: 'asc' }, { id: 'asc' }] },
         findings: { orderBy: [{ round: 'asc' }, { id: 'asc' }] },
@@ -153,6 +152,7 @@ export class TicketsService {
       prSoftLines: limits.prSoftLines,
       prHardLines: Math.max(limits.prHardLines, limits.prSoftLines),
       planMarkdown: ticket.planMarkdown,
+      planFileUrl: planFileUrl({ repoUrl: project.repoUrl, branch: ticket.branch, kbDir: project.kbDir, key: ticket.key, status: ticket.status }),
       breakdownDraft: ticket.breakdownDraft,
       subtasks: subtasks.map((s) => ({ id: s.id, seq: s.seq, title: s.title, description: s.description, status: s.status, fixRounds: s.fixRounds, acceptanceCriteria: s.acceptanceCriteria, files: s.files, dependsOn: s.dependsOn })),
       stageRuns: stageRuns.map((r) => ({
@@ -187,7 +187,7 @@ export class TicketsService {
   /** GET /tickets/:id/artifacts: every version of the plan, breakdown, review rounds and KB pointer, stale ones included. */
   async artifacts(id: string): Promise<ArtifactDto[]> {
     await this.findOr404(id);
-    return (await allArtifacts(this.prisma, id)).map((a) => ({ id: a.id, stage: a.stage, version: a.version, data: a.data, stale: a.supersededAt !== null, supersededAt: a.supersededAt?.toISOString() ?? null, stageRunId: a.stageRunId, createdAt: a.createdAt.toISOString(), externalUrl: a.externalUrl }));
+    return (await allArtifacts(this.prisma, id)).map((a) => ({ id: a.id, stage: a.stage, version: a.version, data: a.data, stale: a.supersededAt !== null, supersededAt: a.supersededAt?.toISOString() ?? null, stageRunId: a.stageRunId, createdAt: a.createdAt.toISOString() }));
   }
 
   /** GET /tickets/:id/decisions: what the orchestrator was asked at each decision point, the options, its answer and why, oldest first. */

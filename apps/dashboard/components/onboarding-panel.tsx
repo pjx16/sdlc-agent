@@ -234,15 +234,6 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
         <p className="text-sm text-muted">No Jira project: this project takes pasted tickets only.</p>
       )}
 
-      <Card title="Confluence" accepted={accepted('confluence')} actions={AcceptEdit('confluence', startEdit('confluence'))}>
-        {p.facts.confluence.spaces === null ? (
-          <p className="text-muted">Confluence is not available ({p.facts.confluence.reason}). Plans will be posted to Jira unless you edit this and give a space key.</p>
-        ) : (
-          <p>{p.advice.confluenceSpaceKey ? <>Plans are published in the space <strong>{p.advice.confluenceSpaceKey}</strong>, under a page called “sdlc-agent plans”.</> : 'No space chosen: plans go to Jira comments.'}</p>
-        )}
-        {editBox('confluence', [{ key: 'confluenceSpaceKey', label: `Space key${p.facts.confluence.spaces?.length ? ` (found: ${p.facts.confluence.spaces.map((s) => s.key).join(', ')})` : ''}, empty for none. A space created after onboarding started is checked again when you save.`, initial: p.advice.confluenceSpaceKey ?? '' }], (v) => ({ confluenceSpaceKey: (v.confluenceSpaceKey ?? '').trim() || null }))}
-      </Card>
-
       {jira && (
         <section aria-label="Dry run" className="panel p-4">
           <h3 className="text-sm font-medium">Dry run</h3>

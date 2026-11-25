@@ -106,7 +106,6 @@ export const ProjectSettingsSchema = z.object({
   /** What each Jira issue type becomes: feature, bug, chore, or ignore. */
   jiraIssueTypeRouting: z.record(z.string(), z.enum(['feature', 'bug', 'chore', 'ignore'])).default({}),
   /** Where plans are published. Null: plans go to Jira comments. */
-  confluence: z.object({ spaceKey: z.string().min(1), parentPageId: z.string().nullable().default(null) }).nullable().default(null),
   jiraStatusMap: z.object(statusMapShape).prefault({}),
   jiraApprovalStatuses: z
     .object({ plan: z.string().trim().min(1).optional(), breakdown: z.string().trim().min(1).optional() })
