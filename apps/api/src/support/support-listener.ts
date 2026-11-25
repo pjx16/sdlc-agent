@@ -22,7 +22,7 @@ export class SupportTransitionListener implements TransitionListener {
     // Leaving a state closes what that state needed from a person.
     if ((APPROVALS as readonly string[]).includes(from)) await this.raiser.close({ ticketId: ticket.id, kind: 'approval' }, 'resolved', by, transition.reason ?? undefined);
     if (from === 'ON_HOLD' || from === 'FAILED') await this.raiser.close({ ticketId: ticket.id, kind: ['hold', 'ci_infra'] }, 'resolved', by, transition.reason ?? undefined);
-    if (from === 'IN_HUMAN_REVIEW') await this.raiser.close({ ticketId: ticket.id, kind: 'pr_ready' }, 'resolved', by, to === 'DONE' ? 'The PR was merged' : (transition.reason ?? undefined));
+    if (from === 'IN_HUMAN_REVIEW') await this.raiser.close({ ticketId: ticket.id, kind: 'pr_ready' }, 'resolved', by, to === 'DONE' && by !== 'user' ? 'The PR was merged' : (transition.reason ?? undefined));
 
     if (to === 'AWAITING_PLAN_APPROVAL') {
       await this.raiser.raise({ ...base, kind: 'approval', stage: 'plan', dedupeKey: `approval:${ticket.id}:plan`, title: `Approve the plan for ${ticket.key}`, body: `The plan for **${ticket.key}: ${ticket.title}** is ready and waits for your approval.\n\nApprove it to move on to the breakdown, or reject it with a note to have it redone.` });

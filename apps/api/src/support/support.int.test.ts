@@ -288,6 +288,41 @@ describe('Support tickets', () => {
       expect((await t.prisma.supportTicket.findUniqueOrThrow({ where: { id: oq.id } })).status).toBe('resolved');
     });
 
+    describe('a PR in human review', () => {
+      const review = async () => {
+        const tk = await ticket({ status: 'AWAITING_CI', prUrl: 'https://github.com/a/b/pull/1' });
+        await states.transition(tk.id, 'IN_HUMAN_REVIEW', 'system');
+        const [q] = await tickets(tk.id, 'pr_ready');
+        return { tk, q: q! };
+      };
+
+      it('shows the PR and the actions a person can take', async () => {
+        const { q } = await review();
+        expect((await t.agent.get(`/support-tickets/${q.id}`).expect(200)).body).toMatchObject({ ticketPrUrl: 'https://github.com/a/b/pull/1', actions: ['done', 'fail', 'dismiss'] });
+      });
+
+      it('"done" moves the ticket to DONE and closes the item, saying it was a person', async () => {
+        const { tk, q } = await review();
+        await act(q.id, { action: 'done' }).expect(200);
+        expect((await t.prisma.ticket.findUniqueOrThrow({ where: { id: tk.id } })).status).toBe('DONE');
+        expect(await tickets(tk.id, 'pr_ready')).toMatchObject([{ status: 'resolved', response: 'Marked done from the inbox' }]);
+      });
+
+      it('"fail" needs a reason, then fails the ticket', async () => {
+        const { tk, q } = await review();
+        await act(q.id, { action: 'fail' }).expect(400);
+        await act(q.id, { action: 'fail', note: 'Rejected by the reviewers' }).expect(200);
+        expect((await t.prisma.ticket.findUniqueOrThrow({ where: { id: tk.id } })).status).toBe('FAILED');
+      });
+
+      it('"done" is refused once the ticket has left human review', async () => {
+        const { tk, q } = await review();
+        await states.transition(tk.id, 'DONE', 'system', 'PR merged');
+        await t.prisma.supportTicket.update({ where: { id: q.id }, data: { status: 'open' } });
+        await act(q.id, { action: 'done' }).expect(409);
+      });
+    });
+
     it('dismiss works on any open ticket', async () => {
       const tk = await ticket();
       const { ticket: q } = await raiser.raise({ kind: 'pr_ready', ticketId: tk.id, title: 'fyi', body: 'b' });

@@ -308,6 +308,7 @@ export interface SupportTicketView {
   ticketId: string | null;
   ticketKey: string | null;
   ticketTitle: string | null;
+  ticketPrUrl?: string | null;
   stage: string;
   defaultAnswer: string | null;
   response: string | null;

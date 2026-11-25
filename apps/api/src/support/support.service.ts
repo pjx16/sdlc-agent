@@ -12,7 +12,7 @@ import { events } from '@sdlc/shared';
 import { SupportRaiser } from './support-raiser';
 
 const ActionBody = z.object({
-  action: z.enum(['approve', 'reject', 'answer', 'rerun_with_answers', 'resume', 'retry', 'fail', 'fixed', 'hold', 'dismiss']),
+  action: z.enum(['approve', 'reject', 'answer', 'rerun_with_answers', 'resume', 'retry', 'fail', 'fixed', 'hold', 'done', 'dismiss']),
   note: z.string().trim().max(2000, 'must be at most 2000 characters').optional(),
   answer: z.string().trim().min(1, 'is required').max(10_000, 'must be at most 10000 characters').optional(),
   /** Approve with an edited plan (an assistant draft, or an edit in the inbox). */
@@ -31,6 +31,8 @@ export interface SupportTicketDto {
   ticketId: string | null;
   ticketKey: string | null;
   ticketTitle: string | null;
+  /** The pull request of the ticket, when it has one. */
+  ticketPrUrl: string | null;
   stage: string;
   defaultAnswer: string | null;
   response: string | null;
@@ -47,7 +49,7 @@ export interface InboxCounts {
   groups: Record<InboxGroup, number>;
 }
 
-type Row = SupportTicket & { ticket: { key: string; title: string } | null };
+type Row = SupportTicket & { ticket: { key: string; title: string; prUrl: string | null } | null };
 
 const toDto = (q: Row): SupportTicketDto => {
   const status = q.status as SupportStatus;
@@ -55,7 +57,7 @@ const toDto = (q: Row): SupportTicketDto => {
   const priority = q.priority as SupportPriority;
   return {
     id: q.id, kind, title: q.title, body: q.body, priority, status, group: inboxGroup({ kind, priority }),
-    projectId: q.projectId, ticketId: q.ticketId, ticketKey: q.ticket?.key ?? null, ticketTitle: q.ticket?.title ?? null, stage: q.stage,
+    projectId: q.projectId, ticketId: q.ticketId, ticketKey: q.ticket?.key ?? null, ticketTitle: q.ticket?.title ?? null, ticketPrUrl: q.ticket?.prUrl ?? null, stage: q.stage,
     defaultAnswer: q.defaultAnswer, response: q.response, resolvedBy: q.resolvedBy, createdAt: q.createdAt.toISOString(), resolvedAt: q.resolvedAt?.toISOString() ?? null,
     actions: status === 'open' || (status === 'answered' && kind === 'open_question') ? SUPPORT_ACTIONS[kind] : [],
   };
@@ -79,7 +81,7 @@ export class SupportService {
         ...(query.kind ? { kind: query.kind as SupportKind } : {}),
         ...(query.ticketId ? { ticketId: query.ticketId } : {}),
       },
-      include: { ticket: { select: { key: true, title: true } } },
+      include: { ticket: { select: { key: true, title: true, prUrl: true } } },
       orderBy: { createdAt: 'asc' },
     });
     // An answered open_question stays in the inbox until it is used; an answered question is history.
@@ -106,7 +108,7 @@ export class SupportService {
   }
 
   private async find(id: string): Promise<Row> {
-    const found = await this.prisma.supportTicket.findUnique({ where: { id }, include: { ticket: { select: { key: true, title: true } } } });
+    const found = await this.prisma.supportTicket.findUnique({ where: { id }, include: { ticket: { select: { key: true, title: true, prUrl: true } } } });
     if (!found) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Support ticket not found');
     return found;
   }
@@ -147,6 +149,7 @@ export class SupportService {
         await this.tickets.retryTicket(needTicket());
         break;
       case 'fail':
+        if (kind === 'pr_ready' && !note) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { note: 'say why the review failed' });
         await this.states.fail(needTicket(), note ? `Marked failed from the inbox: ${note}` : 'Marked failed from the inbox');
         break;
       case 'fixed': {
@@ -160,6 +163,13 @@ export class SupportService {
         await this.tickets.holdTicket(needTicket()).catch(() => undefined);
         await this.raiser.close({ ticketId: needTicket(), kind: 'ci_infra' }, 'resolved', 'user', 'Put on hold');
         break;
+      case 'done': {
+        // The person says the review is over: the ticket leaves IN_HUMAN_REVIEW now instead of waiting for the merge poller.
+        const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: needTicket() } });
+        if (ticket.status !== 'IN_HUMAN_REVIEW') throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `The ticket is ${ticket.status}, not in human review`);
+        await this.states.transition(ticket.id, 'DONE', 'user', note ? `Marked done from the inbox: ${note}` : 'Marked done from the inbox');
+        break;
+      }
       case 'dismiss':
         await this.prisma.supportTicket.update({ where: { id }, data: { status: 'dismissed', resolvedBy: 'user', resolvedAt: new Date(), ...(note ? { response: note } : {}) } });
         break;
