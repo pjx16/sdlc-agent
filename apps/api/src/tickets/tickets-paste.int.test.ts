@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
+import { ProjectsModule } from '../projects/projects.module';
 import { TicketsModule } from './tickets.module';
 
 describe('Pasted tickets (F3)', () => {
@@ -13,7 +14,7 @@ describe('Pasted tickets (F3)', () => {
 
   beforeAll(async () => {
     db = await createTestDatabase();
-    t = await createTestApp(db.url, [TicketsModule]);
+    t = await createTestApp(db.url, [TicketsModule, ProjectsModule]);
   }, 180_000);
   afterAll(async () => {
     await t?.close();
@@ -37,6 +38,43 @@ describe('Pasted tickets (F3)', () => {
     expect(second.body).toMatchObject({ key: 'BILL-2', type: 'bug', status: 'NEW' });
     expect((await t.prisma.project.findUniqueOrThrow({ where: { id: projectId } })).nextLocalNumber).toBe(3);
     expect(await t.prisma.event.count({ where: { type: 'intake' } })).toBe(2);
+  });
+
+  describe('attached KB docs', () => {
+    const catalog = { docs: [{ path: 'auth.md', title: 'Auth' }, { path: 'billing/overview.md', title: 'Billing' }], updatedAt: 'now' };
+
+    it('are stored with the ticket when they are docs of the project', async () => {
+      const p = await makeProject({ kbCatalog: catalog });
+      const res = await t.agent.post('/tickets').send({ projectId: p.id, title: 'x', kbAttachments: ['auth.md', 'billing/overview.md'] }).expect(201);
+      expect(res.body.kbAttachments).toEqual(['auth.md', 'billing/overview.md']);
+      expect((await t.prisma.ticket.findUniqueOrThrow({ where: { id: res.body.id } })).kbAttachments).toEqual(['auth.md', 'billing/overview.md']);
+      expect((await t.agent.post('/tickets').send({ projectId: p.id, title: 'plain' }).expect(201)).body.kbAttachments).toEqual([]);
+    });
+
+    it('are refused when they are not KB docs of the project, are repeated, are too many, or climb out of the folder', async () => {
+      const p = await makeProject({ kbCatalog: catalog });
+      const post = (kbAttachments: unknown) => t.agent.post('/tickets').send({ projectId: p.id, title: 'x', kbAttachments }).expect(400);
+      expect((await post(['nope.md'])).body.fields.kbAttachments).toContain('nope.md');
+      expect((await post(['auth.md', 'auth.md'])).body.fields.kbAttachments).toContain('twice');
+      await post(['../../etc/passwd.md']);
+      await post(['auth.txt']);
+      await post(Array.from({ length: 6 }, (_, i) => `d${i}.md`));
+      await t.agent.post('/tickets').send({ projectId, title: 'x', kbAttachments: ['auth.md'] }).expect(400); // a project whose docs are not listed yet
+    });
+
+    it('can be changed until the ticket is coded', async () => {
+      const p = await makeProject({ kbCatalog: catalog });
+      const id = (await t.agent.post('/tickets').send({ projectId: p.id, title: 'x' }).expect(201)).body.id as string;
+      expect((await t.agent.patch(`/tickets/${id}/kb-attachments`).send({ kbAttachments: ['auth.md'] }).expect(200)).body.kbAttachments).toEqual(['auth.md']);
+      await t.prisma.ticket.update({ where: { id }, data: { status: 'IN_PROGRESS' } });
+      await t.agent.patch(`/tickets/${id}/kb-attachments`).send({ kbAttachments: [] }).expect(409);
+    });
+
+    it('are listed for a project from the catalog the worker keeps', async () => {
+      const p = await makeProject({ kbCatalog: catalog });
+      expect((await t.agent.get(`/projects/${p.id}/kb`).expect(200)).body).toEqual({ docs: catalog.docs, updatedAt: 'now' });
+      expect((await t.agent.get(`/projects/${projectId}/kb`).expect(200)).body).toEqual({ docs: [], updatedAt: null });
+    });
   });
 
   it('the pasted-tickets switch in Settings stops pasting, with a clear message, and the other sources are not involved', async () => {

@@ -8,6 +8,7 @@ import { AgentRunner, type StageRequest, type StageResult } from '../agent-runne
 import type { StageInputs } from '../agent-runner/context-builder';
 import { HARDENING_FLAGS, minimalGitEnv, safeDirectory } from '../git/git-runner';
 import { STAGE_WORKSPACE } from '../agent-runner/stage-config';
+import { attachmentPathsOf, loadAttachments } from '../kb/kb-attachments';
 import { WorkerConfig } from '../worker-config';
 
 const exec = promisify(execFile);
@@ -57,6 +58,9 @@ export class StageLauncher {
     const qa = answered.map((q) => ({ question: q.body, answer: q.response ?? '' }));
     const rerun = await this.rerunInput(ticket, stage, inputs);
     const workspacePath = opts.workspacePath ?? this.workspaceOf(ticket);
+    const attached = attachmentPathsOf(ticket.kbAttachments);
+    const kbAttachments = attached.length > 0 ? await loadAttachments(workspacePath, project.kbDir, attached) : null;
+    for (const warning of kbAttachments?.warnings ?? []) await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'kb', level: 'warn', message: warning } }).catch(() => undefined);
     // A stage that writes code starts from the current branch head: the range from here to the head after its commit is what a rerun reverts.
     const startSha = STAGE_WORKSPACE[stage] === 'rw' ? await headOf(workspacePath) : null;
     const result = await this.runner.run({
@@ -73,7 +77,7 @@ export class StageLauncher {
       modelAliases: global.modelAliases,
       maxTurns: stageSettings.maxTurns,
       stageTimeoutMin: global.stageTimeoutMin,
-      inputs: { ...inputs, ...(qa.length > 0 ? { qa } : {}), ...(rerun ? { rerun } : {}) },
+      inputs: { ...inputs, ...(kbAttachments && kbAttachments.docs.length > 0 ? { kbAttachments: kbAttachments.docs } : {}), ...(qa.length > 0 ? { qa } : {}), ...(rerun ? { rerun } : {}) },
       workspacePath,
       thinkingTokens: opts.thinkingTokens,
       validate: opts.validate,
