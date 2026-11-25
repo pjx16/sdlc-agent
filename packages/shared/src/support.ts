@@ -32,7 +32,7 @@ export const countsForBadge = (t: { kind: SupportKind; priority: SupportPriority
   t.status === 'open' && (t.kind === 'approval' || t.priority === 'blocking');
 
 /** The actions a person can take on a ticket of this kind. */
-export type SupportAction = 'approve' | 'reject' | 'answer' | 'rerun_with_answers' | 'resume' | 'retry' | 'fail' | 'fixed' | 'hold' | 'dismiss';
+export type SupportAction = 'approve' | 'reject' | 'answer' | 'rerun_with_answers' | 'resume' | 'retry' | 'fail' | 'fixed' | 'hold' | 'done' | 'dismiss';
 
 export const SUPPORT_ACTIONS: Record<SupportKind, readonly SupportAction[]> = {
   approval: ['approve', 'reject', 'dismiss'],
@@ -42,5 +42,6 @@ export const SUPPORT_ACTIONS: Record<SupportKind, readonly SupportAction[]> = {
   ci_infra: ['fixed', 'hold', 'dismiss'],
   onboarding: ['dismiss'],
   credential: ['dismiss'],
-  pr_ready: ['dismiss'],
+  /** The ticket waits in IN_HUMAN_REVIEW: the person says how the review ended (done, failed) or leaves it to the merge poller. */
+  pr_ready: ['done', 'fail', 'dismiss'],
 };
