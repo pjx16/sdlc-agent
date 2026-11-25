@@ -42,6 +42,9 @@ export interface GlobalSettingsView {
   /** Null until the budgets are approved (or "no limits" is chosen): the dashboard asks. */
   budgetsApprovedAt: string | null;
   intakePaused: boolean;
+  /** True while the worker finds no internet connection; the pipeline resumes by itself. */
+  networkOffline?: boolean;
+  offlineSince?: string | null;
 }
 
 export type BudgetPeriodName = 'daily' | 'weekly' | 'monthly';

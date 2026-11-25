@@ -204,6 +204,25 @@ describe('worker loop', () => {
     expect(await loop.tick()).toBe('stepped');
   });
 
+  it('waits while there is no internet: no step, no housekeeping but the connectivity check, and it carries on by itself when it is back', async () => {
+    const t = await ticket('NEW');
+    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { networkOffline: true, offlineSince: new Date(clock) }, create: { id: 'global', networkOffline: true, offlineSince: new Date(clock) } });
+    const ran2: string[] = [];
+    const other = { name: 'other', intervalMs: 1, check: async () => void ran2.push('other') };
+    const net = { name: 'connectivity', intervalMs: 1, check: async () => void ran2.push('net') };
+    const config = new WorkerConfig({ DATA_DIR, DATABASE_URL: db.url } as NodeJS.ProcessEnv);
+    const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, [handler('NEW', () => ({ kind: 'transition', to: 'KB' }))], () => clock, [net, other]);
+    expect(await loop.tick()).toBe('paused');
+    expect(ran).toEqual([]);
+    expect(ran2).toEqual(['net']); // the other housekeeping parts would only fail without a connection
+    expect(await status(t.id)).toBe('NEW');
+    expect((await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).pipelinePaused).toBe(false); // the pause switches are not involved
+    await prisma.globalSettings.update({ where: { id: 'global' }, data: { networkOffline: false, offlineSince: null } }); // the monitor saw the connection again
+    clock += 10_000;
+    expect(await loop.tick()).toBe('stepped');
+    expect(ran2).toContain('other');
+  });
+
   it('never runs two steps at once: a second iteration while one is running does nothing', async () => {
     const t = await ticket('NEW');
     let release!: () => void;
