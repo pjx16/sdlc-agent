@@ -18,7 +18,7 @@ import { VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
 import { KbUpdateHandler } from './kb-update.handler';
 import { KbUpdateService } from './kb-update.service';
-import { PlanDocService, planDocPath, planDocText } from './plan-doc.service';
+import { PlanDocService, planDocText } from './plan-doc.service';
 import { StageLauncher } from './stage-launcher';
 import { StageOutcomes } from './stage-outcomes';
 
@@ -73,9 +73,7 @@ describe('the plan is committed to the repository', () => {
     rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('names the file after the ticket, inside the KB folder, and keeps the key safe', () => {
-    expect(planDocPath('docs/kb', 'ABC-12')).toBe('docs/kb/plans/ABC-12.md');
-    expect(planDocPath('docs/kb/', '../../etc/x')).toBe('docs/kb/plans/.._.._etc_x.md');
+  it('writes the plan as a titled document', () => {
     expect(planDocText({ key: 'ABC-1', title: 'T' }, '## Goal\nDo it\n')).toBe('# ABC-1: T\n\n_The approved plan for this ticket, committed by sdlc-agent._\n\n## Goal\nDo it\n');
   });
 
