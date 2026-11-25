@@ -5,6 +5,7 @@ import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
 import type { GlobalSettings, Prisma, TicketSource } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { INTAKE_SOURCES, type IntakeSource } from './intake-pause';
 import { budgetDecision, spentSince } from '../usage/spend';
 
 const GLOBAL_ID = 'global';
@@ -117,6 +118,10 @@ export function suggestBudgets(avgDaily: number): Record<'daily' | 'weekly' | 'm
 }
 
 const IgnoreBody = z.object({ until: z.coerce.date({ error: 'must be a date' }).optional() });
+
+const SourceParam = z.enum(INTAKE_SOURCES, { error: 'must be jira or paste' });
+
+const SOURCE_LABELS: Record<IntakeSource, string> = { jira: 'Jira', paste: 'Pasted-ticket' };
 
 function toView(row: GlobalSettings): GlobalSettingsView {
   const parsed = GlobalSettingsSchema.parse({
@@ -295,8 +300,14 @@ export class SystemSettingsService {
     return toView(row);
   }
 
-  async setSourceIntakePaused(_source: unknown, _paused: boolean): Promise<GlobalSettingsView> {
-    throw new Error('Not implemented');
+  async setSourceIntakePaused(source: unknown, paused: boolean): Promise<GlobalSettingsView> {
+    const valid = parseBody(SourceParam, source);
+    const current = (await this.row()).pausedIntakeSources;
+    const rest = current.filter((s) => s !== valid);
+    const next = paused ? [...rest, valid] : rest;
+    const row = await this.prisma.globalSettings.update({ where: { id: GLOBAL_ID }, data: { pausedIntakeSources: next } });
+    await this.event('state', `${SOURCE_LABELS[valid]} intake ${paused ? 'paused' : 'resumed'}`);
+    return toView(row);
   }
 
   private event(type: string, message: string) {
