@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, SUPPORT_ACTIONS, countsForBadge, inboxGroup, type InboxGroup, type SupportAction, type SupportKind, type SupportPriority, type SupportStatus } from '@sdlc/shared';
+import { ErrorCodes, countsForBadge, inboxGroup, supportActionsFor, type InboxGroup, type SupportAction, type SupportKind, type SupportPriority, type SupportStatus } from '@sdlc/shared';
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
 import { logEvent } from '../common/event-log';
@@ -12,11 +12,13 @@ import { events } from '@sdlc/shared';
 import { SupportRaiser } from './support-raiser';
 
 const ActionBody = z.object({
-  action: z.enum(['approve', 'reject', 'answer', 'rerun_with_answers', 'resume', 'retry', 'fail', 'fixed', 'hold', 'dismiss']),
+  action: z.enum(['approve', 'reject', 'answer', 'rerun_with_answers', 'resume', 'retry', 'fail', 'fixed', 'hold', 'done', 'dismiss']),
   note: z.string().trim().max(2000, 'must be at most 2000 characters').optional(),
   answer: z.string().trim().min(1, 'is required').max(10_000, 'must be at most 10000 characters').optional(),
   /** Approve with an edited plan (an assistant draft, or an edit in the inbox). */
   planMarkdown: z.string().trim().min(1, 'must not be empty').max(100_000, 'must be at most 100000 characters').optional(),
+  /** Answers to the plan's open questions, sent together with the approval. */
+  answers: z.array(z.object({ id: z.string().min(1), answer: z.string().trim().min(1, 'is required').max(10_000) })).max(50).optional(),
 });
 
 export interface SupportTicketDto {
@@ -31,6 +33,8 @@ export interface SupportTicketDto {
   ticketId: string | null;
   ticketKey: string | null;
   ticketTitle: string | null;
+  /** The pull request of the ticket, when it has one. */
+  ticketPrUrl: string | null;
   stage: string;
   defaultAnswer: string | null;
   response: string | null;
@@ -39,6 +43,8 @@ export interface SupportTicketDto {
   resolvedAt: string | null;
   /** What a person can do with it now. Empty once it is closed. */
   actions: readonly SupportAction[];
+  /** On a plan approval: the plan's open questions, which must be answered before it can be approved. */
+  openQuestions?: { id: string; title: string; body: string; defaultAnswer: string | null; response: string | null }[];
 }
 
 export interface InboxCounts {
@@ -47,7 +53,7 @@ export interface InboxCounts {
   groups: Record<InboxGroup, number>;
 }
 
-type Row = SupportTicket & { ticket: { key: string; title: string } | null };
+type Row = SupportTicket & { ticket: { key: string; title: string; prUrl: string | null } | null };
 
 const toDto = (q: Row): SupportTicketDto => {
   const status = q.status as SupportStatus;
@@ -55,9 +61,9 @@ const toDto = (q: Row): SupportTicketDto => {
   const priority = q.priority as SupportPriority;
   return {
     id: q.id, kind, title: q.title, body: q.body, priority, status, group: inboxGroup({ kind, priority }),
-    projectId: q.projectId, ticketId: q.ticketId, ticketKey: q.ticket?.key ?? null, ticketTitle: q.ticket?.title ?? null, stage: q.stage,
+    projectId: q.projectId, ticketId: q.ticketId, ticketKey: q.ticket?.key ?? null, ticketTitle: q.ticket?.title ?? null, ticketPrUrl: q.ticket?.prUrl ?? null, stage: q.stage,
     defaultAnswer: q.defaultAnswer, response: q.response, resolvedBy: q.resolvedBy, createdAt: q.createdAt.toISOString(), resolvedAt: q.resolvedAt?.toISOString() ?? null,
-    actions: status === 'open' || (status === 'answered' && kind === 'open_question') ? SUPPORT_ACTIONS[kind] : [],
+    actions: status === 'open' || (status === 'answered' && kind === 'open_question') ? supportActionsFor(kind, q.stage) : [],
   };
 };
 
@@ -79,17 +85,30 @@ export class SupportService {
         ...(query.kind ? { kind: query.kind as SupportKind } : {}),
         ...(query.ticketId ? { ticketId: query.ticketId } : {}),
       },
-      include: { ticket: { select: { key: true, title: true } } },
+      include: { ticket: { select: { key: true, title: true, prUrl: true } } },
       orderBy: { createdAt: 'asc' },
     });
     // An answered open_question stays in the inbox until it is used; an answered question is history.
     const shown = rows.filter((r) => (history ? !(r.status === 'answered' && r.kind === 'open_question') : !(r.status === 'answered' && r.kind !== 'open_question')));
-    const dtos = shown.map(toDto);
+    // The open questions of a plan are answered on its approval, so they have no row of their own while that approval is open.
+    const approving = new Set(rows.filter((r) => r.kind === 'approval' && r.stage === 'plan' && r.status === 'open').map((r) => r.ticketId));
+    const visible = history || query.kind ? shown : shown.filter((r) => !(r.kind === 'open_question' && r.ticketId && approving.has(r.ticketId)));
+    const dtos = await this.withQuestions(visible.map(toDto));
     return history ? dtos.sort((a, b) => (b.resolvedAt ?? b.createdAt).localeCompare(a.resolvedAt ?? a.createdAt)) : dtos;
   }
 
   async get(id: string): Promise<SupportTicketDto> {
-    return toDto(await this.find(id));
+    return (await this.withQuestions([toDto(await this.find(id))]))[0]!;
+  }
+
+  /** Puts the open questions of a plan on its open approval. */
+  private async withQuestions(dtos: SupportTicketDto[]): Promise<SupportTicketDto[]> {
+    const ids = [...new Set(dtos.filter((d) => d.kind === 'approval' && d.stage === 'plan' && d.status === 'open' && d.ticketId).map((d) => d.ticketId as string))];
+    if (ids.length === 0) return dtos;
+    const rows = await this.prisma.supportTicket.findMany({ where: { ticketId: { in: ids }, kind: 'open_question', status: { in: ['open', 'answered'] } }, orderBy: { createdAt: 'asc' } });
+    return dtos.map((d) => (d.kind === 'approval' && d.stage === 'plan' && d.status === 'open' && d.ticketId
+      ? { ...d, openQuestions: rows.filter((r) => r.ticketId === d.ticketId).map((r) => ({ id: r.id, title: r.title, body: r.body, defaultAnswer: r.defaultAnswer, response: r.response })) }
+      : d));
   }
 
   /** GET /support-tickets/counts: the sidebar badge and the size of each inbox group. */
@@ -106,18 +125,21 @@ export class SupportService {
   }
 
   private async find(id: string): Promise<Row> {
-    const found = await this.prisma.supportTicket.findUnique({ where: { id }, include: { ticket: { select: { key: true, title: true } } } });
+    const found = await this.prisma.supportTicket.findUnique({ where: { id }, include: { ticket: { select: { key: true, title: true, prUrl: true } } } });
     if (!found) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Support ticket not found');
     return found;
   }
 
   /** POST /support-tickets/:id/action: one endpoint for every action in the plan's table. */
   async act(id: string, body: unknown): Promise<SupportTicketDto> {
-    const { action, note, answer, planMarkdown } = parseBody(ActionBody, body);
+    const { action, note, answer, planMarkdown, answers } = parseBody(ActionBody, body);
     const q = await this.find(id);
     const kind = q.kind as SupportKind;
     if (q.status !== 'open' && !(q.status === 'answered' && kind === 'open_question')) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `This ticket is already ${q.status}`);
-    if (!SUPPORT_ACTIONS[kind].includes(action)) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, `A ${kind.replace('_', ' ')} ticket cannot be ${action}`, { action: 'not allowed for this kind' });
+    if (action === 'dismiss' && kind === 'pr_ready' && q.stage === 'review') {
+      throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Mark the ticket as done or failed instead: dismissing would leave it in human review', { action: 'use done or fail' });
+    }
+    if (!supportActionsFor(kind, q.stage).includes(action)) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, `A ${kind.replace('_', ' ')} ticket cannot be ${action}`, { action: 'not allowed for this kind' });
     const needTicket = () => {
       if (!q.ticketId) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'This ticket is not about a pipeline ticket');
       return q.ticketId;
@@ -126,7 +148,7 @@ export class SupportService {
     switch (action) {
       case 'approve':
         if (q.stage === 'breakdown') await this.tickets.approveBreakdown(needTicket(), {});
-        else await this.tickets.approvePlan(needTicket(), planMarkdown ? { planMarkdown } : {});
+        else await this.tickets.approvePlan(needTicket(), { ...(planMarkdown ? { planMarkdown } : {}), ...(answers ? { answers } : {}) });
         break;
       case 'reject':
         if (!note) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { note: 'required' });
@@ -147,6 +169,7 @@ export class SupportService {
         await this.tickets.retryTicket(needTicket());
         break;
       case 'fail':
+        if (kind === 'pr_ready' && !note) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { note: 'say why the review failed' });
         await this.states.fail(needTicket(), note ? `Marked failed from the inbox: ${note}` : 'Marked failed from the inbox');
         break;
       case 'fixed': {
@@ -160,13 +183,20 @@ export class SupportService {
         await this.tickets.holdTicket(needTicket()).catch(() => undefined);
         await this.raiser.close({ ticketId: needTicket(), kind: 'ci_infra' }, 'resolved', 'user', 'Put on hold');
         break;
+      case 'done': {
+        // The person says the review is over: the ticket leaves IN_HUMAN_REVIEW now instead of waiting for the merge poller.
+        const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: needTicket() } });
+        if (ticket.status !== 'IN_HUMAN_REVIEW') throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `The ticket is ${ticket.status}, not in human review`);
+        await this.states.transition(ticket.id, 'DONE', 'user', note ? `Marked done from the inbox: ${note}` : 'Marked done from the inbox');
+        break;
+      }
       case 'dismiss':
         await this.prisma.supportTicket.update({ where: { id }, data: { status: 'dismissed', resolvedBy: 'user', resolvedAt: new Date(), ...(note ? { response: note } : {}) } });
         break;
     }
     // Make sure the ticket the person acted on is closed, even if no transition did it (an open_question answered, a fixed CI).
     const after = await this.find(id);
-    return toDto(after);
+    return (await this.withQuestions([toDto(after)]))[0]!;
   }
 
   private async answer(q: Row, answer: string): Promise<void> {

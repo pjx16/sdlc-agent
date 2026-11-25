@@ -96,3 +96,30 @@ describe('applyStackChange', () => {
     expect(applyStackChange(v, 'ts_node', 'nextjs').installCmd).toBe('npm ci');
   });
 });
+
+describe('GitHub as a source', () => {
+  const asProject = (github: Partial<ProjectView['settings']['github']>): ProjectView => ({ ...project, settings: { ...project.settings, github: { ...project.settings.github, ...github } } });
+
+  it('is off for a new project, and the board is two plain fields in the form', () => {
+    const v = initialValues() as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(v.settings.github).toMatchObject({ mode: 'off', label: 'sdlc-agent', statusField: 'Status', intakeStatus: 'Todo', projectOwner: '', projectNumber: '' });
+    expect(v.settings.github.project).toBeUndefined();
+    expect(toPayload(v).settings).toMatchObject({ github: { mode: 'off', project: null } });
+  });
+
+  it('turns the board fields into the API object and back', () => {
+    const v = initialValues(asProject({ mode: 'projects', project: { owner: 'acme', number: 3 } })) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(v.settings.github).toMatchObject({ projectOwner: 'acme', projectNumber: '3' });
+    v.settings.github.projectNumber = '7';
+    const payload = toPayload(v) as { settings: { github: Record<string, unknown> } };
+    expect(payload.settings.github.project).toEqual({ owner: 'acme', number: 7 });
+    expect('projectOwner' in payload.settings.github).toBe(false);
+    expect(ProjectInputSchema.safeParse({ ...payload, name: 'x', repoUrl: 'https://github.com/a/b' }).success).toBe(true);
+  });
+
+  it('sends no board when the owner or the number is empty', () => {
+    const v = initialValues(asProject({ mode: 'issues' })) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    v.settings.github.projectOwner = 'acme';
+    expect((toPayload(v) as { settings: { github: { project: unknown } } }).settings.github.project).toBeNull();
+  });
+});

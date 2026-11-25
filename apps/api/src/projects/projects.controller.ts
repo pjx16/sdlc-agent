@@ -54,6 +54,11 @@ export class ProjectsController {
     return this.projects.create(body);
   }
 
+  @Get(':id/kb')
+  kb(@Param('id') id: string) {
+    return this.projects.kbDocs(id);
+  }
+
   @Get(':id')
   get(@Param('id') id: string): Promise<ProjectDto> {
     return this.projects.get(id);

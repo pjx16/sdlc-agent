@@ -1,0 +1,2 @@
+ALTER TABLE "Ticket" ADD COLUMN "kbAttachments" JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE "Project" ADD COLUMN "kbCatalog" JSONB;

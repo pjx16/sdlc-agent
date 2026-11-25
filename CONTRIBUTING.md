@@ -27,7 +27,7 @@ See the [README](./README.md#run-from-source) for the details of a source instal
 
 | Path | What is there |
 | --- | --- |
-| `apps/api` | NestJS API and the worker (`src/worker`): pipeline, agent runner, git, GitHub, Jira, Confluence |
+| `apps/api` | NestJS API and the worker (`src/worker`): pipeline, agent runner, git, GitHub, Jira |
 | `apps/dashboard` | Next.js dashboard |
 | `apps/broker` | Token broker for the GitHub App (bot mode) |
 | `packages/shared` | Types, schemas, the state machine and agent definitions shared by everything |

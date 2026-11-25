@@ -1,4 +1,4 @@
-import type { OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
+import type { OnboardingProgress, OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
 
 /** A project as returned by the API. */
 export type ProjectView = Omit<ProjectInput, 'settings' | 'jiraProjectKey' | 'jiraJql' | 'githubAuth'> & {
@@ -45,6 +45,9 @@ export interface GlobalSettingsView {
   /** True while the worker finds no internet connection; the pipeline resumes by itself. */
   networkOffline?: boolean;
   offlineSince?: string | null;
+  intakeJiraEnabled?: boolean;
+  intakeGithubEnabled?: boolean;
+  intakePasteEnabled?: boolean;
 }
 
 export type BudgetPeriodName = 'daily' | 'weekly' | 'monthly';
@@ -170,7 +173,7 @@ export interface TicketListItem {
   projectId: string;
   projectName: string;
   key: string;
-  source: 'jira' | 'paste';
+  source: 'jira' | 'paste' | 'github';
   type: 'story' | 'bug' | 'tech';
   title: string;
   status: string;
@@ -256,6 +259,8 @@ export interface RunView {
 export interface TicketDetail extends TicketListItem {
   body: string;
   featureKey: string | null;
+  /** KB docs attached to the ticket; every stage keeps them in its context. */
+  kbAttachments?: string[];
   externalKey: string | null;
   branch: string | null;
   prUrl: string | null;
@@ -299,6 +304,14 @@ export interface TicketFull extends TicketWithPlan {
 export type SupportKindView = 'approval' | 'question' | 'open_question' | 'hold' | 'ci_infra' | 'onboarding' | 'credential' | 'pr_ready';
 export type InboxGroupView = 'blocking' | 'approvals' | 'questions' | 'fyi';
 
+export interface OpenQuestionView {
+  id: string;
+  title: string;
+  body: string;
+  defaultAnswer: string | null;
+  response: string | null;
+}
+
 export interface SupportTicketView {
   id: string;
   kind: SupportKindView;
@@ -311,6 +324,7 @@ export interface SupportTicketView {
   ticketId: string | null;
   ticketKey: string | null;
   ticketTitle: string | null;
+  ticketPrUrl?: string | null;
   stage: string;
   defaultAnswer: string | null;
   response: string | null;
@@ -318,6 +332,8 @@ export interface SupportTicketView {
   createdAt: string;
   resolvedAt: string | null;
   actions: string[];
+  /** On a plan approval: the questions to answer before approving. */
+  openQuestions?: OpenQuestionView[];
 }
 
 export interface AssistantView {
@@ -340,6 +356,7 @@ export interface OnboardingView {
   status: OnboardingStatus;
   error: string | null;
   proposal: OnboardingProposal | null;
+  progress?: OnboardingProgress | null;
 }
 
 export interface DryRunView {
@@ -364,7 +381,6 @@ export interface ArtifactView {
   supersededAt: string | null;
   stageRunId: string | null;
   createdAt: string;
-  externalUrl: string | null;
 }
 
 export interface DecisionView {

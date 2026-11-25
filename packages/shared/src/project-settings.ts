@@ -88,10 +88,24 @@ export const ProjectSettingsSchema = z.object({
       pollIntervalMin: count(15, 5, 1440),
     })
     .prefault({}),
+  /**
+   * GitHub as a ticket source. `projects`: the issues on a GitHub Project (v2) board whose Status is `intakeStatus` (recommended: the board
+   * shows the pipeline's progress). `issues`: the repository's open issues that carry `label`. Progress is written back: a status column
+   * in `projects` mode (`statusMap` maps pipeline states to column names), `sdlc:<state>` labels in `issues` mode.
+   */
+  github: z
+    .object({
+      mode: z.enum(['off', 'issues', 'projects']).default('off'),
+      label: z.string().trim().min(1, 'required').regex(/^\S+$/, 'must not contain spaces').default('sdlc-agent'),
+      project: z.object({ owner: z.string().trim().min(1, 'required'), number: z.number({ error: 'must be a number' }).int().positive() }).nullable().default(null),
+      statusField: z.string().trim().min(1, 'required').default('Status'),
+      intakeStatus: z.string().trim().min(1, 'required').default('Todo'),
+      statusMap: z.record(z.string(), z.string().nullable()).default({}),
+    })
+    .prefault({}),
   /** What each Jira issue type becomes: feature, bug, chore, or ignore. */
   jiraIssueTypeRouting: z.record(z.string(), z.enum(['feature', 'bug', 'chore', 'ignore'])).default({}),
   /** Where plans are published. Null: plans go to Jira comments. */
-  confluence: z.object({ spaceKey: z.string().min(1), parentPageId: z.string().nullable().default(null) }).nullable().default(null),
   jiraStatusMap: z.object(statusMapShape).prefault({}),
   jiraApprovalStatuses: z
     .object({ plan: z.string().trim().min(1).optional(), breakdown: z.string().trim().min(1).optional() })

@@ -152,6 +152,30 @@ describe('TicketForm (paste)', () => {
     expect(JSON.parse(String(init.body))).toEqual({ projectId: 'p1', title: 'Add export', body: 'CSV please', kind: 'bug', featureKey: '' });
   });
 
+  it('attaches knowledge-base docs: loaded when opened, filtered, limited, and sent with the ticket', async () => {
+    fetchMock.mockImplementation(async (url: string) => (url === '/api/projects/p1/kb' ? reply({ docs: [{ path: 'auth.md', title: 'Authentication' }, { path: 'billing/overview.md', title: 'Billing' }], updatedAt: 'now' }) : reply({ id: 'new-2', key: 'BILL-2' }, 201)));
+    render(<TicketForm projects={projects} />);
+    expect(fetchMock).not.toHaveBeenCalled(); // nothing is loaded until the person asks
+    await userEvent.click(screen.getByRole('button', { name: 'Attach knowledge-base docs' }));
+    await userEvent.type(await screen.findByLabelText('Filter docs'), 'bill');
+    expect(screen.queryByText('Authentication')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: /Billing/ }));
+    expect(screen.getByRole('button', { name: 'Attach knowledge-base docs (1)' })).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Attached docs' })).getByText('billing/overview.md')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Title'), 'Add export');
+    await userEvent.click(screen.getByRole('button', { name: 'Create ticket' }));
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/tickets/new-2'));
+    const post = fetchMock.mock.calls.find(([u]) => u === '/api/tickets') as [string, RequestInit];
+    expect(JSON.parse(String(post[1].body))).toMatchObject({ projectId: 'p1', title: 'Add export', kbAttachments: ['billing/overview.md'] });
+  });
+
+  it('says so when the project has no docs yet', async () => {
+    fetchMock.mockResolvedValue(reply({ docs: [], updatedAt: null }));
+    render(<TicketForm projects={projects} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Attach knowledge-base docs' }));
+    expect(await screen.findByText(/no knowledge-base docs yet/)).toBeInTheDocument();
+  });
+
   it('shows field-level errors, and a conflict message when the mirror is not ready', async () => {
     fetchMock.mockResolvedValueOnce(reply({ error: 'validation_error', message: 'Validation failed', fields: { title: 'required' } }, 400));
     render(<TicketForm projects={projects} />);

@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import type { TransitionListener, TransitionResult } from '../state/state-machine.service';
 import { SupportRaiser } from './support-raiser';
 
+/** The "ready for human review" item of a ticket. */
+export function prReadyItem(ticket: { id: string; key: string; title: string; prUrl: string | null; projectId: string }) {
+  return { ticketId: ticket.id, projectId: ticket.projectId, kind: 'pr_ready' as const, stage: 'review', dedupeKey: `pr_ready:${ticket.id}`, title: `${ticket.key} is ready for human review`, body: `The pull request for **${ticket.key}: ${ticket.title}** is ready.${ticket.prUrl ? `\n\n${ticket.prUrl}` : ''}` };
+}
+
 const APPROVALS = ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] as const;
 
 /**
@@ -22,7 +27,7 @@ export class SupportTransitionListener implements TransitionListener {
     // Leaving a state closes what that state needed from a person.
     if ((APPROVALS as readonly string[]).includes(from)) await this.raiser.close({ ticketId: ticket.id, kind: 'approval' }, 'resolved', by, transition.reason ?? undefined);
     if (from === 'ON_HOLD' || from === 'FAILED') await this.raiser.close({ ticketId: ticket.id, kind: ['hold', 'ci_infra'] }, 'resolved', by, transition.reason ?? undefined);
-    if (from === 'IN_HUMAN_REVIEW') await this.raiser.close({ ticketId: ticket.id, kind: 'pr_ready' }, 'resolved', by, to === 'DONE' ? 'The PR was merged' : (transition.reason ?? undefined));
+    if (from === 'IN_HUMAN_REVIEW') await this.raiser.close({ ticketId: ticket.id, kind: 'pr_ready' }, 'resolved', by, to === 'DONE' && by !== 'user' ? 'The PR was merged' : (transition.reason ?? undefined));
 
     if (to === 'AWAITING_PLAN_APPROVAL') {
       await this.raiser.raise({ ...base, kind: 'approval', stage: 'plan', dedupeKey: `approval:${ticket.id}:plan`, title: `Approve the plan for ${ticket.key}`, body: `The plan for **${ticket.key}: ${ticket.title}** is ready and waits for your approval.\n\nApprove it to move on to the breakdown, or reject it with a note to have it redone.` });
@@ -34,7 +39,7 @@ export class SupportTransitionListener implements TransitionListener {
     } else if (to === 'FAILED') {
       await this.raiser.raise({ ...base, kind: 'hold', stage: ticket.holdFromStatus ?? '', dedupeKey: `hold:${ticket.id}`, title: `${ticket.key} failed`, body: `**${ticket.key}: ${ticket.title}** failed.\n\n${transition.reason ?? ''}`.trim() });
     } else if (to === 'IN_HUMAN_REVIEW') {
-      await this.raiser.raise({ ...base, kind: 'pr_ready', stage: 'review', dedupeKey: `pr_ready:${ticket.id}`, title: `${ticket.key} is ready for human review`, body: `The pull request for **${ticket.key}: ${ticket.title}** is ready.${ticket.prUrl ? `\n\n${ticket.prUrl}` : ''}` });
+      await this.raiser.raise(prReadyItem(ticket));
     }
   }
 }

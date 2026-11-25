@@ -27,6 +27,14 @@ export class ProjectsService {
     return toDto(project);
   }
 
+  /** GET /projects/:id/kb: the KB docs of the repository that a ticket can attach (kept up to date by the worker). */
+  async kbDocs(id: string): Promise<{ docs: { path: string; title: string }[]; updatedAt: string | null }> {
+    const project = await this.prisma.project.findUnique({ where: { id }, select: { kbCatalog: true } });
+    if (!project) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Project not found');
+    const catalog = project.kbCatalog as { docs?: { path: string; title: string }[]; updatedAt?: string } | null;
+    return { docs: catalog?.docs ?? [], updatedAt: catalog?.updatedAt ?? null };
+  }
+
   async create(body: unknown): Promise<ProjectDto> {
     const input = parseBody(ProjectInputSchema, body);
     try {

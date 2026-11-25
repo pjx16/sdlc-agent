@@ -23,7 +23,7 @@ A self-hosted, Docker-based **shipping engine** for solo developers. It turns ti
 
 sdlc-agent takes a ticket from Jira (or one pasted into its dashboard) and:
 
-1. **Plans** it with AI (a solution design for a feature, a root-cause investigation for a bug; the plan lists the subtasks), publishes it to Jira or Confluence, then waits for your approval.
+1. **Plans** it with AI (a solution design for a feature, a root-cause investigation for a bug; the plan lists the subtasks), posts it to Jira and commits it to the repository's knowledge-base folder, then waits for your approval.
 2. **Breaks the approved plan down** into subtasks by itself.
 3. **Implements each subtask test-first**, with AI agents running in isolated containers.
 4. **Opens one pull request per ticket**, with one `test:` and one `feat:` commit per subtask, and keeps an eye on its size.
@@ -79,14 +79,14 @@ Key points:
 - **Sixteen agents, one job each:** the prompts are markdown in [`guidelines/agents`](./guidelines/agents) and are also written to `.claude/agents/`. Eleven of them ship as a [Claude Code plugin](#use-the-agents-in-your-own-claude-code) you can use without the stack.
 - **Onboarding and the inbox:** give a repository URL and the pipeline profiles it (stack, commands, Jira mapping) for you to accept; anything that needs you lands in the inbox, and you can rerun a ticket from any finished stage with a note.
 - **Dashboard:** single-user password login, a live pipeline diagram that shows which step is moving, per-ticket overview (tokens, cost, time, PR size), inbox with the plan and breakdown to read before approving, live logs, settings, guideline editing and charts. Dates and chart axes use your own time zone.
-- **Jira and Confluence:** REST polling with a configurable JQL per project, issue-type routing, and ticket states mapped to Jira statuses. Plans can be published to Confluence. Pasting tickets works with or without Jira.
+- **Jira:** REST polling with a configurable JQL per project, issue-type routing, and ticket states mapped to Jira statuses. Plans are posted to Jira and committed to `<kb folder>/plans/<KEY>.md` in the repository. Pasting tickets works with or without Jira.
 
-The integrations are described in [`docs/TRACKER.md`](./docs/TRACKER.md) and [`docs/CONFLUENCE.md`](./docs/CONFLUENCE.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
+The integrations are described in [`docs/TRACKER.md`](./docs/TRACKER.md) For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
 
 ## Design principles
 
 1. **Code does everything that needs no judgment.** Jira calls, git, GitHub, running tests, state tracking and scheduling are plain deterministic code. AI is used only for planning, breakdown, test writing, implementation, fixing, review, triage, choosing among legal moves and knowledge-base writing.
-2. **Agents only edit files.** The orchestrator makes every commit, push, PR and Jira call. Agent containers never hold GitHub credentials, and never Jira or Confluence credentials.
+2. **Agents only edit files.** The orchestrator makes every commit, push, PR and Jira call. Agent containers never hold GitHub credentials, and never Jira credentials.
 3. **Every AI stage is a fresh, narrow, capped run:** its own container, its own model, its own step limit, and only the context it needs.
 4. **Humans gate two points:** plan approval and merge. Stuck steps are recovered by the orchestrator first, within a limit, and every decision is recorded.
 5. **One AI stage runs at a time**, system-wide, to keep usage predictable.
@@ -226,7 +226,7 @@ for the agents and how to use them.
 
 ## Adding a project
 
-Open **Projects → New** and give a **repository URL** (an HTTPS `github.com` URL such as `https://github.com/acme/billing`) and, optionally, a Jira project key. The pipeline collects the facts (default branch and languages, Jira issue types, statuses and labels, Confluence spaces), asks the repo-profiler and onboarding-advisor agents for a proposal, and shows it for you to review and accept: stack and its install, typecheck and targeted-test commands (the test command must contain `{files}`), knowledge-base folder, Jira status mapping and approval status, issue-type routing, intake label and Confluence space. Everything stays editable on the project page. Choose how the project reaches GitHub (your token or sdlc-agent-bot) and the **CLAUDE.md mode**: `ours` (our defaults; the repository's own `CLAUDE.md` is hidden from Claude), `theirs` (only the repository's) or `both`.
+Open **Projects → New** and give a **repository URL** (an HTTPS `github.com` URL such as `https://github.com/acme/billing`) and, optionally, a Jira project key. The pipeline collects the facts (default branch and languages, Jira issue types, statuses and labels), asks the repo-profiler and onboarding-advisor agents for a proposal, and shows it for you to review and accept: stack and its install, typecheck and targeted-test commands (the test command must contain `{files}`), knowledge-base folder, Jira status mapping and approval status, issue-type routing, and intake label. Everything stays editable on the project page. Choose how the project reaches GitHub (your token or sdlc-agent-bot) and the **CLAUDE.md mode**: `ours` (our defaults; the repository's own `CLAUDE.md` is hidden from Claude), `theirs` (only the repository's) or `both`.
 
 The worker then clones a bare mirror in the background. The project shows *Cloning*, then *Ready*, or *Failed* with the error (fix the URL or token and press Retry). A project accepts tickets only when it is *Ready*.
 
@@ -257,7 +257,7 @@ Secrets and the few settings that must exist before the dashboard does live in `
 
 ```text
 apps/
-  api/            NestJS API and worker (Prisma, state machine, agent runner, LLM gateway, Git/GitHub/Jira/Confluence clients)
+  api/            NestJS API and worker (Prisma, state machine, agent runner, LLM gateway, Git/GitHub/Jira clients)
   dashboard/      Next.js dashboard
   broker/         Optional token broker for sdlc-agent-bot (GitHub App); see docs/BOT.md
   e2e/            Playwright browser tests (own Postgres, built API, dashboard)
@@ -304,7 +304,7 @@ Known limitations:
 - Spend is the cost Claude Code reports for each run. A run's cost counts when the run ends, so a budget can be overshot by the run that was in progress when it was reached.
 - Only one stage runs at a time, system-wide, and a ticket's whole run is sequential.
 - The first-pass rate on the Overview is approximate: a subtask has no completion time of its own, so it counts in the range where its last stage run ended.
-- Only two small tickets have run with live Claude ([`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)). Review fixes, CI fixes, support queries, Jira, Confluence and larger tickets have only been tested against the stand-in.
+- Only two small tickets have run with live Claude ([`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)). Review fixes, CI fixes, support queries, Jira and larger tickets have only been tested against the stand-in.
 - A failed first dependency install leaves a half-installed `node_modules`, and Retry skips the reinstall. Delete the workspace's `node_modules` and reinstall, or delete the workspace (see [`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)).
 - Creating a ticket through the API requires the text in `body`; unknown fields are rejected.
 

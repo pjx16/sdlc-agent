@@ -38,6 +38,48 @@ describe('Inbox', () => {
     expect(screen.getAllByText(/waiting 2 h/).length).toBe(4);
   });
 
+  it('an approval carries the open questions: Approve waits for every answer, then sends them with the approval', async () => {
+    fetchMock.mockResolvedValue(reply({}));
+    const approval = t({ id: 'a1', kind: 'approval', group: 'approvals', title: 'Approve the plan for SDA-1', body: 'ready', actions: ['approve', 'reject', 'dismiss'], openQuestions: [{ id: 'oq1', title: 'Which repo?', body: 'Which repo?', defaultAnswer: null, response: null }] });
+    render(<Inbox tab="open" now={NOW} tickets={[approval]} />);
+    const approve = screen.getByRole('button', { name: 'Approve' });
+    expect(approve).toBeDisabled();
+    expect(screen.getByText('Answer the open questions to approve.')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Which repo\?/), 'billing');
+    await userEvent.click(approve);
+    expect(sentBody()).toEqual({ action: 'approve', answers: [{ id: 'oq1', answer: 'billing' }] });
+  });
+
+  it('offers the actions of a PR in review: open it, mark it done or failed, re-run the KB update', async () => {
+    fetchMock.mockResolvedValue(reply({}));
+    render(<Inbox tab="open" now={NOW} tickets={[t({ id: 'c', kind: 'pr_ready', group: 'fyi', priority: 'fyi', title: 'SDA-3 is ready', ticketPrUrl: 'https://github.com/acme/app/pull/7', actions: ['done', 'fail'] })]} />);
+    expect(screen.queryByText('Dismiss')).not.toBeInTheDocument(); // the review ends as done or failed, never silently
+    expect(screen.getByRole('link', { name: 'Open PR' })).toHaveAttribute('href', 'https://github.com/acme/app/pull/7');
+    await userEvent.click(screen.getByRole('button', { name: 'Mark done' }));
+    expect(sentBody()).toEqual({ action: 'done' });
+
+    fetchMock.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: 'Mark failed…' }));
+    const send = screen.getByRole('button', { name: 'Mark failed' });
+    expect(send).toBeDisabled(); // a reason is required
+    await userEvent.type(screen.getByLabelText('Why did the review fail?'), 'PR closed unmerged');
+    await userEvent.click(send);
+    expect(sentBody()).toEqual({ action: 'fail', note: 'PR closed unmerged' });
+
+    fetchMock.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: 'Re-run KB update' }));
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tickets/t1/kb-update/rerun');
+  });
+
+  it('makes the PR link of a human review item clickable', () => {
+    const body = 'The pull request for **SDA-3: Invoices** is ready.\n\nhttps://github.com/acme/app/pull/7';
+    render(<Inbox tab="open" now={NOW} tickets={[t({ id: 'c', kind: 'pr_ready', group: 'fyi', priority: 'fyi', title: 'SDA-3 is ready for human review', body, actions: ['dismiss'] })]} />);
+    const link = screen.getByRole('link', { name: 'https://github.com/acme/app/pull/7' });
+    expect(link).toHaveAttribute('href', 'https://github.com/acme/app/pull/7');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument();
+  });
+
   it('shows a calm empty state', () => {
     render(<Inbox tickets={[]} tab="open" />);
     expect(screen.getByText(/Nothing is waiting for you/)).toBeInTheDocument();
