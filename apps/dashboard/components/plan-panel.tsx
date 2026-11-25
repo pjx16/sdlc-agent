@@ -7,6 +7,8 @@ interface Props {
   ticketId: string;
   status: string;
   planMarkdown: string | null;
+  /** A link to the plan file in the repository, once it is committed to the ticket's branch. */
+  planFileUrl?: string | null;
 }
 
 type Notice = { kind: 'ok' | 'error'; text: string } | null;
@@ -15,7 +17,7 @@ type Notice = { kind: 'ok' | 'error'; text: string } | null;
  * The plan and its gate (F7). While the ticket awaits plan approval the plan can be edited, approved or rejected with a
  * note; at any other time it is shown read-only.
  */
-export function PlanPanel({ ticketId, status, planMarkdown }: Props) {
+export function PlanPanel({ ticketId, status, planMarkdown, planFileUrl }: Props) {
   const router = useRouter();
   const awaiting = status === 'AWAITING_PLAN_APPROVAL';
   const [text, setText] = useState(planMarkdown ?? '');
@@ -53,6 +55,11 @@ export function PlanPanel({ ticketId, status, planMarkdown }: Props) {
   if (!awaiting) {
     return planMarkdown ? (
       <div className="space-y-2">
+        {planFileUrl && (
+          <a href={planFileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline">
+            Open the plan file in the repository
+          </a>
+        )}
         <pre className="whitespace-pre-wrap panel p-4 font-sans text-sm">{planMarkdown}</pre>
       </div>
     ) : (
