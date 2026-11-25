@@ -4,7 +4,17 @@ import { zodFields } from './zod-utils';
 
 describe('PasteTicketSchema', () => {
   it('accepts a minimal ticket and applies defaults', () => {
-    expect(PasteTicketSchema.parse({ projectId: 'p1', title: '  Add a thing  ' })).toEqual({ projectId: 'p1', title: 'Add a thing', body: '', type: undefined, kind: undefined, featureKey: undefined });
+    expect(PasteTicketSchema.parse({ projectId: 'p1', title: '  Add a thing  ' })).toEqual({ projectId: 'p1', title: 'Add a thing', body: '', type: undefined, kind: undefined, featureKey: undefined, kbAttachments: [] });
+  });
+  it('limits the attached KB docs: relative .md paths inside the KB folder, at most five', () => {
+    const ok = (kbAttachments: unknown) => PasteTicketSchema.safeParse({ projectId: 'p1', title: 't', kbAttachments }).success;
+    expect(ok(['auth.md', 'billing/overview.md'])).toBe(true);
+    expect(ok(['../x.md'])).toBe(false);
+    expect(ok(['/etc/x.md'])).toBe(false);
+    expect(ok(['a/./b.md'])).toBe(false);
+    expect(ok(['a\\b.md'])).toBe(false);
+    expect(ok(['notes.txt'])).toBe(false);
+    expect(ok(Array.from({ length: 6 }, (_, i) => `d${i}.md`))).toBe(false);
   });
   it('keeps type, body and feature key', () => {
     expect(PasteTicketSchema.parse({ projectId: 'p1', title: 't', body: 'b', type: 'bug', featureKey: 'billing-export' })).toMatchObject({ type: 'bug', body: 'b', featureKey: 'billing-export' });
