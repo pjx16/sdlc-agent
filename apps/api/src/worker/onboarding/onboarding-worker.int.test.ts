@@ -103,10 +103,17 @@ describe('OnboardingWorker', () => {
     expect(proposal.facts.confluence).toEqual({ spaces: [{ key: 'ENG', name: 'Engineering' }, { key: 'SDA', name: 'SDA Platform' }] });
     expect(proposal.profile).toMatchObject({ stack: 'nestjs', testCmdTemplate: 'npx jest {files}', baseBranch: 'main', installCheck: { command: 'npm ci', ok: true }, typecheckCheck: { command: 'npx tsc --noEmit', ok: true } });
     expect(proposal.accepted).toEqual({});
-    expect(requests.map((r) => r.stage)).toEqual(['repoProfile', 'onboardAdvise']);
-    expect(requests[0]?.workspacePath).toContain(path.join('onboarding', p.id));
-    expect(requests[1]?.workspacePath).toBeUndefined();
-    expect(requests[1]?.inputs.onboard?.facts).toContain('Issue types:');
+    // The advice does not wait for the code profiling, so the two agents start in either order.
+    expect(requests.map((r) => r.stage).sort()).toEqual(['onboardAdvise', 'repoProfile']);
+    const profile = requests.find((r) => r.stage === 'repoProfile');
+    const advise = requests.find((r) => r.stage === 'onboardAdvise');
+    expect(profile?.workspacePath).toContain(path.join('onboarding', p.id));
+    expect(advise?.workspacePath).toBeUndefined();
+    expect(advise?.inputs.onboard?.facts).toContain('Issue types:');
+    // Phase timings are kept in the proposal, and the live progress is cleared once the proposal exists.
+    const done = await reload(p.id);
+    expect(Object.keys((done.onboardingProposal as { timings: Record<string, number> }).timings).sort()).toEqual(['advise', 'checkout', 'facts', 'install', 'mirror', 'profile', 'typecheck']);
+    expect(done.onboardingProgress).toBeNull();
     expect(await prisma.supportTicket.findMany({ where: { projectId: p.id } })).toMatchObject([{ kind: 'onboarding', status: 'open', priority: 'blocking', ticketId: null }]);
   });
 

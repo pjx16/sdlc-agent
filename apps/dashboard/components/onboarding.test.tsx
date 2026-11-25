@@ -76,12 +76,22 @@ describe('OnboardingPanel', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     fetchMock.mockResolvedValue(reply(view()));
     render(<OnboardingPanel projectId="p1" initial={view({ status: 'profiling', proposal: null })} />);
-    expect(screen.getByRole('status')).toHaveTextContent('Reading the repository');
+    expect(screen.getByRole('status')).toHaveTextContent('Profiling the repository');
+    expect(screen.getByRole('dialog', { name: 'Profiling your repository' })).toBeInTheDocument();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3100);
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding');
     expect(await screen.findByRole('region', { name: 'Commands' })).toBeInTheDocument();
+  });
+
+  it('can hide the progress window and bring it back', async () => {
+    fetchMock.mockResolvedValue(reply(view({ status: 'profiling', proposal: null })));
+    render(<OnboardingPanel projectId="p1" initial={view({ status: 'profiling', proposal: null })} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Continue in background' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show progress' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   it('shows why it failed and offers to run it again', async () => {
