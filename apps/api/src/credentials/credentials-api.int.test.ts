@@ -111,7 +111,7 @@ describe('credentials API', () => {
     await api().put('/credentials/jira_api_token', 'j'.repeat(30)).expect(200);
     expect((await api().post('/credentials/jira_api_token/test').expect(200)).body).toEqual({ ok: true, message: 'Connected as Jira Dev' });
     expect(calls.some((c) => c.url === 'https://acme.atlassian.net/rest/api/3/myself')).toBe(true);
-    expect(calls.at(-1)?.url).toBe('https://acme.atlassian.net/wiki/api/v2/spaces?limit=1'); // Confluence is checked with the same credential
+    expect(calls.some((c) => c.url.includes('/wiki/'))).toBe(false);
     jiraStatus = 401;
     expect((await api().post('/credentials/jira_email/test').expect(200)).body).toEqual({ ok: false, message: 'Jira rejected the credentials' });
   });

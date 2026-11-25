@@ -40,7 +40,7 @@ export const OnboardAdviseData = z.object({
   approvalStatuses: z.object({ plan: z.string().min(1).nullable(), breakdown: z.string().min(1).nullable() }),
   issueTypeRouting: z.record(z.string(), z.enum(ISSUE_KINDS)),
   intakeLabel: z.string().trim().min(1).regex(/^[^\s]+$/, 'must not contain spaces'),
-  confluenceSpaceKey: z.string().nullable(),
+  confluenceSpaceKey: z.string().nullable().optional(),
 });
 export type OnboardAdvice = z.infer<typeof OnboardAdviseData>;
 
@@ -66,7 +66,7 @@ export interface OnboardingFacts {
   github: GithubFacts;
   jira: JiraFacts | null;
   /** Spaces the person can write to, or null with the reason when Confluence cannot be reached. */
-  confluence: { spaces: ConfluenceSpace[] } | { spaces: null; reason: string };
+  confluence?: { spaces: ConfluenceSpace[] } | { spaces: null; reason: string };
 }
 
 export interface CommandCheck {

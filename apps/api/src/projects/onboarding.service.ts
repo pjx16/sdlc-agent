@@ -1,13 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import {
-  ErrorCodes, GITHUB_AUTHS, GlobalSettingsSchema, ISSUE_KINDS, MUST_ACCEPT, ONBOARDING_SECTIONS, PLANS_PARENT_PAGE_TITLE, ProjectSettingsSchema, RepoProfileData, TICKET_STATUSES, buildIntakeJql, defaultLocalKeyPrefix, events, jiraOn,
+  ErrorCodes, GITHUB_AUTHS, GlobalSettingsSchema, ISSUE_KINDS, MUST_ACCEPT, ONBOARDING_SECTIONS, ProjectSettingsSchema, RepoProfileData, TICKET_STATUSES, buildIntakeJql, defaultLocalKeyPrefix, events, jiraOn,
   type OnboardingProposal, type OnboardingSection, type OnboardingStatus, type TicketStatus,
 } from '@sdlc/shared';
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
 import { logEvent } from '../common/event-log';
 import { parseBody } from '../common/parse-body';
-import { ConfluenceClients } from '../confluence/confluence-clients';
 import { Prisma, type Project } from '../generated/prisma/client';
 import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
@@ -44,7 +43,7 @@ export interface DryRunDto {
 
 export interface ConfirmDto {
   project: ProjectDto;
-  /** Things that did not work but do not stop the project (for example Confluence). */
+  /** Things that did not work but do not stop the project. */
   warnings: string[];
 }
 
@@ -53,7 +52,6 @@ export class OnboardingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jira: JiraClients,
-    private readonly confluence: ConfluenceClients,
     private readonly raiser: SupportRaiser,
   ) {}
 
@@ -119,24 +117,13 @@ export class OnboardingService {
     const { action, value } = parseBody(SectionBody, body);
     const proposal = this.proposalOf(p);
     if (p.onboardingStatus !== 'proposed' || !proposal) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'There is no proposal to review yet');
-    // The Confluence facts were read when onboarding ran; a space created since must still be accepted, so look again.
-    if (action === 'edit' && section === 'confluence') await this.refreshSpaces(proposal);
     if (action === 'edit') this.apply(proposal, section as OnboardingSection, parseBody(z.record(z.string(), z.unknown()), value ?? {}));
     proposal.accepted = { ...proposal.accepted, [section]: true };
     await this.prisma.project.update({ where: { id }, data: { onboardingProposal: proposal as unknown as Prisma.InputJsonValue } });
     return this.get(id);
   }
 
-  /** Reads the writable Confluence spaces again. When Confluence cannot be reached the old facts stay and the edit is checked against them. */
-  private async refreshSpaces(proposal: OnboardingProposal): Promise<void> {
-    try {
-      proposal.facts.confluence = { spaces: await (await this.confluence.forRest()).listWritableSpaces() };
-    } catch {
-      // keep what onboarding found
-    }
-  }
-
-  /** Edits one section, checking it against the facts: a status must exist in Jira, a space must be one the person can write to. */
+  /** Edits one section, checking it against the facts: a status must exist in Jira. */
   private apply(proposal: OnboardingProposal, section: OnboardingSection, value: Record<string, unknown>): void {
     const jira = proposal.facts.jira;
     switch (section) {
@@ -167,14 +154,6 @@ export class OnboardingService {
         const parsed = parseBody(z.object({ intakeLabel: z.string().trim().min(1, 'required').regex(/^\S+$/, 'must not contain spaces') }), value);
         proposal.advice = { ...proposal.advice, intakeLabel: parsed.intakeLabel };
         return;
-      }
-      case 'confluence': {
-        const spaces = proposal.facts.confluence.spaces;
-        const parsed = parseBody(z.object({ confluenceSpaceKey: z.string().nullable() }), value);
-        if (parsed.confluenceSpaceKey !== null && !spaces?.some((s) => s.key === parsed.confluenceSpaceKey)) {
-          throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { confluenceSpaceKey: spaces ? 'is not a space you can write to' : 'Confluence cannot be reached, so the space cannot be checked. Check the Confluence credential in Settings → Connections.' });
-        }
-        proposal.advice = { ...proposal.advice, confluenceSpaceKey: parsed.confluenceSpaceKey };
       }
     }
   }
@@ -213,15 +192,6 @@ export class OnboardingService {
     const { profile, advice, facts } = proposal;
     const settings = ProjectSettingsSchema.parse(p.settings);
 
-    let confluence: { spaceKey: string; parentPageId: string | null } | null = null;
-    if (advice.confluenceSpaceKey) {
-      try {
-        const page = await (await this.confluence.forRest()).ensureParentPage(advice.confluenceSpaceKey, PLANS_PARENT_PAGE_TITLE);
-        confluence = { spaceKey: advice.confluenceSpaceKey, parentPageId: page.id };
-      } catch (err) {
-        warnings.push(`Confluence: ${err instanceof Error ? err.message : String(err)}. The project works without it; plans go to Jira comments.`);
-      }
-    }
     // New projects start with the models and turn limits chosen in Settings.
     const row = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     const defaults = GlobalSettingsSchema.parse({ stageDefaults: row?.stageDefaults ?? {} }).stageDefaults;
@@ -234,7 +204,6 @@ export class OnboardingService {
       jiraApprovalStatuses: { plan: advice.approvalStatuses.plan ?? undefined, breakdown: advice.approvalStatuses.breakdown ?? undefined },
       jiraIssueTypeRouting: advice.issueTypeRouting,
       ...(subtaskType ? { jiraSubtaskTypeName: subtaskType } : {}),
-      confluence,
     };
     const updated = await this.prisma.project.update({
       where: { id },
