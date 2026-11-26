@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { GhCliClient, GitHubError, parseRepo } from './github-client';
+import { GhCliClient, GitHubError, parseRepo, statusOptionsMutation } from './github-client';
 
 /**
  * A stand-in for the `gh` executable. It records its arguments (and the body file it was given), answers from FAKE_GH_REPLIES
@@ -247,6 +247,33 @@ describe('GhCliClient: GitHub issues and Projects', () => {
     await expect(client.listProjectItems('acme', 99, 'Status')).rejects.toThrow(/project acme\/99 was not found.*"project" scope/);
     reply({ 'api graphql': { stdout: JSON.stringify({ errors: [{ message: 'Resource not accessible' }] }) } });
     await expect(client.listProjectItems('acme', 3, 'Status')).rejects.toThrow('Resource not accessible');
+  });
+
+  describe('ensureStatusOptions', () => {
+    const fieldReply = (options: object[]) => ({ stdout: JSON.stringify({ data: { repositoryOwner: { projectV2: { fields: { nodes: [{ id: 'F_status', name: 'Status', options }] } } } } }) });
+    const existing = [{ id: 'a1', name: 'Todo', color: 'GRAY', description: '' }, { id: 'b2', name: 'In Progress', color: 'YELLOW', description: 'working "now"' }];
+
+    it('sends the existing options back with their ids, colours and descriptions, then the new ones', () => {
+      expect(statusOptionsMutation('F_status', existing, ['Plan review'])).toBe(
+        'mutation{ updateProjectV2Field(input:{fieldId:"F_status",singleSelectOptions:[{id:"a1",name:"Todo",color:GRAY,description:""},{id:"b2",name:"In Progress",color:YELLOW,description:"working \\"now\\""},{name:"Plan review",color:GRAY,description:""}]}){ projectV2Field{ ... on ProjectV2SingleSelectField{ id } } } }',
+      );
+    });
+
+    it('adds only the missing columns, comparing without regard to case', async () => {
+      reply({ 'api graphql': [fieldReply(existing), { stdout: '{"data":{}}' }] });
+      expect(await client.ensureStatusOptions('acme', 3, 'Status', ['todo', 'Plan review', 'Plan review', ' '])).toEqual(['Plan review']);
+      const mutation = calls().at(-1)!.args.find((a) => a.includes('updateProjectV2Field'))!;
+      expect(mutation).toContain('{id:"a1",name:"Todo"');
+      expect(mutation).toContain('{name:"Plan review"');
+      expect(mutation.match(/Plan review/g)).toHaveLength(1);
+    });
+
+    it('writes nothing when every column is there, and says false when there is no such field', async () => {
+      reply({ 'api graphql': fieldReply(existing) });
+      expect(await client.ensureStatusOptions('acme', 3, 'Status', ['Todo', 'in progress'])).toEqual([]);
+      expect(calls().filter((c) => c.args.some((a) => a.includes('updateProjectV2Field')))).toHaveLength(0);
+      expect(await client.ensureStatusOptions('acme', 3, 'Stage', ['X'])).toBe(false);
+    });
   });
 
   it('moves a card to a column, comparing names without regard to case, and does nothing when it is there already', async () => {

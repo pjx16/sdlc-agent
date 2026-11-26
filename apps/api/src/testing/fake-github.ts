@@ -45,6 +45,21 @@ export class FakeGitHub implements GitHubClient {
     this.statusMoves.push({ owner, project, number: issue.number, field, option });
     return true;
   }
+  /** Who owns what: `ownerTypes` answers `ownerType`, and an owner that is not listed is an organization. */
+  ownerTypes: Record<string, 'User' | 'Organization'> = {};
+  async ownerType(owner: string): Promise<'User' | 'Organization' | null> {
+    this.calls.push('ownerType');
+    return this.ownerTypes[owner] ?? 'Organization';
+  }
+  /** `ensureStatusOptions` adds to `columns` and answers with what it added; `failEnsure` makes it answer false (no such board). */
+  failEnsure = false;
+  async ensureStatusOptions(_owner: string, _project: number, _field: string, names: string[]): Promise<string[] | false> {
+    this.calls.push('ensureStatusOptions');
+    if (this.failEnsure) return false;
+    const missing = names.filter((n) => !this.columns.some((c) => c.toLowerCase() === n.toLowerCase()));
+    this.columns.push(...missing);
+    return missing;
+  }
   async setIssueLabels(repo: string, number: number, add: string[], remove: string[]) {
     this.calls.push('setIssueLabels');
     this.labelChanges.push({ repo, number, add, remove });

@@ -79,6 +79,7 @@ describe('OnboardingWorker', () => {
     verifyOk = {};
     github.facts = { defaultBranch: 'main', languages: ['TypeScript'] };
     github.failFacts = null;
+    github.ownerTypes = {};
     jira.failWith = null;
     agent = (req) => done(req.stage === 'repoProfile' ? profile : advice);
     await prisma.supportTicket.deleteMany();
@@ -182,6 +183,17 @@ describe('OnboardingWorker', () => {
       await worker.check();
       expect(await reload(p.id)).toMatchObject({ onboardingStatus: 'draft', onboardingProposal: null, onboardingError: expect.stringContaining('gh: Not Found (HTTP 404). Check the GitHub token') });
       expect(requests).toHaveLength(0);
+    });
+
+    it('a bot project whose board belongs to a user, which the GitHub App cannot read', async () => {
+      const board = { github: { mode: 'projects', project: { owner: 'pjx16', number: 7 } } };
+      github.ownerTypes = { pjx16: 'User' };
+      const bot = await project({ githubAuth: 'bot', settings: board });
+      const token = await project({ githubAuth: 'token', settings: board });
+      await worker.check();
+      await worker.check(); // one project at a time
+      expect(await reload(bot.id)).toMatchObject({ onboardingStatus: 'draft', onboardingError: expect.stringContaining('the GitHub App cannot read a user\'s Projects boards. Use a personal access token') });
+      expect((await reload(token.id)).onboardingStatus).toBe('proposed'); // a token can read it
     });
 
     it('Jira not configured, or a wrong key', async () => {
