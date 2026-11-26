@@ -31,7 +31,7 @@ export default async function UsagePage() {
       </div>
       {spend && <BudgetOverview periods={spend.periods} warnPct={spend.warnPct} projection={spend.projection} />}
       {spend && <BurnChart burn={spend.burn} />}
-      <div>
+      <div id="ticket-costs">
         <h2 className="mb-2 text-sm font-medium">Cost per ticket</h2>
         {tickets ? <TicketCosts data={tickets} /> : <p className="text-sm text-muted">Not available.</p>}
       </div>
