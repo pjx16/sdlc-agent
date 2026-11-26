@@ -245,6 +245,36 @@ describe('AgentRunner', () => {
     expect(engine.handles[0]).toMatchObject({ killed: true, removed: true });
   }, 15_000);
 
+  describe('abort signal (onboarding deadline or cancel)', () => {
+    it('kills a running stage when the signal aborts, records why, and does not retry', async () => {
+      const { runner, store, engine } = setup({ runMs: 5000 });
+      const ctrl = new AbortController();
+      setTimeout(() => ctrl.abort(), 20);
+      const res = await runner.run({ ...request(), signal: ctrl.signal });
+      expect(res).toMatchObject({ kind: 'killed', attempts: 1 });
+      expect(store.runs.get('run-1')).toMatchObject({ status: 'killed', finished: { error: expect.stringContaining('time limit') } });
+      expect(engine.handles[0]).toMatchObject({ killed: true, removed: true });
+      expect(engine.created).toHaveLength(1);
+    }, 15_000);
+
+    it('stops waiting between retries when aborted, instead of sleeping for minutes', async () => {
+      const { runner, engine } = setup({ exitCode: 1, lines: [JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['too many requests'], api_error_status: 429 })] });
+      const ctrl = new AbortController();
+      runner.sleep = () => new Promise(() => undefined); // would wait for ever
+      setTimeout(() => ctrl.abort(), 30);
+      const res = await runner.run({ ...request(), signal: ctrl.signal });
+      expect(res).toMatchObject({ kind: 'failed', errorCode: 'CLAUDE_RATE_LIMIT', attempts: 1 });
+      expect(engine.created).toHaveLength(1);
+    }, 15_000);
+
+    it('without a signal nothing changes: a killed stage still says it was killed from the dashboard', async () => {
+      const { runner, store } = setup({ runMs: 5000 });
+      setTimeout(() => store.killRequested.add('run-1'), 20);
+      await runner.run(request());
+      expect(store.runs.get('run-1')?.finished?.error).toBe('Killed from the dashboard');
+    }, 15_000);
+  });
+
   it('refuses a stage that needs a workspace but has none', async () => {
     await expect(setup(good).runner.run(request({ workspacePath: undefined }))).rejects.toThrow('needs a workspace');
   });

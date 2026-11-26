@@ -35,6 +35,8 @@ export const GlobalSettingsSchema = z.object({
   pollIntervalSec: int(120, 5, 3600),
   stageTimeoutMin: int(20, 1, 240),
   verifyTimeoutSec: int(600, 10, 7200),
+  /** Profiling a repository stops after this long, whatever step it is in. */
+  onboardingTimeoutMin: int(15, 5, 120),
   workspaceRetentionDays: int(7, 1, 365),
   logRetentionDays: int(30, 1, 3650),
   /** Tokens (input and output) one assistant conversation may use before it stops. */

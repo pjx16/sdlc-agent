@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { WorkerConfig } from '../worker-config';
 import { VerifyService, buildTestCommand, shellQuote } from '../verify/verify.service';
 import { buildCreateOptions, parseMemory, type ContainerSpec } from './container-options';
@@ -174,6 +174,32 @@ describe('ContainerRunner', () => {
     expect(result).toMatchObject({ exitCode: 0, killed: false });
   });
 
+  it('kills the container when the signal aborts, and stops listening afterwards', async () => {
+    const engine = new FakeEngine({ runMs: 5000 });
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 20);
+    const result = await new ContainerRunner(engine).run(spec({ timeoutMs: 10_000 }), { signal: ctrl.signal });
+    expect(result).toMatchObject({ killed: true, timedOut: false, exitCode: 137 });
+    expect(engine.handles[0]).toMatchObject({ killed: true, removed: true });
+    expect(result.durationMs).toBeLessThan(2000);
+  });
+
+  it('kills at once when the signal was already aborted before the container started', async () => {
+    const engine = new FakeEngine({ runMs: 5000 });
+    const result = await new ContainerRunner(engine).run(spec({ timeoutMs: 10_000 }), { signal: AbortSignal.abort() });
+    expect(result).toMatchObject({ killed: true, exitCode: 137 });
+    expect(engine.handles[0]?.removed).toBe(true);
+  });
+
+  it('removes its abort listener when the container ends on its own', async () => {
+    const ctrl = new AbortController();
+    const add = vi.spyOn(ctrl.signal, 'addEventListener');
+    const remove = vi.spyOn(ctrl.signal, 'removeEventListener');
+    await new ContainerRunner(new FakeEngine({ exitCode: 0 })).run(spec(), { signal: ctrl.signal });
+    expect(add).toHaveBeenCalledWith('abort', expect.any(Function), { once: true });
+    expect(remove).toHaveBeenCalledWith('abort', add.mock.calls[0]?.[1]);
+  });
+
   it('removes the container even when it cannot start', async () => {
     const engine = new FakeEngine({ failStart: true });
     await expect(new ContainerRunner(engine).run(spec())).rejects.toThrow('cannot start');
@@ -213,6 +239,16 @@ describe('Verify.runCmd', () => {
     expect(failed).toMatchObject({ ok: false, exitCode: 1, timedOut: false, tail: 'boom' });
     const timeout = await new VerifyService(new ContainerRunner(new FakeEngine({ exitCode: 124 })), config).runCmd({ name: 'v', workspace: '/w', cmd: 'x', timeoutSec: 5 });
     expect(timeout).toMatchObject({ ok: false, timedOut: true });
+  });
+
+  it('stops the verify container when aborted and reports it as not ok', async () => {
+    const engine = new FakeEngine({ runMs: 5000, lines: ['installing'] });
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 20);
+    const res = await new VerifyService(new ContainerRunner(engine), config).runCmd({ name: 'v', workspace: '/w', cmd: 'npm ci', timeoutSec: 600, signal: ctrl.signal });
+    expect(res.ok).toBe(false);
+    expect(res.tail).toContain('Aborted');
+    expect(engine.handles[0]?.killed).toBe(true);
   });
 
   it('substitutes {files} when files are given', async () => {

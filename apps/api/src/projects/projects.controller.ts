@@ -32,6 +32,12 @@ export class ProjectsController {
     return this.onboarding.rerun(id);
   }
 
+  @Post(':id/onboarding/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancelOnboarding(@Param('id') id: string) {
+    return this.onboarding.cancel(id);
+  }
+
   @Patch(':id/onboarding/sections/:section')
   section(@Param('id') id: string, @Param('section') section: string, @Body() body: unknown) {
     return this.onboarding.section(id, section, body);
