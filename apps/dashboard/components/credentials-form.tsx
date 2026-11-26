@@ -185,7 +185,7 @@ function CardView({ card, views, onSaved }: { card: Card; views: Map<CredentialK
 const NEXT_ANCHOR: Record<string, string> = { claude: '#card-GitHub', github: '#card-Jira' };
 
 /** The connection cards of the setup wizard and the settings page: one Save and one Test per card. Secrets are never rendered, only a hint of the last 4 characters. */
-export function CredentialsForm({ initial, encryptionKeyOk = true }: { initial: CredentialView[]; encryptionKeyOk?: boolean }) {
+export function CredentialsForm({ initial, encryptionKeyOk = true, only }: { initial: CredentialView[]; encryptionKeyOk?: boolean; /** Show only these cards (by id). The connector note shows with the Jira cards. */ only?: readonly string[] }) {
   const router = useRouter();
   const [views, setViews] = useState(initial);
   const byKey = new Map(views.map((v) => [v.key, v]));
@@ -201,9 +201,10 @@ export function CredentialsForm({ initial, encryptionKeyOk = true }: { initial: 
           ENCRYPTION_KEY is not set, so tokens cannot be saved here. Add it to .env (<code>openssl rand -base64 32</code>) and restart.
         </p>
       )}
-      {CARDS.map((card) => (
+      {CARDS.filter((card) => !only || only.includes(card.id)).map((card) => (
         <CardView key={card.id} card={card} views={byKey} onSaved={onSaved} />
       ))}
+      {(!only || only.includes('jira-connector')) && (
       <section data-testid="card-jira-connector" className="panel p-6" aria-labelledby="card-jira-connector-title">
         <h2 id="card-jira-connector-title" className="text-lg font-semibold">
           Jira through the Claude Jira connector <span className="ml-2 text-xs font-normal text-muted">optional · uses Claude tokens</span>
@@ -219,6 +220,7 @@ export function CredentialsForm({ initial, encryptionKeyOk = true }: { initial: 
           </p>
         </div>
       </section>
+      )}
     </div>
   );
 }

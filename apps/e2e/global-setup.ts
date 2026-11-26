@@ -14,11 +14,18 @@ const API_PORT = 4100;
 const WEB_PORT = 3100;
 const GITHUB_PORT = 4199;
 
-/** A stand-in for api.github.com: GET /user answers for the one token the setup spec enters. */
+/**
+ * A stand-in for the outside services the setup spec talks to, on one port: api.github.com (GET /user answers for the one token the spec
+ * enters, and the public list of that account's signing keys is empty) and api.anthropic.com (GET /v1/models answers for the one key it enters).
+ */
 function fakeGitHub(): Server {
   return createServer((req, res) => {
-    const ok = req.method === 'GET' && req.url === '/user' && req.headers.authorization?.startsWith('Bearer ghp_');
-    res.writeHead(ok ? 200 : 401, { 'content-type': 'application/json' }).end(JSON.stringify(ok ? { login: 'octo-e2e' } : { message: 'Bad credentials' }));
+    const json = (status: number, body: unknown) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+    const path = (req.url ?? '').split('?')[0];
+    if (req.method === 'GET' && path === '/user') return req.headers.authorization?.startsWith('Bearer ghp_') ? json(200, { login: 'octo-e2e' }) : json(401, { message: 'Bad credentials' });
+    if (req.method === 'GET' && path === '/users/octo-e2e/ssh_signing_keys') return json(200, []);
+    if (req.method === 'GET' && path === '/v1/models') return String(req.headers['x-api-key']).startsWith('sk-ant-api') ? json(200, { data: [] }) : json(401, { error: 'invalid x-api-key' });
+    return json(404, { message: 'Not Found' });
   }).listen(GITHUB_PORT, '127.0.0.1');
 }
 
@@ -54,7 +61,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   };
   start('node', ['dist/main.js'], path.join(ROOT, 'apps/api'), {
     PORT: String(API_PORT), DATABASE_URL: url, DATA_DIR: dataDir, // No DASHBOARD_PASSWORD: tests/0-setup.spec.ts creates the admin through the setup wizard with SETUP_CODE.
-    SETUP_CODE, ENCRYPTION_KEY: randomBytes(32).toString('base64'), GITHUB_API_URL: `http://127.0.0.1:${GITHUB_PORT}`, COOKIE_SECURE: 'false', LOG_LEVEL: 'warn',
+    SETUP_CODE, ENCRYPTION_KEY: randomBytes(32).toString('base64'), GITHUB_API_URL: `http://127.0.0.1:${GITHUB_PORT}`, LLM_GATEWAY_UPSTREAM: `http://127.0.0.1:${GITHUB_PORT}`, COOKIE_SECURE: 'false', LOG_LEVEL: 'warn',
   });
   start('npx', ['next', 'dev', '-p', String(WEB_PORT), '-H', '127.0.0.1'], path.join(ROOT, 'apps/dashboard'), { API_URL: `http://127.0.0.1:${API_PORT}` });
   await waitFor(`http://127.0.0.1:${API_PORT}/health`, 'the API');
