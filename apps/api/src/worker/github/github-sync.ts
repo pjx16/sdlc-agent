@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ProjectSettingsSchema, type TicketStatus } from '@sdlc/shared';
+import { ProjectSettingsSchema, githubBoard, type TicketStatus } from '@sdlc/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Housekeeper } from '../loop/worker-loop';
 import { GITHUB_CLIENT, type GitHubClient } from './github-client';
@@ -65,7 +65,8 @@ export class GithubSync implements Housekeeper {
       const remove = ticket.externalStatus ? [stateLabel(ticket.externalStatus)] : [];
       await this.github.setIssueLabels(ref.repo, ref.number, add, remove);
     } else if (gh.project) {
-      const column = ticket.status in gh.statusMap ? gh.statusMap[ticket.status] ?? null : defaultColumn(ticket.status);
+      const { statusMap } = githubBoard(gh);
+      const column = ticket.status in statusMap ? statusMap[ticket.status] ?? null : defaultColumn(ticket.status);
       if (column) {
         const moved = await this.github.setProjectItemStatus(gh.project.owner, gh.project.number, ref, gh.statusField, column);
         if (!moved) await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'github', level: 'warn', message: `The card of ${ref.repo}#${ref.number} could not be moved to "${column}": the board has no such column, or the card is not on it` } });

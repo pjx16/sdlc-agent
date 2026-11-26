@@ -55,6 +55,8 @@ import { RepoAccessService } from './github/repo-access.service';
 import { GitHubAuth } from './github/github-auth.service';
 import { GithubIssueCreator } from './github/github-issue-creator';
 import { TicketComments } from './github/ticket-comments';
+import { GithubApprovalPoller } from './github/github-approval-poller';
+import { ApprovalService } from '../approval/approval.service';
 import { BrokerClient } from '../broker/broker-client';
 import { CiPoller } from './ci/ci-poller';
 import { SupportRaiser } from '../support/support-raiser';
@@ -140,11 +142,13 @@ import { WorkerRunner } from './worker-runner';
     { provide: TicketComments, useFactory: (p: PrismaService, gh: GitHubClient) => new TicketComments(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
     { provide: GithubIssueCreator, useFactory: (p: PrismaService, gh: GitHubClient, r: SupportRaiser) => new GithubIssueCreator(p, gh, r), inject: [PrismaService, GITHUB_CLIENT, SupportRaiser] },
     { provide: GithubIntake, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubIntake(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
+    ApprovalService,
+    { provide: GithubApprovalPoller, useFactory: (p: PrismaService, gh: GitHubClient, a: ApprovalService, c: TicketComments) => new GithubApprovalPoller(p, gh, a, c), inject: [PrismaService, GITHUB_CLIENT, ApprovalService, TicketComments] },
     { provide: GithubSync, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubSync(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
     { provide: RecoveryService, useFactory: (p: PrismaService, o: OrchestratorService) => new RecoveryService(p, o), inject: [PrismaService, OrchestratorService] },
     { provide: OrchestratorService, useFactory: (p: PrismaService, l: StageLauncher, j: JiraClients, c: TicketComments) => new OrchestratorService(p, l, j, c), inject: [PrismaService, StageLauncher, JiraClients, TicketComments] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, onboarding: OnboardingWorker, image: AgentImageCheck, kb: KbCatalogSync, ghIssues: GithubIssueCreator, ghIntake: GithubIntake, ghSync: GithubSync, net: ConnectivityMonitor): Housekeeper[] => [net, ci, merge, cleanup, orphans, onboarding, image, kb, ghIssues, ghIntake, ghSync], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, OnboardingWorker, AgentImageCheck, KbCatalogSync, GithubIssueCreator, GithubIntake, GithubSync, ConnectivityMonitor] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, onboarding: OnboardingWorker, image: AgentImageCheck, kb: KbCatalogSync, ghIssues: GithubIssueCreator, ghIntake: GithubIntake, ghApproval: GithubApprovalPoller, ghSync: GithubSync, net: ConnectivityMonitor): Housekeeper[] => [net, ci, merge, cleanup, orphans, onboarding, image, kb, ghIssues, ghIntake, ghApproval, ghSync], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, OnboardingWorker, AgentImageCheck, KbCatalogSync, GithubIssueCreator, GithubIntake, GithubApprovalPoller, GithubSync, ConnectivityMonitor] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },
