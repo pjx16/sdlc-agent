@@ -1,9 +1,13 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post } from '@nestjs/common';
+import { type CommitSigningResult, CommitSigningCheck } from './commit-signing-check';
 import { type GlobalSettingsView, SystemSettingsService, type SystemView } from './system-settings.service';
 
 @Controller('system')
 export class SystemController {
-  constructor(private readonly system: SystemSettingsService) {}
+  constructor(
+    private readonly system: SystemSettingsService,
+    private readonly signing: CommitSigningCheck,
+  ) {}
 
   @Get()
   get(): Promise<SystemView> {
@@ -14,6 +18,13 @@ export class SystemController {
   @Get('commit-signing')
   commitSigning(): Promise<{ publicKey: string | null }> {
     return this.system.commitSigning();
+  }
+
+  /** Is that key one of the signing keys of the GitHub account behind the personal token? Then the commits show as Verified. */
+  @Post('commit-signing/test')
+  @HttpCode(HttpStatus.OK)
+  testCommitSigning(): Promise<CommitSigningResult> {
+    return this.signing.check();
   }
 
   @Patch('settings')
