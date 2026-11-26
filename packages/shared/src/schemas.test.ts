@@ -147,7 +147,7 @@ describe('GlobalSettings', () => {
   it('has the section 7 defaults', () => {
     expect(DEFAULT_GLOBAL_SETTINGS).toMatchObject({
       budgetDailyCredits: null, budgetWeeklyCredits: null, budgetMonthlyCredits: null, budgetWarnPct: 80, timezone: 'UTC', pollIntervalSec: 120,
-      stageTimeoutMin: 20, verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30,
+      stageTimeoutMin: 20, verifyTimeoutSec: 600, githubIssueOnCreate: 'ask', workspaceRetentionDays: 7, logRetentionDays: 30,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
     expect(Object.keys(DEFAULT_GLOBAL_SETTINGS)).not.toContain('jiraMcp');

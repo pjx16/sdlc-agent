@@ -156,4 +156,85 @@ describe('Pasted tickets (F3)', () => {
     expect((await t.agent.post('/tickets').send({ projectId: failed.id, title: 'x' }).expect(409)).body.message).toContain('failed');
     expect((await t.prisma.project.findUniqueOrThrow({ where: { id: pending.id } })).nextLocalNumber).toBe(1);
   });
+
+  describe('made from the fields of the create-ticket form', () => {
+    const draft = { title: 'Add CSV export', kind: 'feature', problem: 'Finance cannot export.', expected: 'A CSV with every row.', criteria: ['Exports every row', 'Opens in Excel'], notes: 'See the March thread.' };
+
+    it('builds the text from the fields, in the order of the team ticket format', async () => {
+      const res = await t.agent.post('/tickets').send({ projectId, ...draft }).expect(201);
+      expect(res.body).toMatchObject({ key: 'BILL-1', source: 'paste', type: 'story', title: 'Add CSV export', status: 'NEW', githubIssueState: 'none' });
+      expect(res.body.body).toBe(
+        ['## Problem', 'Finance cannot export.', '', '## Expected behaviour', 'A CSV with every row.', '', '## Acceptance criteria', '- [ ] Exports every row', '- [ ] Opens in Excel', '', '## Notes', 'See the March thread.'].join('\n'),
+      );
+    });
+
+    it('a bug and a chore get the matching ticket type', async () => {
+      expect((await t.agent.post('/tickets').send({ projectId, ...draft, kind: 'bug', steps: '1. Open Reports' }).expect(201)).body).toMatchObject({ type: 'bug', body: expect.stringContaining('## Steps to reproduce\n1. Open Reports') });
+      expect((await t.agent.post('/tickets').send({ projectId, ...draft, kind: 'chore' }).expect(201)).body.type).toBe('tech');
+    });
+
+    it('keeps the KB docs and the feature key', async () => {
+      const p = await makeProject({ kbCatalog: { docs: [{ path: 'auth.md', title: 'Auth' }], updatedAt: 'now' } });
+      const res = await t.agent.post('/tickets').send({ projectId: p.id, ...draft, kbAttachments: ['auth.md'], featureKey: 'export' }).expect(201);
+      expect(res.body).toMatchObject({ kbAttachments: ['auth.md'], featureKey: 'export' });
+    });
+
+    it('returns a message for each field that needs attention, and saves nothing', async () => {
+      const res = await t.agent.post('/tickets').send({ projectId, title: 'x', kind: 'bug', problem: ' ', criteria: [] }).expect(400);
+      expect(res.body.fields).toEqual({ problem: 'required', criteria: 'add at least one acceptance criterion', expected: 'required for a bug' });
+      expect(await t.prisma.ticket.count()).toBe(0);
+      expect((await t.prisma.project.findUniqueOrThrow({ where: { id: projectId } })).nextLocalNumber).toBe(1);
+    });
+
+    it('still takes the older shape (a title and a body)', async () => {
+      const res = await t.agent.post('/tickets').send({ projectId, title: 'Old way', body: 'Just text' }).expect(201);
+      expect(res.body).toMatchObject({ body: 'Just text', githubIssueState: 'none', githubIssueUrl: null });
+    });
+  });
+
+  describe('the GitHub issue of a ticket', () => {
+    const draft = { title: 'Add CSV export', kind: 'feature', problem: 'Finance cannot export.', criteria: ['Exports every row'] };
+    const github = (mode: string) => ({ settings: { github: { mode } } });
+
+    it('is only asked for when the ticket asks for it: the worker finds it pending', async () => {
+      const p = await makeProject(github('issues'));
+      const plain = await t.agent.post('/tickets').send({ projectId: p.id, ...draft }).expect(201);
+      const no = await t.agent.post('/tickets').send({ projectId: p.id, ...draft, github: { create: false } }).expect(201);
+      const yes = await t.agent.post('/tickets').send({ projectId: p.id, ...draft, github: { create: true } }).expect(201);
+      expect([plain.body.githubIssueState, no.body.githubIssueState, yes.body.githubIssueState]).toEqual(['none', 'none', 'pending']);
+      expect(yes.body).toMatchObject({ status: 'NEW', githubIssueError: null, githubIssueUrl: null }); // the pipeline is not held up
+    });
+
+    it('can name an issue that exists, to link it instead of making one', async () => {
+      const p = await makeProject(github('projects'));
+      const res = await t.agent.post('/tickets').send({ projectId: p.id, ...draft, github: { create: false, link: 42 } }).expect(201);
+      expect(res.body.githubIssueState).toBe('pending');
+      expect((await t.prisma.ticket.findUniqueOrThrow({ where: { id: res.body.id } })).githubIssueLink).toBe(42);
+    });
+
+    it('is refused for a project that does not use GitHub, and saves nothing', async () => {
+      const res = await t.agent.post('/tickets').send({ projectId, ...draft, github: { create: true } }).expect(400);
+      expect(res.body.fields.github).toContain('does not use GitHub');
+      expect(await t.prisma.ticket.count()).toBe(0);
+    });
+
+    it('shows the issue address once the ticket has one', async () => {
+      const p = await makeProject(github('issues'));
+      const made = (await t.agent.post('/tickets').send({ projectId: p.id, ...draft, github: { create: true } }).expect(201)).body;
+      await t.prisma.ticket.update({ where: { id: made.id }, data: { externalKey: 'acme/billing#7', source: 'github', githubIssueState: 'created' } });
+      expect((await t.agent.get(`/tickets/${made.id}`).expect(200)).body).toMatchObject({ githubIssueState: 'created', githubIssueUrl: 'https://github.com/acme/billing/issues/7' });
+    });
+
+    it('retry puts a failed one back to pending, clears the error, and is refused in any other state', async () => {
+      const p = await makeProject(github('issues'));
+      const made = (await t.agent.post('/tickets').send({ projectId: p.id, ...draft, github: { create: true } }).expect(201)).body;
+      await t.agent.post(`/tickets/${made.id}/github-issue/retry`).expect(409); // pending
+      await t.prisma.ticket.update({ where: { id: made.id }, data: { githubIssueState: 'failed', githubIssueError: 'Not Found' } });
+      const res = await t.agent.post(`/tickets/${made.id}/github-issue/retry`).expect(200);
+      expect(res.body).toMatchObject({ githubIssueState: 'pending', githubIssueError: null });
+      await t.agent.post(`/tickets/${made.id}/github-issue/retry`).expect(409);
+      await t.agent.post('/tickets/does-not-exist/github-issue/retry').expect(404);
+      await t.anonymous.post(`/tickets/${made.id}/github-issue/retry`).expect(401);
+    });
+  });
 });
