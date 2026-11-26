@@ -264,6 +264,11 @@ export interface TicketDetail extends TicketListItem {
   /** KB docs attached to the ticket; every stage keeps them in its context. */
   kbAttachments?: string[];
   externalKey: string | null;
+  /** Whether the ticket also gets a GitHub issue: none, pending (being made), created, or failed. */
+  githubIssueState?: 'none' | 'pending' | 'created' | 'failed';
+  githubIssueError?: string | null;
+  /** The ticket's GitHub issue, once it has one. */
+  githubIssueUrl?: string | null;
   branch: string | null;
   prUrl: string | null;
   createdAt: string;
