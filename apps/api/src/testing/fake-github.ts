@@ -158,6 +158,12 @@ export class FakeGitHub implements GitHubClient {
     this.issueComments = [];
     this.closed = [];
     this.statusMoves = [];
+    this.createdIssues = [];
+    this.nextIssueNumber = 500;
+    this.failCreateIssue = null;
+    this.knownIssues = new Map();
+    this.addedToBoard = [];
+    this.failAddToBoard = null;
   }
   setChecks(...buckets: CheckBucket[]) {
     this.checksResult = buckets.map((bucket, i) => ({ name: `check-${i + 1}`, bucket }));
