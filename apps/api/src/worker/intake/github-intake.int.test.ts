@@ -87,7 +87,7 @@ describe('GitHub intake', () => {
     github.issues = [issue(1)];
     const r = await intake.poll();
     expect(r.errors).toHaveLength(1);
-    expect(r.errors[0]?.message).toContain('Choose the GitHub project');
+    expect(r.errors[0]?.message).toContain('Choose the GitHub Projects board');
     expect(r.created).toBe(1);
     expect(await prisma.ticket.count({ where: { projectId: ok.id } })).toBe(1);
   });
