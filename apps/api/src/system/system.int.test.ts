@@ -44,7 +44,7 @@ describe('System and global settings API', () => {
     expect(res.body.spend.periods.map((s: { spent: number }) => s.spent)).toEqual([0, 0, 0]);
     expect(res.body.settings).toMatchObject({
       budgetDailyCredits: null, budgetWeeklyCredits: null, budgetMonthlyCredits: null, budgetWarnPct: 80, timezone: 'UTC', budgetsApprovedAt: null, pollIntervalSec: 120, stageTimeoutMin: 20,
-      verifyTimeoutSec: 600, githubIssueOnCreate: 'ask', workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
+      verifyTimeoutSec: 600, githubIssueOnCreate: 'ask', onboardingTimeoutMin: 15, workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
     expect(res.body.settings).not.toHaveProperty('jiraMcp');
@@ -104,6 +104,14 @@ describe('System and global settings API', () => {
     const bad = await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'sometimes' }).expect(400);
     expect(bad.body.fields.githubIssueOnCreate).toBe('must be ask, always or never');
     expect((await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'ask' }).expect(200)).body.githubIssueOnCreate).toBe('ask');
+  });
+
+  it('onboardingTimeoutMin defaults to 15, is saved, and is bounded to 5-120', async () => {
+    expect((await t.agent.get('/system').expect(200)).body.settings.onboardingTimeoutMin).toBe(15);
+    const bad = await t.agent.patch('/system/settings').send({ onboardingTimeoutMin: 3 }).expect(400);
+    expect(Object.keys(bad.body.fields)).toEqual(['onboardingTimeoutMin']);
+    expect((await t.agent.patch('/system/settings').send({ onboardingTimeoutMin: 20 }).expect(200)).body.onboardingTimeoutMin).toBe(20);
+    expect((await t.agent.get('/system').expect(200)).body.settings.onboardingTimeoutMin).toBe(20);
   });
 
   it('returns field-level errors and saves nothing', async () => {

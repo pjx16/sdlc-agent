@@ -25,6 +25,16 @@ export interface OnboardingProgress {
   planned: OnboardingPhaseId[];
   running: OnboardingPhaseId[];
   done: { id: OnboardingPhaseId; ms: number }[];
+  /** When profiling is stopped for taking too long (set when it starts). */
+  deadlineAt?: string;
+  /** The last sign of life: written at every change and every 30 seconds while it runs. A stale value means the worker is gone. */
+  updatedAt?: string;
+  /** When profiling ended (failed or cancelled). */
+  endedAt?: string;
+  /** The step that failed or was stopped, and why. */
+  failed?: { id: OnboardingPhaseId; message: string };
+  /** The person asked to cancel; the worker stops at its next heartbeat. */
+  cancelRequested?: boolean;
 }
 
 /** What a ticket of an issue type becomes. `ignore` types are not picked up. */

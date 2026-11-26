@@ -38,7 +38,7 @@ export class MirrorService {
   }
 
   /** Clones the mirror for a pending project, checks the base branch, and records ok or failed. */
-  async clone(project: Project): Promise<void> {
+  async clone(project: Project, opts: { signal?: AbortSignal } = {}): Promise<void> {
     const dir = this.config.mirrorPath(project.id);
     let error: string | null = null;
     try {
@@ -47,8 +47,8 @@ export class MirrorService {
       // Ask GitHub first: a token without access to this repository would otherwise only produce a raw git 403.
       const denied = await checkRepoAccess(project.repoUrl, await this.tokenFor({ args: [project.repoUrl] }));
       if (denied) throw new RepoAccessError(denied);
-      await this.git(['clone', '--mirror', '--', project.repoUrl, dir]);
-      const hasBase = await this.git(['--git-dir', dir, 'show-ref', '--verify', '--quiet', `refs/heads/${project.baseBranch}`]).then(
+      await this.git(['clone', '--mirror', '--', project.repoUrl, dir], opts.signal);
+      const hasBase = await this.git(['--git-dir', dir, 'show-ref', '--verify', '--quiet', `refs/heads/${project.baseBranch}`], opts.signal).then(
         () => true,
         () => false,
       );
@@ -89,8 +89,8 @@ export class MirrorService {
     await this.git(['--git-dir', this.config.mirrorPath(projectId), 'remote', 'update', '--prune']);
   }
 
-  private git(args: string[]) {
-    return this.runner.run(args, { timeoutMs: CLONE_TIMEOUT_MS });
+  private git(args: string[], signal?: AbortSignal) {
+    return this.runner.run(args, { timeoutMs: CLONE_TIMEOUT_MS, signal });
   }
 
   private describe(err: unknown): string {

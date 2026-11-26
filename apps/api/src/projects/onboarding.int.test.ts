@@ -32,6 +32,7 @@ describe('Project onboarding API', () => {
     t.prisma.project.create({ data: { name: `onb-${++n}`, repoUrl: 'https://github.com/acme/billing', stack: 'ts_node', testCmdTemplate: 'echo {files}', localKeyPrefix: `O${n}`, jiraMode: 'rest', jiraProjectKey: 'SDA', onboardingStatus: 'proposed', onboardingProposal: proposalFor(over) as never, ...projectOver } });
   const patch = (id: string, section: string, body: Record<string, unknown>) => t.agent.patch(`/projects/${id}/onboarding/sections/${section}`).send(body);
   const reload = (id: string) => t.prisma.project.findUniqueOrThrow({ where: { id } });
+  const setSettings = (data: Record<string, unknown>) => t.prisma.globalSettings.upsert({ where: { id: 'global' }, update: data, create: { id: 'global', ...data } });
 
   beforeAll(async () => {
     db = await createTestDatabase();
@@ -45,6 +46,7 @@ describe('Project onboarding API', () => {
   beforeEach(async () => {
     await t.prisma.supportTicket.deleteMany();
     await t.prisma.project.deleteMany({ where: { name: { startsWith: 'onb-' } } });
+    await setSettings({ pipelinePaused: false, pausedReason: null, pausedCode: null, networkOffline: false });
     t.jira.jira.tickets = [];
     t.jira.jira.calls = [];
     t.jira.jira.failWith = null;
@@ -88,7 +90,7 @@ describe('Project onboarding API', () => {
 
     it('the worker ignores it until confirmed, so it is also absent from nothing but its own queue', async () => {
       const res = await t.agent.post('/projects/onboard').send({ repoUrl: 'https://github.com/acme/ledger' }).expect(201);
-      expect((await t.agent.get(`/projects/${res.body.id}/onboarding`).expect(200)).body).toEqual({ status: 'profiling', error: null, proposal: null, progress: null });
+      expect((await t.agent.get(`/projects/${res.body.id}/onboarding`).expect(200)).body).toEqual({ status: 'profiling', error: null, proposal: null, progress: null, waiting: null, stale: false });
       await t.prisma.project.delete({ where: { id: res.body.id } });
     });
   });
@@ -249,6 +251,78 @@ describe('Project onboarding API', () => {
       await patch(p.id, 'label', { action: 'accept' });
       await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200);
       await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(409);
+    });
+  });
+
+  describe('recovering from stuck profiling', () => {
+    const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+    const running = (updatedMinAgo: number, extra: Record<string, unknown> = {}) => ({ startedAt: minutesAgo(updatedMinAgo + 1), updatedAt: minutesAgo(updatedMinAgo), planned: ['facts', 'profile'], running: ['profile'], done: [{ id: 'facts', ms: 900 }], ...extra });
+    const profiling = (progress: unknown, over: Record<string, unknown> = {}) => proposed({}, { onboardingStatus: 'profiling', onboardingProposal: undefined, onboardingProgress: progress as never, ...over });
+
+    it('cancel asks a live run to stop at its next heartbeat, and the run keeps its progress', async () => {
+      const p = await profiling(running(0.1));
+      const res = (await t.agent.post(`/projects/${p.id}/onboarding/cancel`).expect(200)).body;
+      expect(res).toMatchObject({ status: 'profiling', stale: false });
+      expect((await reload(p.id)).onboardingProgress).toMatchObject({ cancelRequested: true, running: ['profile'] });
+    });
+
+    it('cancel ends a run that has not started, or whose worker went silent, at once', async () => {
+      const queued = await profiling(null);
+      expect((await t.agent.post(`/projects/${queued.id}/onboarding/cancel`).expect(200)).body).toMatchObject({ status: 'draft', error: 'Cancelled.', progress: null });
+      const silent = await profiling(running(5));
+      const res = (await t.agent.post(`/projects/${silent.id}/onboarding/cancel`).expect(200)).body;
+      expect(res).toMatchObject({ status: 'draft', error: 'Cancelled.', progress: { failed: { id: 'profile', message: 'Cancelled.' }, running: [] } });
+    });
+
+    it('cancel is refused when nothing is being profiled', async () => {
+      const p = await proposed();
+      await t.agent.post(`/projects/${p.id}/onboarding/cancel`).expect(409);
+      await t.anonymous.post(`/projects/${p.id}/onboarding/cancel`).expect(401);
+    });
+
+    it('a run that went silent for longer than its limit plus 2 minutes is marked stale and can be started again', async () => {
+      const live = await profiling(running(10)); // 15 min limit: still within it
+      expect((await t.agent.get(`/projects/${live.id}/onboarding`).expect(200)).body.stale).toBe(false);
+      await t.agent.post(`/projects/${live.id}/onboarding/rerun`).expect(409);
+      const dead = await profiling(running(18));
+      expect((await t.agent.get(`/projects/${dead.id}/onboarding`).expect(200)).body.stale).toBe(true);
+      expect((await t.agent.post(`/projects/${dead.id}/onboarding/rerun`).expect(200)).body).toMatchObject({ status: 'profiling', progress: null, stale: false });
+    });
+
+    it('says why a project that has not started is waiting, and says nothing when it is about to start', async () => {
+      const p = await profiling(null);
+      expect((await t.agent.get(`/projects/${p.id}/onboarding`).expect(200)).body.waiting).toBeNull();
+      await setSettings({ pipelinePaused: true, pausedReason: 'limits', pausedCode: 'SPEND_BUDGET_REACHED' });
+      expect((await t.agent.get(`/projects/${p.id}/onboarding`).expect(200)).body.waiting).toMatchObject({ reason: 'paused_budget', message: expect.stringContaining('budget') });
+      await setSettings({ pausedCode: 'CLAUDE_CREDITS' });
+      expect((await t.agent.get(`/projects/${p.id}/onboarding`).expect(200)).body.waiting).toMatchObject({ reason: 'paused_limits' });
+      await setSettings({ pausedReason: 'manual' }); // paused by hand does not stop profiling
+      expect((await t.agent.get(`/projects/${p.id}/onboarding`).expect(200)).body.waiting).toBeNull();
+      await setSettings({ pipelinePaused: false, pausedReason: null, pausedCode: null, networkOffline: true });
+      expect((await t.agent.get(`/projects/${p.id}/onboarding`).expect(200)).body.waiting).toMatchObject({ reason: 'offline' });
+    });
+
+    it('a project queued behind a running one says so, naming it', async () => {
+      const first = await profiling(running(0.1));
+      const second = await profiling(null);
+      expect((await t.agent.get(`/projects/${second.id}/onboarding`).expect(200)).body.waiting).toMatchObject({ reason: 'queued', message: expect.stringContaining(first.name) });
+      expect((await t.agent.get(`/projects/${first.id}/onboarding`).expect(200)).body.waiting).toBeNull();
+    });
+  });
+
+  describe('the failed step', () => {
+    const failedProgress = { startedAt: '2026-11-26T10:00:00Z', planned: ['facts', 'profile'], running: [], done: [{ id: 'facts', ms: 900 }], failed: { id: 'profile', message: 'Profiling stopped after 15 minutes' }, endedAt: '2026-11-26T10:15:00Z' };
+
+    it('a failed draft still shows which step failed, and a rerun starts with no old progress', async () => {
+      const p = await proposed({}, { onboardingStatus: 'draft', onboardingError: 'Profiling stopped after 15 minutes', onboardingProposal: undefined, onboardingProgress: failedProgress as never });
+      expect((await t.agent.get(`/projects/${p.id}/onboarding`).expect(200)).body).toMatchObject({ status: 'draft', progress: { failed: { id: 'profile' } } });
+      const again = (await t.agent.post(`/projects/${p.id}/onboarding/rerun`).expect(200)).body;
+      expect(again).toMatchObject({ status: 'profiling', progress: null });
+    });
+
+    it('a proposal or a confirmed project shows no progress', async () => {
+      const p = await proposed({}, { onboardingProgress: failedProgress as never });
+      expect((await t.agent.get(`/projects/${p.id}/onboarding`).expect(200)).body.progress).toBeNull();
     });
   });
 

@@ -228,6 +228,8 @@ model GlobalSettings {
   verifyTimeoutSec        Int       @default(600)
   /// Whether a ticket made in the dashboard also gets a GitHub issue: ask | always | never.
   githubIssueOnCreate     String    @default("ask")
+  /// Profiling a repository (onboarding) is stopped after this many minutes.
+  onboardingTimeoutMin    Int       @default(15)
   workspaceRetentionDays  Int       @default(7)
   logRetentionDays        Int       @default(30)
   assistantTokenCap       Int       @default(200000)

@@ -34,6 +34,8 @@ describe('OnboardingWorker', () => {
   let requests: StageRequest[] = [];
   let agent: (req: StageRequest) => StageResult;
   let verifyCalls: { cmd: string }[] = [];
+  /** Stages whose agent never answers (a hung run). */
+  const hang = new Set<string>();
   let verifyOk: Record<string, boolean>;
   let n = 0;
 
@@ -58,7 +60,7 @@ describe('OnboardingWorker', () => {
       },
     };
     const git = { async run(args: string[]) { mkdirSync(args[args.length - 1] as string, { recursive: true }); return { stdout: '', stderr: '' }; } };
-    const runner = { async run(req: StageRequest) { requests.push(req); return agent(req); } };
+    const runner = { async run(req: StageRequest) { requests.push(req); if (hang.has(req.stage)) return new Promise<StageResult>(() => undefined); return agent(req); } };
     const verify = {
       async runCmd(a: { cmd: string }) {
         verifyCalls.push({ cmd: a.cmd });
@@ -75,6 +77,9 @@ describe('OnboardingWorker', () => {
   });
   beforeEach(async () => {
     requests = [];
+    hang.clear();
+    worker.deadlineOverrideMs = undefined;
+    worker.heartbeatMs = 30_000;
     verifyCalls = [];
     verifyOk = {};
     github.facts = { defaultBranch: 'main', languages: ['TypeScript'] };
@@ -218,6 +223,97 @@ describe('OnboardingWorker', () => {
       agent = () => ({ kind: 'failed', reason: 'Output failed validation: data.testCmdTemplate: must contain {files}', errorCode: 'INVALID_OUTPUT', stageRunId: 'r', attempts: 2 });
       await worker.check();
       expect((await reload(p.id)).onboardingError).toContain('must contain {files}');
+    });
+  });
+
+  describe('the time limit and the failed step', () => {
+    it('stops a hung agent at the deadline: the project is a draft that names the step, and the checkout is gone', async () => {
+      const p = await project();
+      hang.add('repoProfile');
+      worker.deadlineOverrideMs = 150;
+      const started = Date.now();
+      await worker.check();
+      expect(Date.now() - started).toBeLessThan(5000);
+      const after = await reload(p.id);
+      expect(after).toMatchObject({ onboardingStatus: 'draft', onboardingProposal: null });
+      expect(after.onboardingError).toContain('Profiling stopped after 15 minutes while "Profiling the code');
+      const progress = after.onboardingProgress as { failed: { id: string; message: string }; endedAt: string; deadlineAt: string; running: string[] };
+      expect(progress).toMatchObject({ failed: { id: 'profile' }, running: [] });
+      expect(progress.failed.message).toBe(after.onboardingError);
+      expect(progress.endedAt).toBeDefined();
+      expect(progress.deadlineAt).toBeDefined();
+      expect(requests.find((r) => r.stage === 'repoProfile')?.signal?.aborted).toBe(true); // the agent run was told to stop
+      expect(verifyCalls).toHaveLength(0);
+    });
+
+    it('stops a GitHub call that never answers, in the facts step', async () => {
+      const p = await project();
+      github.repoFacts = () => new Promise(() => undefined);
+      worker.deadlineOverrideMs = 150;
+      await worker.check();
+      const after = await reload(p.id);
+      expect(after.onboardingStatus).toBe('draft');
+      expect((after.onboardingProgress as { failed: { id: string } }).failed.id).toBe('facts');
+      expect(after.onboardingError).toContain('Reading the repository');
+      github.repoFacts = FakeGitHub.prototype.repoFacts;
+    });
+
+    it('releases the worker: the next onboarding starts after a timed-out one', async () => {
+      const slow = await project();
+      hang.add('repoProfile');
+      worker.deadlineOverrideMs = 100;
+      await worker.check();
+      expect((await reload(slow.id)).onboardingStatus).toBe('draft');
+      hang.clear();
+      worker.deadlineOverrideMs = undefined;
+      const next = await project();
+      await worker.check();
+      expect((await reload(next.id)).onboardingStatus).toBe('proposed');
+    });
+
+    it('keeps the failed step of an ordinary failure too, and a rerun starts clean', async () => {
+      const p = await project();
+      agent = (req) => (req.stage === 'repoProfile' ? ({ kind: 'failed', reason: 'The stage exited with code 1', errorCode: 'CONTAINER_ERROR', stageRunId: 'r', attempts: 1 } as StageResult) : done(advice));
+      await worker.check();
+      const failed = await reload(p.id);
+      expect(failed.onboardingError).toBe('The stage exited with code 1');
+      expect((failed.onboardingProgress as { failed: { id: string } }).failed.id).toBe('profile');
+      await prisma.project.update({ where: { id: p.id }, data: { onboardingStatus: 'profiling', onboardingProgress: undefined } });
+      agent = (req) => done(req.stage === 'repoProfile' ? profile : advice);
+      await worker.check();
+      expect((await reload(p.id)).onboardingStatus).toBe('proposed');
+    });
+
+    it('stops at the next heartbeat when the person cancelled', async () => {
+      const p = await project();
+      hang.add('repoProfile');
+      worker.heartbeatMs = 40;
+      const run = worker.check();
+      // Wait until profiling is running, then ask for the cancel the way the API will.
+      for (let i = 0; i < 100 && !(await reload(p.id)).onboardingProgress; i++) await new Promise((r) => setTimeout(r, 20));
+      await prisma.$executeRaw`UPDATE "Project" SET "onboardingProgress" = "onboardingProgress" || '{"cancelRequested": true}'::jsonb WHERE "id" = ${p.id}`;
+      await run;
+      const after = await reload(p.id);
+      expect(after).toMatchObject({ onboardingStatus: 'draft', onboardingError: 'Cancelled.' });
+      expect((after.onboardingProgress as { failed: { id: string } }).failed.id).toBe('profile');
+    });
+
+    it('writes a sign of life while it runs', async () => {
+      const p = await project();
+      hang.add('repoProfile');
+      worker.deadlineOverrideMs = 400;
+      worker.heartbeatMs = 50;
+      const run = worker.check();
+      let first = '';
+      for (let i = 0; i < 100 && !first; i++) {
+        first = ((await reload(p.id)).onboardingProgress as { updatedAt?: string } | null)?.updatedAt ?? '';
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      await new Promise((r) => setTimeout(r, 150));
+      const later = ((await reload(p.id)).onboardingProgress as { updatedAt: string }).updatedAt;
+      await run;
+      expect(first).not.toBe('');
+      expect(new Date(later).getTime()).toBeGreaterThan(new Date(first).getTime());
     });
   });
 
