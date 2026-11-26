@@ -9,6 +9,10 @@ import { QualityPanel } from '@/components/quality-panel';
 import { apiGet } from '@/lib/server-api';
 import { humanizeStatus } from '@/lib/ticket-status';
 import { NeedsYou } from '@/components/inbox';
+import { GetStartedHero } from '@/components/get-started-hero';
+import { heroState } from '@/lib/hero-state';
+import { ticketFormData } from '@/lib/ticket-form-data';
+import type { SetupStatus } from '@sdlc/shared';
 import type { InboxCountsView, SupportTicketView } from '@/lib/types';
 import type { MetricsDurations, MetricsMerged, MetricsQuality, MetricsRange, MetricsSummary, MetricsTokens, MetricsUsage, StateCount, SystemView, TicketListItem } from '@/lib/types';
 
@@ -22,7 +26,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const range = pickRange(params.range);
   const groupBy = params.groupBy === 'model' ? 'model' : 'stage';
   const q = `range=${range}`;
-  const [system, summary, usage, tokens, merged, states, quality, durations, tickets, inboxCounts, inboxTickets] = await Promise.all([
+  const [system, summary, usage, tokens, merged, states, quality, durations, tickets, inboxCounts, inboxTickets, formData, setup] = await Promise.all([
     apiGet<SystemView>('/system').catch(() => null),
     apiGet<MetricsSummary>(`/metrics/summary?${q}`),
     apiGet<MetricsUsage>(`/metrics/usage?${q}`),
@@ -34,12 +38,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     apiGet<TicketListItem[]>('/tickets').then((r) => r ?? []),
     apiGet<InboxCountsView>('/support-tickets/counts').catch(() => null),
     apiGet<SupportTicketView[]>('/support-tickets').catch(() => null),
+    ticketFormData(),
+    apiGet<SetupStatus>('/setup/status').catch(() => null),
   ]);
   const queue = tickets.filter((t) => queueStatuses.includes(t.status)).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
 
   return (
     <section className="space-y-6">
       <AutoRefresh />
+      <GetStartedHero state={heroState(formData.projects, setup)} formData={formData} />
       {/* The page has no title of its own: the rail already says Dashboard. The range only changes the numbers of this section. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Overview</h2>
