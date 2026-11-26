@@ -1,5 +1,5 @@
 import type { GithubFacts } from '@sdlc/shared';
-import type { CheckBucket, GitHubClient, GithubIssue, OpenedPr, PrCheck, PrState, ProjectItem } from '../worker/github/github-client';
+import type { CheckBucket, CreatedIssue, FoundIssue, GitHubClient, GithubIssue, IssueInfo, OpenedPr, PrCheck, PrState, ProjectItem } from '../worker/github/github-client';
 
 /** A GitHub client that records every call and answers from a script. For tests. */
 export class FakeGitHub implements GitHubClient {
@@ -55,6 +55,44 @@ export class FakeGitHub implements GitHubClient {
   async closeIssue(repo: string, number: number) {
     this.calls.push('closeIssue');
     this.closed.push({ repo, number });
+  }
+
+  /** What `createIssue` made, in order. The numbers follow `nextIssueNumber`. */
+  createdIssues: { repo: string; number: number; title: string; body: string; labels: string[] }[] = [];
+  nextIssueNumber = 500;
+  failCreateIssue: Error | null = null;
+  /** Issues as GitHub knows them by number (for `getIssue`), and the open ones a search finds. */
+  knownIssues = new Map<string, IssueInfo>();
+  /** Cards `addIssueToProject` put on a board. */
+  addedToBoard: { owner: string; project: number; nodeId: string }[] = [];
+  failAddToBoard: Error | null = null;
+
+  async createIssue(repo: string, title: string, body: string, labels: string[]): Promise<CreatedIssue> {
+    this.calls.push('createIssue');
+    if (this.failCreateIssue) throw this.failCreateIssue;
+    const number = this.nextIssueNumber++;
+    this.createdIssues.push({ repo, number, title, body, labels });
+    const made = { number, nodeId: `node-${number}`, url: `https://github.com/${repo}/issues/${number}` };
+    this.knownIssues.set(`${repo}#${number}`, { ...made, state: 'open', title });
+    return made;
+  }
+  async getIssue(repo: string, number: number): Promise<IssueInfo> {
+    this.calls.push('getIssue');
+    const known = this.knownIssues.get(`${repo}#${number}`);
+    if (!known) throw new Error(`gh: Not Found (HTTP 404) for ${repo}#${number}`);
+    return known;
+  }
+  async searchOpenIssuesByTitle(repo: string, title: string): Promise<FoundIssue[]> {
+    this.calls.push('searchOpenIssuesByTitle');
+    return [...this.knownIssues.entries()]
+      .filter(([key, i]) => key.startsWith(`${repo}#`) && i.state === 'open' && i.title.trim().toLowerCase() === title.trim().toLowerCase())
+      .map(([, i]) => ({ number: i.number, title: i.title, url: i.url }));
+  }
+  async addIssueToProject(owner: string, project: number, nodeId: string): Promise<string> {
+    this.calls.push('addIssueToProject');
+    if (this.failAddToBoard) throw this.failAddToBoard;
+    this.addedToBoard.push({ owner, project, nodeId });
+    return `item-${nodeId}`;
   }
 
   async openDraftPr(a: { repo: string; base: string; head: string; title: string; body: string }): Promise<OpenedPr> {
