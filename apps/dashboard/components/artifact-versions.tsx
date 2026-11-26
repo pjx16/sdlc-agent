@@ -5,6 +5,7 @@ import { planDiff } from '@sdlc/shared';
 import { useState } from 'react';
 
 import type { ArtifactView } from '@/lib/types';
+import { Markdown } from './markdown';
 
 const TITLE: Record<string, string> = { plan: 'Plan', breakdown: 'Breakdown', review: 'Review rounds', kb: 'Knowledge base' };
 
@@ -48,7 +49,7 @@ export function ArtifactVersions({ artifacts }: { artifacts: ArtifactView[] }) {
                       {v.stale && <span className="rounded border border-border px-1.5 py-0.5">stale</span>}
                     </div>
                     {stage === 'review' && <CriteriaTable data={v.data} />}
-                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-sans text-sm">{artifactText(v)}</pre>
+                    <Markdown source={artifactText(v)} maxHeight="max-h-48" className="mt-2" />
                     {current && !isCurrent && (
                       <button type="button" onClick={() => setCompare(compare === v.id ? null : v.id)} aria-expanded={compare === v.id} className="mt-2 text-xs text-accent underline">
                         {compare === v.id ? 'Hide the comparison' : 'Compare with the current version'}
