@@ -114,6 +114,15 @@ describe('System and global settings API', () => {
     expect((await t.agent.get('/system').expect(200)).body.settings.onboardingTimeoutMin).toBe(20);
   });
 
+  it('a partial patch of the stage defaults merges: the other stages and the other field keep their values', async () => {
+    const before = (await t.agent.get('/system').expect(200)).body.settings.stageDefaults;
+    const res = await t.agent.patch('/system/settings').send({ stageDefaults: { implement: { maxTurns: 33 } } }).expect(200);
+    expect(res.body.stageDefaults.implement).toEqual({ model: before.implement.model, maxTurns: 33 });
+    const others = Object.keys(before).filter((k) => k !== 'implement');
+    expect(others.length).toBeGreaterThan(5);
+    for (const stage of others) expect(res.body.stageDefaults[stage]).toEqual(before[stage]);
+  });
+
   it('returns field-level errors and saves nothing', async () => {
     const res = await t.agent
       .patch('/system/settings')
