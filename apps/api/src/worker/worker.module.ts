@@ -143,7 +143,7 @@ import { WorkerRunner } from './worker-runner';
     { provide: GithubSync, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubSync(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
     { provide: RecoveryService, useFactory: (p: PrismaService, o: OrchestratorService) => new RecoveryService(p, o), inject: [PrismaService, OrchestratorService] },
-    { provide: OrchestratorService, useFactory: (p: PrismaService, l: StageLauncher, j: JiraClients) => new OrchestratorService(p, l, j), inject: [PrismaService, StageLauncher, JiraClients] },
+    { provide: OrchestratorService, useFactory: (p: PrismaService, l: StageLauncher, j: JiraClients, c: TicketComments) => new OrchestratorService(p, l, j, c), inject: [PrismaService, StageLauncher, JiraClients, TicketComments] },
     { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, onboarding: OnboardingWorker, image: AgentImageCheck, kb: KbCatalogSync, ghIssues: GithubIssueCreator, ghIntake: GithubIntake, ghSync: GithubSync, net: ConnectivityMonitor): Housekeeper[] => [net, ci, merge, cleanup, orphans, onboarding, image, kb, ghIssues, ghIntake, ghSync], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, OnboardingWorker, AgentImageCheck, KbCatalogSync, GithubIssueCreator, GithubIntake, GithubSync, ConnectivityMonitor] },
     NewTicketHandler,
     KbHandler,

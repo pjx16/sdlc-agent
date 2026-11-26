@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ProjectSettingsSchema, jiraOn } from '@sdlc/shared';
 import { jiraMarker } from '../../jira/jira-client';
+import { TicketComments } from '../github/ticket-comments';
 import { JiraClients } from '../../jira/jira-clients';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SupportRaiser } from '../../support/support-raiser';
@@ -52,6 +53,7 @@ export class PrSizeService {
     private readonly pr: PrService,
     @Optional() private readonly raiser?: SupportRaiser,
     @Optional() private readonly jira?: JiraClients,
+    @Optional() private readonly comments?: TicketComments,
   ) {}
 
   async check(ticketId: string): Promise<void> {
@@ -74,6 +76,8 @@ export class PrSizeService {
       await this.prisma.orchestratorDecision.create({ data: { ticketId, point: 'pr_size', legalMoves: [{ kind: 'continue', to: 'IN_PROGRESS' }] as never, chosen: 'continue IN_PROGRESS', reason, fallbackUsed: false } });
       await this.prisma.event.create({ data: { ticketId, type: 'git', level: 'warn', source: 'system', message: `Large pull request: ${reason}`.slice(0, 500) } });
       await this.tellJira(ticket, project, `sdlc-agent noticed the pull request is getting large (${level} limit).\nWhy: ${reason}`, level);
+      // On the ticket's GitHub issue too: one comment for each level, rewritten if it is reported again.
+      if (this.comments && ticket.source !== 'jira') await this.comments.post(ticket, `pr-size-${level}`, `sdlc-agent noticed the pull request is getting large (${level} limit).\n\nWhy: ${reason}`);
       if (level === 'hard') await this.flagHard(ticket, project.baseBranch, ws, lines, limit);
     } catch (err) {
       this.logger.warn(`PR size check failed: ${err instanceof Error ? err.message : String(err)}`);
