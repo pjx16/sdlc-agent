@@ -20,6 +20,16 @@ describe('initialValues', () => {
     expect(v.settings.verify.redInvalidPatterns).toBe('Cannot find module\nSyntaxError\nerror TS[0-9]+');
   });
 
+  it('a new project starts with the install\'s default way to reach GitHub, a token when there is none', () => {
+    expect((initialValues() as { githubAuth: string }).githubAuth).toBe('token');
+    expect((initialValues(undefined, 'bot') as { githubAuth: string }).githubAuth).toBe('bot');
+  });
+
+  it('an existing project keeps its own way, whatever the default is', () => {
+    expect((initialValues({ ...project, githubAuth: 'token' }, 'bot') as { githubAuth: string }).githubAuth).toBe('token');
+    expect((initialValues({ ...project, githubAuth: 'bot' }, 'token') as { githubAuth: string }).githubAuth).toBe('bot');
+  });
+
   it('loads an existing project, using empty text for unset optional values', () => {
     const v = initialValues(project) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(v.jiraJql).toBe('');

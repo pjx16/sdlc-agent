@@ -22,7 +22,7 @@ const NUMERIC_PATHS = [
   'settings.jiraConnector.pollIntervalMin',
 ];
 
-export function initialValues(project?: ProjectView): FormValues {
+export function initialValues(project?: ProjectView, defaultGithubAuth: 'token' | 'bot' = 'token'): FormValues {
   if (project) {
     return {
       name: project.name,
@@ -46,7 +46,7 @@ export function initialValues(project?: ProjectView): FormValues {
   return {
     name: '',
     repoUrl: '',
-    githubAuth: 'token',
+    githubAuth: defaultGithubAuth,
     baseBranch: 'dev',
     stack: 'ts_node',
     ...STACK_PREFILLS.ts_node,

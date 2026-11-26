@@ -31,10 +31,10 @@ function stagesFrom(values: FormValues) {
   return Object.fromEntries(STAGE_NAMES.map((s) => [s, { enabled: Boolean(getIn(values, `settings.stages.${s}.enabled`)) }]));
 }
 
-export function ProjectForm({ project }: { project?: ProjectView }) {
+export function ProjectForm({ project, defaultGithubAuth }: { project?: ProjectView; /** What "GitHub access" starts as for a new project: the install's default. */ defaultGithubAuth?: 'token' | 'bot' }) {
   const router = useRouter();
   const editing = Boolean(project);
-  const [values, setValues] = useState<FormValues>(() => initialValues(project));
+  const [values, setValues] = useState<FormValues>(() => initialValues(project, defaultGithubAuth));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);

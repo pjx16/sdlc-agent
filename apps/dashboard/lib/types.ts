@@ -29,6 +29,8 @@ export interface GlobalSettingsView {
   pollIntervalSec: number;
   stageTimeoutMin: number;
   verifyTimeoutSec: number;
+  /** How a new project reaches GitHub unless told otherwise. */
+  githubDefaultAuth: 'token' | 'bot';
   workspaceRetentionDays: number;
   logRetentionDays: number;
   assistantTokenCap: number;

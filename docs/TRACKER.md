@@ -19,7 +19,7 @@ Use REST when you can. Use Rovo MCP when your organisation turns off classic API
 
 ### REST API
 
-Set these (names only; put the values in your own `.env`, or enter them in Settings → Connections; never commit them):
+Enter these in Settings → Connections (they are stored encrypted in the database, not in `.env`):
 
 - `JIRA_BASE_URL`: your site, for example `https://your-site.atlassian.net`
 - `JIRA_EMAIL`: the email of the Jira account that owns the API token

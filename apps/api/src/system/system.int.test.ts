@@ -44,7 +44,7 @@ describe('System and global settings API', () => {
     expect(res.body.spend.periods.map((s: { spent: number }) => s.spent)).toEqual([0, 0, 0]);
     expect(res.body.settings).toMatchObject({
       budgetDailyCredits: null, budgetWeeklyCredits: null, budgetMonthlyCredits: null, budgetWarnPct: 80, timezone: 'UTC', budgetsApprovedAt: null, pollIntervalSec: 120, stageTimeoutMin: 20,
-      verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
+      verifyTimeoutSec: 600, githubDefaultAuth: 'token', workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
     expect(res.body.settings).not.toHaveProperty('jiraMcp');
@@ -95,6 +95,14 @@ describe('System and global settings API', () => {
     const cleared = await t.agent.patch('/system/settings').send({ budgetDailyCredits: null }).expect(200);
     expect(cleared.body.budgetDailyCredits).toBeNull();
     expect(cleared.body.pollIntervalSec).toBe(60);
+  });
+
+  it('githubDefaultAuth defaults to token, is saved, and takes only token or bot', async () => {
+    expect((await t.agent.get('/system').expect(200)).body.settings.githubDefaultAuth).toBe('token');
+    expect((await t.agent.patch('/system/settings').send({ githubDefaultAuth: 'bot' }).expect(200)).body.githubDefaultAuth).toBe('bot');
+    expect((await t.agent.get('/system').expect(200)).body.settings.githubDefaultAuth).toBe('bot');
+    expect((await t.agent.patch('/system/settings').send({ githubDefaultAuth: 'ssh' }).expect(400)).body.fields.githubDefaultAuth).toBe('must be token or bot');
+    await t.agent.patch('/system/settings').send({ githubDefaultAuth: 'token' }).expect(200);
   });
 
   it('returns field-level errors and saves nothing', async () => {

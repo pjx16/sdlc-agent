@@ -77,14 +77,19 @@ describe('credentials API', () => {
     expect(byKey.anthropic_api_key).toMatchObject({ source: 'unset', hint: null });
   });
 
-  it('validates values, 404s unknown keys, and refuses to overwrite a value set in .env', async () => {
+  it('validates values and 404s unknown keys', async () => {
     await api().put('/credentials/github_token', 'nope').expect(400);
     await api().put('/credentials/not_a_key', 'x').expect(404);
     await api().del('/credentials/not_a_key').expect(404);
+  });
+
+  it('an environment variable has no say: the value saved in the dashboard is the one, and it can always be changed', async () => {
     process.env.JIRA_EMAIL = 'env@example.com';
     try {
-      await api().put('/credentials/jira_email', 'other@example.com').expect(409);
-      expect((await api().get('/credentials')).body.find((v: { key: string }) => v.key === 'jira_email')).toMatchObject({ source: 'env' });
+      await api().put('/credentials/jira_email', 'saved@example.com').expect(200);
+      const view = (await api().get('/credentials')).body.find((v: { key: string }) => v.key === 'jira_email');
+      expect(view).toMatchObject({ source: 'db', hint: 'saved@example.com' });
+      await api().put('/credentials/jira_email', 'changed@example.com').expect(200);
     } finally {
       delete process.env.JIRA_EMAIL;
     }

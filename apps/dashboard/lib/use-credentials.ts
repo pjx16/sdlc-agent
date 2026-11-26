@@ -16,7 +16,7 @@ export const initialValue = (view: CredentialView, secret: boolean): string => (
 
 /**
  * The state of one group of credentials that are saved together (a token; a name and an email): what is typed, what changed, Save, and a
- * connection test. Only fields that are editable and changed (a secret: anything typed) are sent. Secrets are never rendered back: the view
+ * connection test. Only fields that changed (a secret: anything typed) are sent. Secrets are never rendered back: the view
  * only has a hint of the last four characters.
  */
 export function useCredentials(keys: readonly CredentialKey[], views: ReadonlyMap<CredentialKey, CredentialView>, onSaved: (saved: CredentialView[]) => void) {
@@ -27,7 +27,7 @@ export function useCredentials(keys: readonly CredentialKey[], views: ReadonlyMa
   const [message, setMessage] = useState<string | null>(null);
   const [test, setTest] = useState<TestState | null>(null);
 
-  const changed = fields.filter((v) => v.source !== 'env' && values[v.key]?.trim() && values[v.key]!.trim() !== initialValue(v, secretOf(v.key)));
+  const changed = fields.filter((v) => values[v.key]?.trim() && values[v.key]!.trim() !== initialValue(v, secretOf(v.key)));
 
   const setValue = (key: CredentialKey, text: string) => setValues((cur) => ({ ...cur, [key]: text }));
 

@@ -130,7 +130,6 @@ function CardView({ card, views, onSaved }: { card: Card; views: Map<CredentialK
   const { fields, values, setValue, errors, busy, message, test, changed, save, runTest } = useCredentials(card.keys, views, onSaved);
   const primary = views.get(card.testKey);
   const testable = card.alwaysTestable || (primary !== undefined && primary.source !== 'unset');
-  const allEnv = fields.every((v) => v.source === 'env');
 
   return (
     <section data-testid={`card-${card.id}`} className="panel p-6" aria-labelledby={`card-${card.title}`}>
@@ -151,11 +150,9 @@ function CardView({ card, views, onSaved }: { card: Card; views: Map<CredentialK
       </div>
       {card.rovoConnect && <RovoConnect view={primary} onChanged={() => onSaved([{ ...(primary as CredentialView), source: 'unset', hint: null }])} />}
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        {!allEnv && (
-          <button type="button" onClick={() => void save()} disabled={busy !== null || changed.length === 0} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-50">
-            {busy === 'save' ? 'Saving…' : 'Save'}
-          </button>
-        )}
+        <button type="button" onClick={() => void save()} disabled={busy !== null || changed.length === 0} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-50">
+          {busy === 'save' ? 'Saving…' : 'Save'}
+        </button>
         <button
           type="button"
           onClick={() => void runTest(card.testKey)}
