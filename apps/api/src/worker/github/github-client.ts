@@ -43,6 +43,15 @@ export interface GithubIssue {
   repo: string;
 }
 
+/** A comment on an issue. */
+export interface IssueComment {
+  id: number;
+  body: string;
+}
+
+/** What `upsertIssueComment` did. */
+export type CommentOutcome = 'created' | 'updated' | 'unchanged';
+
 /** An issue that was just made. `nodeId` is what GitHub's GraphQL API calls the issue (to add it to a board). */
 export interface CreatedIssue {
   number: number;
@@ -84,6 +93,13 @@ export interface GitHubClient {
   setIssueLabels(repo: string, number: number, add: string[], remove: string[]): Promise<void>;
   commentIssue(repo: string, number: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number): Promise<void>;
+  /** The comments of an issue, oldest first, at most 300. */
+  listIssueComments(repo: string, number: number): Promise<IssueComment[]>;
+  /**
+   * Writes a comment that can be written again: the comment carrying `marker` (a hidden line at its end) is changed when the text is
+   * different and left alone when it is the same; with none, a new one is made.
+   */
+  upsertIssueComment(repo: string, number: number, body: string, marker: string): Promise<CommentOutcome>;
   /** Makes an issue. Labels that do not exist yet are made with it. */
   createIssue(repo: string, title: string, body: string, labels: string[]): Promise<CreatedIssue>;
   /** An issue as it is now. Throws when the number is a pull request, or does not exist. */
@@ -141,6 +157,12 @@ export function exactTitleMatches(items: { number: number; title: string; html_u
   const wanted = title.trim().toLowerCase();
   return items.filter((i) => wanted !== '' && i.title.trim().toLowerCase() === wanted).map((i) => ({ number: i.number, title: i.title, url: i.html_url }));
 }
+
+const MAX_COMMENTS = 300;
+
+/** The hidden line that tells a comment of ours from any other: an HTML comment, which GitHub does not show. */
+export const markerLine = (marker: string): string => `<!-- ${marker} -->`;
+export const withMarker = (body: string, marker: string): string => `${body.trimEnd()}\n\n${markerLine(marker)}`;
 
 const FAILED_LOG_LINES = 60;
 
@@ -308,6 +330,23 @@ export class GhCliClient implements GitHubClient {
 
   async closeIssue(repo: string, number: number): Promise<void> {
     await this.gh(['issue', 'close', String(number), '-R', repo]);
+  }
+
+  async listIssueComments(repo: string, number: number): Promise<IssueComment[]> {
+    // One JSON object per line, whatever the number of pages.
+    const out = await this.gh(['api', `repos/${repo}/issues/${number}/comments?per_page=100`, '--paginate', '--jq', '.[] | {id: .id, body: .body}']);
+    return out.split('\n').filter((l) => l.trim()).slice(0, MAX_COMMENTS).map((l) => JSON.parse(l) as IssueComment);
+  }
+
+  async upsertIssueComment(repo: string, number: number, body: string, marker: string): Promise<CommentOutcome> {
+    const full = withMarker(body, marker);
+    const existing = (await this.listIssueComments(repo, number)).find((c) => c.body.includes(markerLine(marker)));
+    if (existing && existing.body.trim() === full.trim()) return 'unchanged';
+    // The text goes in through a file, never on the command line.
+    await this.withBodyFile(full, (file) =>
+      existing ? this.gh(['api', `repos/${repo}/issues/comments/${existing.id}`, '-X', 'PATCH', '-F', `body=@${file}`]) : this.gh(['api', `repos/${repo}/issues/${number}/comments`, '-X', 'POST', '-F', `body=@${file}`]),
+    );
+    return existing ? 'updated' : 'created';
   }
 
   async createIssue(repo: string, title: string, body: string, labels: string[]): Promise<CreatedIssue> {

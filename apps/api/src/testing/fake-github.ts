@@ -1,4 +1,5 @@
 import type { GithubFacts } from '@sdlc/shared';
+import { markerLine, withMarker, type CommentOutcome, type IssueComment } from '../worker/github/github-client';
 import type { CheckBucket, CreatedIssue, FoundIssue, GitHubClient, GithubIssue, IssueInfo, OpenedPr, PrCheck, PrState, ProjectItem } from '../worker/github/github-client';
 
 /** A GitHub client that records every call and answers from a script. For tests. */
@@ -55,6 +56,30 @@ export class FakeGitHub implements GitHubClient {
   async closeIssue(repo: string, number: number) {
     this.calls.push('closeIssue');
     this.closed.push({ repo, number });
+  }
+
+  /** The comments of each issue (`owner/name#number`), as `upsertIssueComment` and `listIssueComments` see them. */
+  threads = new Map<string, IssueComment[]>();
+  failComments: Error | null = null;
+  private nextCommentId = 1000;
+
+  async listIssueComments(repo: string, number: number): Promise<IssueComment[]> {
+    this.calls.push('listIssueComments');
+    if (this.failComments) throw this.failComments;
+    return [...(this.threads.get(`${repo}#${number}`) ?? [])];
+  }
+  async upsertIssueComment(repo: string, number: number, body: string, marker: string): Promise<CommentOutcome> {
+    this.calls.push('upsertIssueComment');
+    if (this.failComments) throw this.failComments;
+    const key = `${repo}#${number}`;
+    const thread = this.threads.get(key) ?? [];
+    const full = withMarker(body, marker);
+    const existing = thread.find((c) => c.body.includes(markerLine(marker)));
+    if (existing && existing.body.trim() === full.trim()) return 'unchanged';
+    if (existing) existing.body = full;
+    else thread.push({ id: this.nextCommentId++, body: full });
+    this.threads.set(key, thread);
+    return existing ? 'updated' : 'created';
   }
 
   /** What `createIssue` made, in order. The numbers follow `nextIssueNumber`. */
@@ -164,6 +189,8 @@ export class FakeGitHub implements GitHubClient {
     this.knownIssues = new Map();
     this.addedToBoard = [];
     this.failAddToBoard = null;
+    this.threads = new Map();
+    this.failComments = null;
   }
   setChecks(...buckets: CheckBucket[]) {
     this.checksResult = buckets.map((bucket, i) => ({ name: `check-${i + 1}`, bucket }));

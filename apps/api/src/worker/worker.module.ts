@@ -54,6 +54,7 @@ import { OnboardingWorker } from './onboarding/onboarding-worker';
 import { RepoAccessService } from './github/repo-access.service';
 import { GitHubAuth } from './github/github-auth.service';
 import { GithubIssueCreator } from './github/github-issue-creator';
+import { TicketComments } from './github/ticket-comments';
 import { BrokerClient } from '../broker/broker-client';
 import { CiPoller } from './ci/ci-poller';
 import { SupportRaiser } from '../support/support-raiser';
@@ -136,6 +137,7 @@ import { WorkerRunner } from './worker-runner';
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: ConnectivityMonitor, useFactory: (p: PrismaService, st: StateMachine) => new ConnectivityMonitor(p, probesFromEnv() ?? [], undefined, st), inject: [PrismaService, StateMachine] },
     { provide: KbCatalogSync, useFactory: (p: PrismaService, g: GitRunner, c: WorkerConfig) => new KbCatalogSync(p, g, c), inject: [PrismaService, GitRunner, WorkerConfig] },
+    { provide: TicketComments, useFactory: (p: PrismaService, gh: GitHubClient) => new TicketComments(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
     { provide: GithubIssueCreator, useFactory: (p: PrismaService, gh: GitHubClient, r: SupportRaiser) => new GithubIssueCreator(p, gh, r), inject: [PrismaService, GITHUB_CLIENT, SupportRaiser] },
     { provide: GithubIntake, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubIntake(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
     { provide: GithubSync, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubSync(p, gh), inject: [PrismaService, GITHUB_CLIENT] },

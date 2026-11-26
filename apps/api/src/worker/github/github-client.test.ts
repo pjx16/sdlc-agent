@@ -345,4 +345,58 @@ describe('GhCliClient: GitHub issues and Projects', () => {
       await expect(client.addIssueToProject('acme', 9, 'I_kw42')).rejects.toThrow(/GitHub Projects board acme\/9 was not found.*"project" scope/);
     });
   });
+
+  describe('comments that can be written again', () => {
+    const LIST = 'api repos/acme/billing/issues/7/comments?per_page=100';
+    const lines = (...comments: { id: number; body: string }[]) => ({ stdout: comments.map((c) => JSON.stringify(c)).join('\n') });
+    const MARK = '<!-- sdlc-agent:T-1:plan -->';
+
+    it('lists the comments of an issue, one JSON object per line, whatever the number of pages', async () => {
+      reply({ [LIST]: lines({ id: 1, body: 'first' }, { id: 2, body: 'multi\nline' }) });
+      expect(await client.listIssueComments('acme/billing', 7)).toEqual([{ id: 1, body: 'first' }, { id: 2, body: 'multi\nline' }]);
+      const c = calls().at(-1)!;
+      expect(c.args).toEqual(expect.arrayContaining(['--paginate', '--jq']));
+    });
+
+    it('an issue with no comments is an empty list, and at most 300 are read', async () => {
+      reply({ [LIST]: { stdout: '' } });
+      expect(await client.listIssueComments('acme/billing', 7)).toEqual([]);
+      reply({ [LIST]: lines(...Array.from({ length: 350 }, (_, i) => ({ id: i, body: 'c' }))) });
+      expect(await client.listIssueComments('acme/billing', 7)).toHaveLength(300);
+    });
+
+    it('makes the comment when there is none: the text, a hidden marker line, and the text in a file', async () => {
+      reply({ [LIST]: lines({ id: 1, body: 'someone else' }) });
+      expect(await client.upsertIssueComment('acme/billing', 7, 'The plan: $(not run)', 'sdlc-agent:T-1:plan')).toBe('created');
+      const c = calls().at(-1)!;
+      expect(c.args.slice(0, 4)).toEqual(['api', 'repos/acme/billing/issues/7/comments', '-X', 'POST']);
+      expect(c.body).toBe(`The plan: $(not run)\n\n${MARK}`);
+      expect(c.args.join(' ')).not.toContain('The plan');
+    });
+
+    it('does nothing when the comment is already there with the same text', async () => {
+      reply({ [LIST]: lines({ id: 5, body: `The plan\n\n${MARK}` }) });
+      const before = calls().length;
+      expect(await client.upsertIssueComment('acme/billing', 7, 'The plan', 'sdlc-agent:T-1:plan')).toBe('unchanged');
+      expect(calls().length).toBe(before + 1); // only the list was asked for
+    });
+
+    it('rewrites the comment in place when the text changed', async () => {
+      reply({ [LIST]: lines({ id: 1, body: 'other' }, { id: 5, body: `Old plan\n\n${MARK}` }) });
+      expect(await client.upsertIssueComment('acme/billing', 7, 'New plan', 'sdlc-agent:T-1:plan')).toBe('updated');
+      const c = calls().at(-1)!;
+      expect(c.args.slice(0, 4)).toEqual(['api', 'repos/acme/billing/issues/comments/5', '-X', 'PATCH']);
+      expect(c.body).toBe(`New plan\n\n${MARK}`);
+    });
+
+    it('tells one kind of comment from another, and one ticket from another', async () => {
+      reply({ [LIST]: lines({ id: 5, body: `A breakdown\n\n<!-- sdlc-agent:T-1:breakdown -->` }, { id: 6, body: `A plan\n\n<!-- sdlc-agent:T-2:plan -->` }) });
+      expect(await client.upsertIssueComment('acme/billing', 7, 'The plan', 'sdlc-agent:T-1:plan')).toBe('created');
+    });
+
+    it('a marker that is only part of another one is not taken for it', async () => {
+      reply({ [LIST]: lines({ id: 5, body: `x\n\n<!-- sdlc-agent:T-10:plan -->` }) });
+      expect(await client.upsertIssueComment('acme/billing', 7, 'The plan', 'sdlc-agent:T-1:plan')).toBe('created');
+    });
+  });
 });
