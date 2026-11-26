@@ -4,7 +4,7 @@ import { DEFAULT_GLOBAL_SETTINGS } from '@sdlc/shared';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { setIn, type FormValues } from './form';
-import { KEPT_BY_RESET, diffPaths, initialSettingsValues, toSettingsPayload, type SettingsFields } from './settings-form';
+import { KEPT_BY_RESET, diffPaths, initialSettingsValues, toSettingsPayload } from './settings-form';
 import type { GlobalSettingsView } from './types';
 
 export interface SettingsMessage {
