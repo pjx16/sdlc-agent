@@ -34,8 +34,10 @@ COPY --from=build --chown=node:node /app/apps/api/dist apps/api/dist
 COPY --from=build --chown=node:node /app/apps/api/prisma apps/api/prisma
 COPY --from=build --chown=node:node /app/apps/api/prisma.config.ts apps/api/prisma.config.ts
 COPY --from=build --chown=node:node /app/apps/api/docker-entrypoint.sh apps/api/docker-entrypoint.sh
+# The guidelines as they shipped. The folder people edit is mounted over /app/guidelines, so this copy is how the dashboard knows what was changed and can put the original back.
+COPY --chown=node:node guidelines /app/guidelines.default
 WORKDIR /app/apps/api
-ENV NODE_ENV=production PORT=4000
+ENV NODE_ENV=production PORT=4000 GUIDELINES_DEFAULT_DIR=/app/guidelines.default
 USER node
 EXPOSE 4000
 ENTRYPOINT ["sh", "/app/apps/api/docker-entrypoint.sh"]
