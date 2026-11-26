@@ -7,6 +7,7 @@ import { StateMachine } from '../state/state-machine.service';
 import { IntakePoller } from '../worker/intake/intake-poller';
 import { RestartRecovery } from '../worker/loop/restart-recovery';
 import { WorkerLoop } from '../worker/loop/worker-loop';
+import { HOUSEKEEPERS } from '../worker/loop/worker-loop';
 import { WorkerModule } from '../worker/worker.module';
 import { WorkerRunner } from '../worker/worker-runner';
 import { AgentRunner } from '../worker/agent-runner/agent-runner';
@@ -32,6 +33,16 @@ describe('application wiring', () => {
     const app = await Test.createTestingModule({ imports: [WorkerModule] }).compile();
     await app.init();
     for (const provider of [WorkerRunner, WorkerLoop, RestartRecovery, IntakePoller, ApprovalPoller, StateMachine, AgentRunner]) expect(app.get(provider), provider.name).toBeDefined();
+    await app.close();
+  });
+
+  it('the GitHub issue of a ticket is made before intake and the sync look at GitHub', async () => {
+    const app = await Test.createTestingModule({ imports: [WorkerModule] }).compile();
+    await app.init();
+    const names = (app.get(HOUSEKEEPERS) as { name: string }[]).map((h) => h.name);
+    expect(names.indexOf('github-issue-creator')).toBeGreaterThan(-1);
+    expect(names.indexOf('github-issue-creator')).toBeLessThan(names.indexOf('github-intake'));
+    expect(names.indexOf('github-issue-creator')).toBeLessThan(names.indexOf('github-sync'));
     await app.close();
   });
 

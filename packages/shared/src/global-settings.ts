@@ -35,6 +35,8 @@ export const GlobalSettingsSchema = z.object({
   pollIntervalSec: int(120, 5, 3600),
   stageTimeoutMin: int(20, 1, 240),
   verifyTimeoutSec: int(600, 10, 7200),
+  /** Whether a ticket made in the dashboard also gets a GitHub issue: ask each time, always, or never. One choice for every project. */
+  githubIssueOnCreate: z.enum(['ask', 'always', 'never'], { error: 'must be ask, always or never' }).default('ask'),
   workspaceRetentionDays: int(7, 1, 365),
   logRetentionDays: int(30, 1, 3650),
   /** Tokens (input and output) one assistant conversation may use before it stops. */
