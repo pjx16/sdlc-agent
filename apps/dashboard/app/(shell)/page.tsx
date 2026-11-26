@@ -13,10 +13,11 @@ import type { InboxCountsView, SupportTicketView } from '@/lib/types';
 import type { MetricsDurations, MetricsMerged, MetricsQuality, MetricsRange, MetricsSummary, MetricsTokens, MetricsUsage, StateCount, SystemView, TicketListItem } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Dashboard' };
 
 const pickRange = (v?: string): MetricsRange => (v === '24h' || v === '30d' ? v : '7d');
 
-export default async function OverviewPage({ searchParams }: { searchParams: Promise<{ range?: string; groupBy?: string }> }) {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ range?: string; groupBy?: string }> }) {
   const params = await searchParams;
   const range = pickRange(params.range);
   const groupBy = params.groupBy === 'model' ? 'model' : 'stage';
@@ -39,8 +40,9 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   return (
     <section className="space-y-6">
       <AutoRefresh />
+      {/* The page has no title of its own: the rail already says Dashboard. The range only changes the numbers of this section. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Overview</h1>
+        <h2 className="text-lg font-semibold">Overview</h2>
         <RangeSwitch range={range} hrefFor={(r) => `/?range=${r}&groupBy=${groupBy}`} />
       </div>
       {inboxCounts && inboxTickets && <NeedsYou tickets={inboxTickets} counts={inboxCounts} />}

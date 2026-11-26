@@ -1,7 +1,7 @@
 import type { NavItem } from '@/lib/nav-items';
 
 const paths: Record<NavItem['icon'], React.ReactNode> = {
-  overview: (
+  dashboard: (
     <>
       <rect x="3" y="3" width="7" height="7" rx="1" />
       <rect x="14" y="3" width="7" height="7" rx="1" />

@@ -2,12 +2,12 @@ export interface NavItem {
   label: string;
   href: string;
   /** Which icon the rail shows (see components/nav-icons.tsx). */
-  icon: 'overview' | 'tickets' | 'support' | 'projects' | 'guidelines' | 'usage' | 'operations' | 'settings';
+  icon: 'dashboard' | 'tickets' | 'support' | 'projects' | 'guidelines' | 'usage' | 'operations' | 'settings';
 }
 
 /** Left-rail navigation. */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { label: 'Overview', href: '/', icon: 'overview' },
+  { label: 'Dashboard', href: '/', icon: 'dashboard' },
   { label: 'Tickets', href: '/tickets', icon: 'tickets' },
   { label: 'Inbox', href: '/inbox', icon: 'support' },
   { label: 'Projects', href: '/projects', icon: 'projects' },
