@@ -1,12 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   CLAUDE_MD_MODES, DEFAULT_INTAKE_LABEL, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
   ProjectSettingsSchema, defaultJiraJql, commandWarnings, stageWarnings, type ProjectStack,
 } from '@sdlc/shared';
-import { Check, FormProvider, Num, Section, Select, Text, TextArea, Warnings } from './form';
+import { Check, FormProvider, Num, Section, SectionsProvider, Select, Text, TextArea, Warnings } from './form';
 import { JiraModeNote } from './jira-mode-note';
 import { MirrorStatus } from './mirror-status';
 import { StatusMapping } from './status-mapping';
@@ -31,10 +31,21 @@ function stagesFrom(values: FormValues) {
   return Object.fromEntries(STAGE_NAMES.map((s) => [s, { enabled: Boolean(getIn(values, `settings.stages.${s}.enabled`)) }]));
 }
 
-export function ProjectForm({ project }: { project?: ProjectView }) {
+export function ProjectForm({ project, onCreated, onDirtyChange, collapsible = false }: {
+  project?: ProjectView;
+  /** Called with the new project's id instead of opening its page (the form is in a modal). */
+  onCreated?: (id: string) => void;
+  /** Tells the modal whether there is anything to lose. */
+  onDirtyChange?: (dirty: boolean) => void;
+  /** Sections fold away, with only the first open: for a small window. */
+  collapsible?: boolean;
+}) {
   const router = useRouter();
   const editing = Boolean(project);
   const [values, setValues] = useState<FormValues>(() => initialValues(project));
+  const pristine = useRef(JSON.stringify(values));
+  const [openAll, setOpenAll] = useState(false);
+  useEffect(() => onDirtyChange?.(JSON.stringify(values) !== pristine.current), [values, onDirtyChange]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,12 +79,15 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
         if (editing) {
           setMessage({ kind: 'ok', text: 'Saved. Changes apply from the next stage run.' });
           router.refresh();
+        } else if (onCreated) {
+          onCreated(body.id);
         } else {
           router.push(`/projects/${body.id}`);
         }
         return;
       }
       if (res.status === 400 && body.fields) {
+        setOpenAll(true);
         setErrors(collapseListErrors(body.fields, ['settings.verify.redInvalidPatterns']));
         setMessage({ kind: 'error', text: 'Some fields need attention.' });
       } else {
@@ -92,10 +106,11 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
 
   return (
     <FormProvider value={{ values, errors, set }}>
-      <form onSubmit={submit} className="max-w-4xl space-y-6" noValidate>
+      <SectionsProvider collapsible={collapsible} openAll={openAll}>
+      <form onSubmit={submit} className={collapsible ? 'space-y-3' : 'max-w-4xl space-y-6'} noValidate>
         {project && <MirrorStatus project={project} />}
 
-        <Section title="Repository">
+        <Section title="Repository" defaultOpen>
           <Text path="name" label="Name" />
           <Text path="repoUrl" label="Repository URL" placeholder="https://github.com/owner/repo" hint="HTTPS github.com repositories only." />
           <Select path="githubAuth" label="GitHub access" options={[{ value: 'token', label: 'My personal token (Settings)' }, { value: 'bot', label: 'sdlc-agent-bot (GitHub App, no token)' }]} hint="Who pushes, opens pull requests and comments. sdlc-agent-bot needs the GitHub App installed on this repository (Settings → Connections)." />
@@ -223,6 +238,7 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
           )}
         </div>
       </form>
+      </SectionsProvider>
     </FormProvider>
   );
 }
