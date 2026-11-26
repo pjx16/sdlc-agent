@@ -4,7 +4,7 @@ import { MUST_ACCEPT, ISSUE_KINDS, TICKET_STATUSES, type OnboardingProposal, typ
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { DryRunView, OnboardingView } from '@/lib/types';
-import { ProfilingModal } from './profiling-modal';
+import { PhaseList, ProfilingModal } from './profiling-modal';
 
 const POLL_MS = 3000;
 const POLL_MODAL_MS = 2000;
@@ -89,15 +89,27 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
       setEditing(null);
     });
 
+  const cancel = () => {
+    if (!window.confirm('Stop profiling this repository? You can run it again afterwards.')) return;
+    void run('cancel', () => call<OnboardingView>(`${base}/cancel`, 'POST'), setView);
+  };
+  const rerun = () => run('rerun', () => call<OnboardingView>(`${base}/rerun`, 'POST'), setView);
+
   if (view.status === 'profiling') {
     return (
       <>
         <div role="status" className="panel p-4 text-sm">
-          <p className="font-medium">Profiling the repository…</p>
-          <p className="mt-1 text-muted">This takes a few minutes. You can leave this page: the proposal waits for you in the inbox.</p>
-          {!modalOpen && <button type="button" onClick={() => setModalOpen(true)} className="mt-2 text-accent underline">Show progress</button>}
+          <p className="font-medium">{view.waiting ? 'Waiting to profile the repository…' : 'Profiling the repository…'}</p>
+          <p className="mt-1 text-muted">{view.waiting ? view.waiting.message : 'This takes a few minutes. You can leave this page: the proposal waits for you in the inbox.'}</p>
+          {view.stale && <p className="mt-1 text-red">The worker stopped responding. Cancel to stop this run, or start it again.</p>}
+          <div className="mt-2 flex flex-wrap gap-4">
+            {!modalOpen && <button type="button" onClick={() => setModalOpen(true)} className="text-accent underline">Show progress</button>}
+            {!modalOpen && <button type="button" onClick={cancel} disabled={busy !== null} className="text-red underline disabled:opacity-50">Cancel profiling</button>}
+            {view.stale && <button type="button" onClick={() => void rerun()} disabled={busy !== null} className="text-accent underline disabled:opacity-50">Start it again</button>}
+          </div>
+          {error && <p role="alert" className="mt-2 text-xs text-red">{error}</p>}
         </div>
-        {modalOpen && <ProfilingModal progress={view.progress} onClose={() => setModalOpen(false)} />}
+        {modalOpen && <ProfilingModal progress={view.progress} waiting={view.waiting} stale={view.stale} onClose={() => setModalOpen(false)} onCancel={cancel} cancelling={busy === 'cancel'} />}
       </>
     );
   }
@@ -107,8 +119,13 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
       <div className="panel border-red p-4 text-sm">
         <p className="font-medium">The setup could not be proposed.</p>
         {view.error && <p className="mt-1 whitespace-pre-wrap text-red">{view.error}</p>}
-        <button type="button" onClick={() => run('rerun', () => call<OnboardingView>(`${base}/rerun`, 'POST'), setView)} disabled={busy !== null} className="mt-3 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-50">
-          {busy === 'rerun' ? 'Starting…' : 'Run it again'}
+        {view.progress?.failed && (
+          <div className="mt-3" aria-label="Where it stopped">
+            <PhaseList progress={{ ...view.progress, failed: { ...view.progress.failed, message: '' } }} />
+          </div>
+        )}
+        <button type="button" onClick={() => void rerun()} disabled={busy !== null} className="mt-3 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-50">
+          {busy === 'rerun' ? 'Starting…' : 'Try again'}
         </button>
         {error && <p role="alert" className="mt-2 text-xs text-red">{error}</p>}
       </div>
