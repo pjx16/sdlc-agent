@@ -126,6 +126,14 @@ describe('Modal', () => {
     for (const c of classes.split(' ')) expect(dialogEl()).toHaveClass(c);
   });
 
+  it('a flush body has no padding and does not scroll itself, so the content can lay out two panes', () => {
+    const { rerender } = render(<Harness />);
+    expect(screen.getByLabelText('Name').parentElement).toHaveClass('overflow-y-auto', 'px-5');
+    rerender(<Harness flush />);
+    expect(screen.getByLabelText('Name').parentElement).toHaveClass('overflow-hidden');
+    expect(screen.getByLabelText('Name').parentElement).not.toHaveClass('px-5');
+  });
+
   it('shows the footer when given one', () => {
     render(<Harness footer={<button>Save it</button>} />);
     expect(screen.getByRole('button', { name: 'Save it' })).toBeInTheDocument();

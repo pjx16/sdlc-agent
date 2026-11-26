@@ -24,6 +24,8 @@ export interface ModalProps {
   dirty?: boolean;
   /** A bar under the content that stays in view. */
   footer?: ReactNode;
+  /** No padding and no scrolling of its own: the content lays itself out and scrolls where it needs to (two panes side by side). */
+  flush?: boolean;
   children: ReactNode;
 }
 
@@ -31,7 +33,7 @@ export interface ModalProps {
  * The one modal of the dashboard, on the browser's own `<dialog>`: it traps the focus, sits above everything and closes on Esc without any
  * code of ours. The content is only mounted while it is open, so a form starts empty every time. Focus goes back to what opened it.
  */
-export function Modal({ open, onClose, title, description, size = 'md', dirty = false, footer, children }: ModalProps) {
+export function Modal({ open, onClose, title, description, size = 'md', dirty = false, footer, flush = false, children }: ModalProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const descriptionId = useId();
@@ -83,7 +85,7 @@ export function Modal({ open, onClose, title, description, size = 'md', dirty = 
               ✕
             </button>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          <div className={flush ? 'min-h-0 flex-1 overflow-hidden' : 'min-h-0 flex-1 overflow-y-auto px-5 py-4'}>{children}</div>
           {footer && <footer className="border-t border-border px-5 py-3">{footer}</footer>}
         </div>
       )}
