@@ -71,7 +71,6 @@ describe('prompt.md', () => {
     assist: ['Context', 'Conversation so far', 'Message', 'Output'],
     repoProfile: ['Facts', 'Output'],
     onboardAdvise: ['Facts', 'Output'],
-    jiraConnector: ['Connector', 'Operation', 'Arguments', 'Result shape', 'Output'],
   };
   it.each(STAGE_NAMES)('%s has its sections in the documented order', async (stage) => {
     const { runDir } = await build(stage);

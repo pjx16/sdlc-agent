@@ -1,9 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, ProjectInputSchema, deepMerge, type ProjectInput, jiraOn } from '@sdlc/shared';
+import { ErrorCodes, ProjectInputSchema, deepMerge, type ProjectInput } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
 import { Prisma } from '../generated/prisma/client';
-import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
 import { type ProjectDto, toDto, toInput } from './project.dto';
 
@@ -14,7 +13,6 @@ const nameTaken = () =>
 export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jira: JiraClients,
   ) {}
 
   async list(): Promise<ProjectDto[]> {
@@ -63,22 +61,6 @@ export class ProjectsService {
     }
   }
 
-  /** GET /projects/:id/jira/statuses: Jira status names for the mapping dropdown (REST mode). */
-  async jiraStatuses(id: string): Promise<string[]> {
-    const project = await this.get(id);
-    if (!jiraOn(project.jiraMode)) {
-      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Jira statuses can only be listed when the project uses Jira');
-    }
-    if (!project.jiraProjectKey) {
-      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Set the Jira project key first');
-    }
-    try {
-      return await (await this.jira.forMode(project.jiraMode)).listStatuses(project.jiraProjectKey);
-    } catch (err) {
-      throw new ApiException(HttpStatus.BAD_GATEWAY, ErrorCodes.jiraError, err instanceof Error ? err.message : 'Jira request failed');
-    }
-  }
-
   /** DELETE is a soft disable: tickets and history stay. */
   async disable(id: string): Promise<ProjectDto> {
     await this.get(id);
@@ -100,7 +82,7 @@ export class ProjectsService {
   /**
    * Permanently deletes the project with its tickets, subtasks, stage runs, findings, queries and history. Refused while a stage of the
    * project is running. The mirror, workspaces and logs on disk are removed by the worker (it owns that folder). Nothing is touched
-   * in GitHub or Jira: branches and pull requests stay.
+   * in GitHub: branches and pull requests stay.
    */
   async remove(id: string): Promise<{ deleted: true; tickets: number }> {
     const impact = await this.deleteImpact(id);
@@ -136,9 +118,6 @@ export class ProjectsService {
       testCmdTemplate: input.testCmdTemplate,
       kbDir: input.kbDir,
       claudeMdMode: input.claudeMdMode,
-      jiraMode: input.jiraMode,
-      jiraProjectKey: input.jiraProjectKey ?? null,
-      jiraJql: input.jiraJql ?? null,
       localKeyPrefix: input.localKeyPrefix,
       enabled: input.enabled,
       settings: input.settings as unknown as Prisma.InputJsonValue,

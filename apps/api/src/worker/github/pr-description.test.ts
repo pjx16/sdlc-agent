@@ -12,9 +12,9 @@ const base = {
 
 describe('buildPrDescription', () => {
   it('follows the template: Summary, Problem, Fix implemented, Test plan, Review notes, in order', () => {
-    const md = buildPrDescription({ ...base, jiraBaseUrl: 'https://acme.atlassian.net/' });
+    const md = buildPrDescription(base);
     expect([...md.matchAll(/^## (.+)$/gm)].map((m) => m[1])).toEqual(['Summary', 'Problem', 'Fix implemented', 'Test plan', 'Review notes']);
-    expect(md).toContain('## Summary\nExport bookings to CSV — ABC-12 ([link](https://acme.atlassian.net/browse/ABC-12))');
+    expect(md).toContain('## Summary\nExport bookings to CSV — ABC-12');
   });
 
   it('lists one bullet per subtask with its commit, and says when a subtask is not done yet', () => {
@@ -30,8 +30,8 @@ describe('buildPrDescription', () => {
     expect(md).toContain('Targeted test command: `npx vitest run {files}`');
   });
 
-  it('uses the local key without a link for pasted tickets or when there is no Jira URL', () => {
-    expect(buildPrDescription({ ...base, ticket: { ...base.ticket, key: 'BILL-3', externalKey: null }, jiraBaseUrl: 'https://acme.atlassian.net' })).toContain('— BILL-3\n');
+  it('uses the ticket key without a link', () => {
+    expect(buildPrDescription({ ...base, ticket: { ...base.ticket, key: 'BILL-3', externalKey: null } })).toContain('— BILL-3\n');
     expect(buildPrDescription(base)).toContain('— ABC-12\n');
   });
 

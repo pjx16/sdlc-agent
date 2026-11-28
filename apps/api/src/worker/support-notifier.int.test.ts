@@ -2,7 +2,6 @@ import 'reflect-metadata';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SupportRaiser } from '../support/support-raiser';
 import { FakeGitHub } from '../testing/fake-github';
-import { FakeJiraClients } from '../testing/fake-jira';
 import { StepsHarness } from '../testing/steps-harness';
 import { TicketComments } from './github/ticket-comments';
 import { SupportNotifier } from './support-notifier';
@@ -10,7 +9,6 @@ import { SupportNotifier } from './support-notifier';
 describe('SupportNotifier: what needs a person reaches the ticket\'s GitHub issue', () => {
   let h: StepsHarness;
   let github: FakeGitHub;
-  let jira: FakeJiraClients;
   let notifier: SupportNotifier;
   let raiser: SupportRaiser;
   let issue = 90;
@@ -25,8 +23,7 @@ describe('SupportNotifier: what needs a person reaches the ticket\'s GitHub issu
   afterAll(async () => h?.close());
   beforeEach(async () => {
     github = new FakeGitHub();
-    jira = new FakeJiraClients();
-    notifier = new SupportNotifier(h.prisma, jira, github, raiser, undefined, new TicketComments(h.prisma, github));
+    notifier = new SupportNotifier(h.prisma, github, raiser, undefined, new TicketComments(h.prisma, github));
     await h.prisma.supportTicket.deleteMany();
   });
 
@@ -62,12 +59,6 @@ describe('SupportNotifier: what needs a person reaches the ticket\'s GitHub issu
     await notifier.onRaised(await raise(t.id));
     expect(github.comments.map((c) => c.number)).toContain(12);
     expect(thread()).toHaveLength(1);
-  });
-
-  it('a Jira ticket is not told on GitHub', async () => {
-    const t = await h.ticket({ source: 'jira', externalKey: 'SDA-5' });
-    await notifier.onRaised(await raise(t.id));
-    expect(github.calls).not.toContain('upsertIssueComment');
   });
 
   it('a GitHub problem is only noted', async () => {

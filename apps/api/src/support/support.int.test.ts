@@ -161,8 +161,8 @@ describe('Support tickets', () => {
       const tk = await ticket({ status: 'PLANNING' });
       await states.transition(tk.id, 'AWAITING_PLAN_APPROVAL', 'system', 'Plan ready');
       expect(await tickets(tk.id, 'approval')).toMatchObject([{ stage: 'plan', status: 'open', title: `Approve the plan for ${tk.key}` }]);
-      await states.transition(tk.id, 'BREAKDOWN', 'jira', 'Approved in Jira');
-      expect(await tickets(tk.id, 'approval')).toMatchObject([{ status: 'resolved', resolvedBy: 'jira' }]);
+      await states.transition(tk.id, 'BREAKDOWN', 'user', 'Approved');
+      expect(await tickets(tk.id, 'approval')).toMatchObject([{ status: 'resolved', resolvedBy: 'user' }]);
     });
 
     it('raises an approval at the breakdown gate', async () => {
@@ -447,23 +447,20 @@ describe('Support tickets', () => {
   });
 
   describe('notifying (worker side)', () => {
-    it('a blocking ticket gets a Jira comment (once) and a PR comment; a non-blocking one gets neither', async () => {
+    it('a blocking ticket gets a PR comment; a non-blocking one gets none', async () => {
       const github = new FakeGitHub();
-      const notifier = new SupportNotifier(t.prisma, t.jira, github as never, raiser);
-      notifier.onModuleInit();
-      const p2 = await t.prisma.project.create({ data: { name: 'jira-project', repoUrl: 'https://github.com/a/b', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'J', mirrorStatus: 'ok', jiraMode: 'rest', jiraProjectKey: 'ABC' } });
-      const tk = await t.prisma.ticket.create({ data: { projectId: p2.id, key: 'ABC-1', externalKey: 'ABC-1', source: 'jira', title: 'x', status: 'IN_PROGRESS', prNumber: 7 } });
+      new SupportNotifier(t.prisma, github as never, raiser).onModuleInit();
+      await t.prisma.project.update({ where: { id: projectId }, data: { repoUrl: 'https://github.com/a/b' } });
+      const tk = await ticket({ prNumber: 7 });
       await raiser.raise({ kind: 'question', ticketId: tk.id, title: 'Which db?', body: 'Which db?', dedupeKey: 'q-notify' });
-      expect(t.jira.jira.commentBodies['ABC-1']?.[0]).toContain('Which db?');
       expect(github.comments.filter((c: { number: number }) => c.number === 7)).toHaveLength(1);
       await raiser.raise({ kind: 'pr_ready', ticketId: tk.id, title: 'ready', body: 'b', dedupeKey: 'pr-notify' });
-      expect(t.jira.jira.commentBodies['ABC-1']).toHaveLength(1);
       expect(github.comments).toHaveLength(1);
     });
 
     it('does not repeat the PR comment of a needs_help hold: the hold notifier writes it', async () => {
       const github = new FakeGitHub();
-      new SupportNotifier(t.prisma, t.jira, github as never, raiser).onModuleInit();
+      new SupportNotifier(t.prisma, github as never, raiser).onModuleInit();
       const tk = await ticket({ status: 'ON_HOLD', holdReason: 'needs_help', holdFromStatus: 'IN_PROGRESS', prNumber: 9 });
       await raiser.raise({ kind: 'hold', ticketId: tk.id, title: 'on hold', body: 'b', dedupeKey: `h:${tk.id}` });
       expect(github.comments).toHaveLength(0);
@@ -472,7 +469,7 @@ describe('Support tickets', () => {
     it('a failing GitHub call is a warning event and never throws', async () => {
       const github = new FakeGitHub();
       github.failComment = new Error('HTTP 502');
-      new SupportNotifier(t.prisma, t.jira, github as never, raiser).onModuleInit();
+      new SupportNotifier(t.prisma, github as never, raiser).onModuleInit();
       const tk = await ticket({ prNumber: 3 });
       await expect(raiser.raise({ kind: 'question', ticketId: tk.id, title: 'q', body: 'q', dedupeKey: `n:${tk.id}` })).resolves.toMatchObject({ created: true });
       expect((await t.prisma.event.findMany({ where: { ticketId: tk.id, level: 'warn' } })).some((e) => e.message.includes('Could not comment on PR #3'))).toBe(true);

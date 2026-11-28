@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { CredentialValueSchemas, type CredentialKey } from '@sdlc/shared';
-import { JiraClients } from '../jira/jira-clients';
 import { CredentialsService } from './credentials.service';
 
 export interface TestResult {
@@ -13,8 +12,6 @@ export interface TesterOptions {
   /** Where the Anthropic API is reached: LLM_GATEWAY_UPSTREAM, the same upstream the worker's LLM gateway uses. */
   anthropicApiUrl?: string;
   fetch?: typeof fetch;
-  /** What the Rovo MCP sign-in can see; tests replace it. */
-  describeMcp?: () => Promise<{ cloudId: string; site: string | null; tools: string[] }>;
 }
 
 export const TESTER_OPTIONS = Symbol('TESTER_OPTIONS');
@@ -27,7 +24,6 @@ export class CredentialTester {
   private readonly githubApi: string;
   private readonly anthropicApi: string;
   private readonly fetchImpl: typeof fetch;
-  private readonly describeMcp: NonNullable<TesterOptions['describeMcp']>;
 
   constructor(
     private readonly creds: CredentialsService,
@@ -37,7 +33,6 @@ export class CredentialTester {
     this.anthropicApi = (options.anthropicApiUrl ?? 'https://api.anthropic.com').replace(/\/+$/, '');
     this.fetchImpl = options.fetch ?? fetch;
     // A fresh client each time: the test must use the credentials as they are now.
-    this.describeMcp = options.describeMcp ?? (async () => (await new JiraClients(this.creds).mcpClient()).describe());
   }
 
   async test(key: CredentialKey): Promise<TestResult> {
@@ -67,20 +62,6 @@ export class CredentialTester {
         if (res.status === 401) return { ok: false, message: 'GitHub rejected the token' };
         return { ok: false, message: `GitHub answered ${res.status}` };
       }
-      case 'jira_base_url':
-      case 'jira_email':
-      case 'jira_api_token': {
-        if (!c.jira_base_url || !c.jira_email || !c.jira_api_token) return { ok: false, message: 'Set the Jira base URL, email and API token first' };
-        const res = await this.get(`${c.jira_base_url.replace(/\/+$/, '')}/rest/api/3/myself`, {
-          Authorization: `Basic ${Buffer.from(`${c.jira_email}:${c.jira_api_token}`).toString('base64')}`,
-          Accept: 'application/json',
-        });
-        if (res.status === 200) {
-          return { ok: true, message: `Connected as ${((await res.json()) as { displayName?: string }).displayName ?? 'unknown'}` };
-        }
-        if (res.status === 401 || res.status === 403) return { ok: false, message: 'Jira rejected the credentials' };
-        return { ok: false, message: `Jira answered ${res.status}` };
-      }
       case 'anthropic_api_key': {
         if (!c.anthropic_api_key) return { ok: false, message: 'No Anthropic API key is set' };
         if (!CredentialValueSchemas.anthropic_api_key.safeParse(c.anthropic_api_key).success) return { ok: false, message: 'The value does not look like an Anthropic API key' };
@@ -99,19 +80,6 @@ export class CredentialTester {
           return { ok: true, message: n > 0 ? `Connected to the broker; ${n} GitHub installation${n === 1 ? '' : 's'}` : 'Connected to the broker; the GitHub App is not installed yet' };
         }
         return res.status === 401 ? { ok: false, message: 'The broker does not know this key' } : { ok: false, message: `The broker answered ${res.status}` };
-      }
-      case 'jira_mcp_url':
-      case 'jira_mcp_token':
-      case 'jira_mcp_oauth':
-      case 'jira_cloud_id': {
-        if (!c.jira_mcp_oauth && !(c.jira_email && c.jira_mcp_token)) return { ok: false, message: 'Connect with OAuth, or set the Jira email and a scoped Rovo MCP API token first' };
-        try {
-          const seen = await this.describeMcp();
-          const jiraTools = seen.tools.filter((t) => /jira/i.test(t)).length;
-          return { ok: true, message: `Connected to ${seen.site ?? `cloud ${seen.cloudId}`} through the Rovo MCP server (${jiraTools} Jira tools)` };
-        } catch (err) {
-          return { ok: false, message: err instanceof Error ? err.message : String(err) };
-        }
       }
       case 'git_author_name':
       case 'git_author_email':

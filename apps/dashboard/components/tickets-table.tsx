@@ -59,7 +59,7 @@ export function TicketFilters({ projects, filters }: { projects: { id: string; n
 
 export function TicketsTable({ tickets, filtered }: { tickets: TicketListItem[]; filtered: boolean }) {
   if (tickets.length === 0) {
-    return <p className="mt-6 text-sm text-muted">{filtered ? 'No tickets match these filters.' : 'No tickets yet. Paste one, or let the poller pick them up from Jira.'}</p>;
+    return <p className="mt-6 text-sm text-muted">{filtered ? 'No tickets match these filters.' : 'No tickets yet. Paste one, or add the label to a GitHub issue.'}</p>;
   }
   return (
     <table className="mt-6 w-full text-left text-sm">

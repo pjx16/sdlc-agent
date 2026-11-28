@@ -9,7 +9,7 @@
   "repository": { "type": "git", "url": "git+https://github.com/pjx16/sdlc-agent.git", "directory": "packages/cli" },
   "homepage": "https://github.com/pjx16/sdlc-agent#readme",
   "bugs": "https://github.com/pjx16/sdlc-agent/issues",
-  "keywords": ["ai", "agents", "claude", "jira", "github", "pull-requests", "self-hosted", "docker"],
+  "keywords": ["ai", "agents", "claude", "github", "pull-requests", "self-hosted", "docker"],
   "scripts": {
     "build": "node scripts/copy-assets.mjs && tsc -p tsconfig.json",
     "test": "node scripts/copy-assets.mjs && vitest run",

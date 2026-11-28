@@ -7,12 +7,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ApprovalPoller } from '../jira/approval-poller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StateMachine } from '../state/state-machine.service';
-import { FakeJiraClients } from '../testing/fake-jira';
-import { IntakePoller } from './intake/intake-poller';
-import { SubtasksService } from '../subtasks/subtasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { MirrorService } from './git/mirror.service';
@@ -55,9 +51,8 @@ describe('worker skeleton', () => {
         {
           provide: WorkerLoop,
           useFactory: (p: PrismaService, m: MirrorService) => {
-            const jira = new FakeJiraClients();
             const states = new StateMachine(p);
-            return new WorkerLoop(p, m, new IntakePoller(p, jira), new ApprovalPoller(p, jira, states, new SubtasksService(p, jira)), states, []);
+            return new WorkerLoop(p, m, states, []);
           },
           inject: [PrismaService, MirrorService],
         },

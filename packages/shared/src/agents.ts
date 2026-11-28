@@ -18,7 +18,7 @@ export interface AgentSpec {
   model: 'haiku' | 'sonnet' | 'opus';
   /**
    * Whether the agent ships in the `sdlc-subagents` Claude Code plugin, for anyone to call from their own session. Agents
-   * that only make sense inside the pipeline (they choose pipeline moves, map Jira, or answer support tickets) never ship.
+   * that only make sense inside the pipeline (they choose pipeline moves, map the board, or answer support tickets) never ship.
    */
   plugin: boolean;
   /** The workspace in the plugin, when it differs: there the agent can look things up itself (a CI log with `gh`). */
@@ -28,7 +28,7 @@ export interface AgentSpec {
 export const AGENTS: readonly AgentSpec[] = [
   { name: 'assistant', stages: ['assist'], job: 'Answer the developer’s questions about one support ticket and draft a response.', workspace: 'read-only', model: 'sonnet', plugin: false },
   { name: 'repo-profiler', stages: ['repoProfile'], job: 'Propose the stack, the install, typecheck and test commands, the KB folder and the test-file pattern of a repository.', workspace: 'read-only', model: 'sonnet', plugin: false },
-  { name: 'onboarding-advisor', stages: ['onboardAdvise'], job: 'Propose how a project connects to its tracker: the Jira status mapping, approval statuses, issue-type routing and intake label, or the GitHub Projects board columns, approval columns and intake column (or recommend sdlc-agent\'s default columns).', workspace: 'none', model: 'haiku', plugin: false },
+  { name: 'onboarding-advisor', stages: ['onboardAdvise'], job: 'Propose how a project connects to its GitHub Projects board: the column for each pipeline state, the approval columns and the intake column (or recommend sdlc-agent\'s default columns).', workspace: 'none', model: 'haiku', plugin: false },
   { name: 'feature-mapper', stages: ['featureMap'], job: 'Match a ticket to an existing knowledge-base feature key, or say it is new.', workspace: 'read-only', model: 'haiku', plugin: false },
   { name: 'documentor', stages: ['kbBuild', 'kbUpdate'], job: 'Create or refresh one feature doc in the knowledge base.', workspace: 'writes', model: 'sonnet', plugin: true },
   { name: 'solution-architect', stages: ['solutionDesign'], job: 'Design a feature: goal, approach, acceptance criteria and what is out of scope.', workspace: 'read-only', model: 'opus', plugin: true },
@@ -41,7 +41,6 @@ export const AGENTS: readonly AgentSpec[] = [
   { name: 'quality-reviewer', stages: ['qualityReview'], job: 'Review a diff for readability and the repository’s standards.', workspace: 'read-only', model: 'haiku', plugin: true },
   { name: 'security-reviewer', stages: ['securityReview'], job: 'Review a diff for security problems only.', workspace: 'read-only', model: 'sonnet', plugin: true },
   { name: 'orchestrator', stages: ['orchestrate'], job: 'Choose one of the legal moves for a ticket at a decision point, and say why.', workspace: 'none', model: 'haiku', plugin: false },
-  { name: 'jira-connector', stages: ['jiraConnector'], job: 'Do one Jira operation through the claude.ai Jira connector and return the result as JSON.', workspace: 'none', model: 'haiku', plugin: false },
   { name: 'ci-triager', stages: ['ciTriage'], job: 'Classify a failed CI run as a code problem, a flaky test or an infrastructure problem.', workspace: 'none', model: 'haiku', plugin: true, pluginWorkspace: 'read-only' },
 ];
 

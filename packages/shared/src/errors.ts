@@ -17,7 +17,6 @@ export const ErrorCodes = {
   notFound: 'not_found',
   conflict: 'conflict',
   invalidTransition: 'invalid_transition',
-  jiraError: 'jira_error',
   brokerError: 'broker_error',
   githubError: 'github_error',
   internal: 'internal_error',

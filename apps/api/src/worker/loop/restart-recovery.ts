@@ -39,7 +39,7 @@ export class RestartRecovery {
     let held = 0;
     for (const run of running) {
       await this.prisma.stageRun.update({ where: { id: run.id }, data: { status: 'failed', endedAt: new Date(), error: 'worker_restart' } });
-      if (!run.ticketId) continue; // a project-level stage (jiraIntake) simply runs again at its next poll
+      if (!run.ticketId) continue; // a project-level stage simply runs again at its next poll
 
       const earlier = await this.prisma.stageRun.count({ where: { ticketId: run.ticketId, stage: run.stage, error: 'worker_restart', id: { not: run.id } } });
       if (earlier >= MAX_RESTART_REQUEUES) {

@@ -44,7 +44,7 @@ describe('the orchestrator at the other decision points', () => {
     writeFileSync(path.join(h.tmp, 'guidelines', 'review-checklist.md'), '# Checklist\n');
     orchestrator = new OrchestratorService(h.prisma, h.launcher);
     review = new ReviewHandler(h.prisma, new ReviewService(h.prisma, h.launcher, h.outcomes, h.git, h.config, orchestrator), h.launcher, h.outcomes, h.workspaces, h.git, h.pr, orchestrator);
-    plan = new PlanHandler(h.prisma, h.launcher, h.outcomes, {} as never, undefined, orchestrator);
+    plan = new PlanHandler(h.prisma, h.launcher, h.outcomes, undefined, orchestrator);
     ci = new CiFixHandler(h.prisma, h.launcher, h.outcomes, h.workspaces, h.git, h.github, undefined, orchestrator);
   }, 180_000);
   afterAll(async () => h?.close());

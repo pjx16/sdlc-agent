@@ -24,7 +24,7 @@ function setup(opts: { lines: number; level?: string | null; settings?: unknown;
   const pr = { postComment: vi.fn(async () => true) };
   const raiser = { raise: vi.fn(async () => ({})) };
   const comments = { post: vi.fn(async () => 'created') };
-  const service = new PrSizeService(prisma as never, { workspacePath: () => '/ws' } as never, git as never, pr as never, raiser as never, undefined, comments as never);
+  const service = new PrSizeService(prisma as never, { workspacePath: () => '/ws' } as never, git as never, pr as never, raiser as never, comments as never);
   return { service, calls, ticketUpdate, decisionCreate, eventCreate, pr, raiser, comments };
 }
 
@@ -106,10 +106,5 @@ describe('PrSizeService', () => {
       expect(again.comments.post).not.toHaveBeenCalled();
     });
 
-    it('a Jira ticket is told on Jira and not on GitHub', async () => {
-      const t = setup({ lines: 700, source: 'jira' });
-      await t.service.check('t1');
-      expect(t.comments.post).not.toHaveBeenCalled();
-    });
   });
 });

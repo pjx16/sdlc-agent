@@ -81,13 +81,13 @@ describe('buildCreateOptions', () => {
     });
 
     it('never mounts the whole volume, and leaves paths outside the data folder as they are', () => {
-      const o = buildCreateOptions(spec({ workspace: { path: '/data', readOnly: true }, contextDir: '/elsewhere/ctx', extraBinds: ['sdlc_jira_connector_home:/connector-home:rw'] }), data);
+      const o = buildCreateOptions(spec({ workspace: { path: '/data', readOnly: true }, contextDir: '/elsewhere/ctx', extraBinds: ['sdlc_extra:/extra:rw'] }), data);
       expect(o.HostConfig?.Mounts).toBeUndefined();
-      expect(o.HostConfig?.Binds).toEqual(['/data:/workspace:ro', '/elsewhere/ctx:/context:ro', 'sdlc_npm_cache:/npm-cache:rw', 'sdlc_jira_connector_home:/connector-home:rw']);
+      expect(o.HostConfig?.Binds).toEqual(['/data:/workspace:ro', '/elsewhere/ctx:/context:ro', 'sdlc_npm_cache:/npm-cache:rw', 'sdlc_extra:/extra:rw']);
     });
   });
 
-  it('has no workspace mount for Jira stages', () => {
+  it('has no workspace mount for stages that need none', () => {
     const binds = buildCreateOptions(spec({ workspace: undefined })).HostConfig?.Binds ?? [];
     expect(binds.some((b) => b.includes(':/workspace'))).toBe(false);
   });

@@ -31,12 +31,8 @@ args=(
   --setting-sources user
 )
 
-# The Jira connector stage (connector mode) needs the claude.ai connectors, which --strict-mcp-config would drop. Every other stage loads
-# no MCP server at all.
-CONNECTOR="$(jq -r '.connector.serverName // empty' "$CONTEXT_DIR/stage.json")"
-if [ -z "$CONNECTOR" ]; then
-  args+=(--strict-mcp-config)
-fi
+# No stage loads an MCP server: only the tools the stage config allows.
+args+=(--strict-mcp-config)
 
 # The assistant continues its conversation's CLI session.
 RESUME="$(jq -r '.resumeSession // empty' "$CONTEXT_DIR/stage.json")"

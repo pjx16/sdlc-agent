@@ -7,7 +7,6 @@ import { StateMachine } from '../../state/state-machine.service';
 import { SupportRaiser } from '../../support/support-raiser';
 import { SubtasksService } from '../../subtasks/subtasks.service';
 import { FakeGitHub } from '../../testing/fake-github';
-import { FakeJiraClients } from '../../testing/fake-jira';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import { GithubApprovalPoller } from './github-approval-poller';
 import type { ProjectItem } from './github-client';
@@ -43,8 +42,7 @@ describe('approval from GitHub', () => {
     prisma = new PrismaService();
     await prisma.onModuleInit();
     github = new FakeGitHub();
-    const clients = new FakeJiraClients();
-    const approvals = new ApprovalService(prisma, new StateMachine(prisma), new SubtasksService(prisma, clients));
+    const approvals = new ApprovalService(prisma, new StateMachine(prisma), new SubtasksService(prisma));
     poller = new GithubApprovalPoller(prisma, github, approvals, new TicketComments(prisma, github));
   }, 180_000);
   afterAll(async () => {
@@ -113,16 +111,15 @@ describe('approval from GitHub', () => {
       expect(github.threads.get(`${REPO}#${issue}`)).toHaveLength(1);
     });
 
-    it('does nothing for a project without approval columns, a Jira ticket, or a ticket not waiting', async () => {
+    it('does nothing for a project without approval columns, or a ticket not waiting', async () => {
       const none = await project({ mode: 'projects', project: { owner: 'acme', number: 3 } });
       const t = await ticket(none.id, 'AWAITING_PLAN_APPROVAL');
       onBoard(t, 'Plan approved');
       const p = await project(board);
-      const jira = await ticket(p.id, 'AWAITING_PLAN_APPROVAL', { source: 'jira', externalKey: 'SDA-1' });
       const working = await ticket(p.id, 'PLANNING');
       onBoard(working, 'Plan approved');
       await poller.check();
-      expect([(await reload(t.id)).status, (await reload(jira.id)).status, (await reload(working.id)).status]).toEqual(['AWAITING_PLAN_APPROVAL', 'AWAITING_PLAN_APPROVAL', 'PLANNING']);
+      expect([(await reload(t.id)).status, (await reload(working.id)).status]).toEqual(['AWAITING_PLAN_APPROVAL', 'PLANNING']);
     });
   });
 

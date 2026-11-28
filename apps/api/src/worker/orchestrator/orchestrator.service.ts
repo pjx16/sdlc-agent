@@ -1,8 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { DECISION_POINTS, ProjectSettingsSchema, automaticMoves, decisionPointOf, legalMoves, validateDecision, type DecisionOption, type DecisionPoint, type StageEnvelope, jiraOn } from '@sdlc/shared';
+import { DECISION_POINTS, ProjectSettingsSchema, automaticMoves, decisionPointOf, legalMoves, validateDecision, type DecisionOption, type DecisionPoint, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
-import { JiraClients } from '../../jira/jira-clients';
-import { jiraMarker } from '../../jira/jira-client';
 import { TicketComments } from '../github/ticket-comments';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StageLauncher } from '../pipeline/stage-launcher';
@@ -26,7 +24,6 @@ export class OrchestratorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly launcher: StageLauncher,
-    @Optional() private readonly jira?: JiraClients,
     @Optional() private readonly comments?: TicketComments,
   ) {}
 
@@ -124,29 +121,14 @@ export class OrchestratorService {
       },
     });
     if (!fallbackUsed) {
-      await this.tellJira(ticket, point, move, reason, note);
       await this.tellIssue(ticket, point, move, reason, note);
     }
     return { option: move, reason: fallbackUsed ? '' : reason, fallbackUsed, ...(note && !fallbackUsed ? { note } : {}) };
   }
 
-  /** Every decision the orchestrator takes is written on the Jira ticket too, so the team can see what was decided and why. A Jira problem never blocks. */
-  private async tellJira(ticket: Ticket, point: DecisionPoint, move: DecisionOption, reason: string, note: string | undefined): Promise<void> {
-    if (!this.jira || ticket.source !== 'jira' || !ticket.externalKey) return;
-    try {
-      const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
-      const settings = ProjectSettingsSchema.parse(project.settings);
-      if (!jiraOn(project.jiraMode) || !settings.jiraWriteBack.comments) return;
-      const text = [`sdlc-agent decided (${point.replace(/_/g, ' ')}): ${move.label || `${move.kind} ${move.to}`}.`, reason ? `Why: ${reason}` : null, note ? `Instruction given to the agent: ${note}` : null].filter(Boolean).join('\n');
-      await (await this.jira.forMode(project.jiraMode)).comment(ticket.externalKey, text, jiraMarker(ticket.key, `decision-${point}`, `${Date.now()}`));
-    } catch (err) {
-      this.logger.warn(`Could not write the decision to Jira for ${ticket.key}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  /** The same decision on the ticket's GitHub issue (a Jira ticket has it on Jira). Each decision is its own comment. Never blocks. */
+  /** Every decision is written on the ticket's GitHub issue, so the team can see what was decided and why. Each decision is its own comment. Never blocks. */
   private async tellIssue(ticket: Ticket, point: DecisionPoint, move: DecisionOption, reason: string, note: string | undefined): Promise<void> {
-    if (!this.comments || ticket.source === 'jira') return;
+    if (!this.comments) return;
     const text = [`sdlc-agent decided (${point.replace(/_/g, ' ')}): ${move.label || `${move.kind} ${move.to}`}.`, reason ? `Why: ${reason}` : null, note ? `Instruction given to the agent: ${note}` : null].filter(Boolean).join('\n');
     await this.comments.post(ticket, `decision-${point}-${Date.now()}`, text);
   }

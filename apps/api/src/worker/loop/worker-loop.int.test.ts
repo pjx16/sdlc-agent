@@ -6,13 +6,9 @@ import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import type { TicketStatus } from '@sdlc/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { ApprovalPoller } from '../../jira/approval-poller';
-import { SubtasksService } from '../../subtasks/subtasks.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StateMachine } from '../../state/state-machine.service';
-import { FakeJiraClients } from '../../testing/fake-jira';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
-import { IntakePoller } from '../intake/intake-poller';
 import type { StepHandler, StepOutcome } from '../pipeline/step-handler';
 import { MirrorService } from '../git/mirror.service';
 import { WorkerConfig } from '../worker-config';
@@ -32,7 +28,6 @@ describe('worker loop', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let states: StateMachine;
-  let jira: FakeJiraClients;
   let projectId: string;
   let n = 0;
   let clock = 5_000_000;
@@ -47,7 +42,7 @@ describe('worker loop', () => {
   });
   const loopWith = (handlers: StepHandler[]) => {
     const config = new WorkerConfig({ DATA_DIR, DATABASE_URL: db.url } as NodeJS.ProcessEnv);
-    return new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, handlers, () => clock);
+    return new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), states, handlers, () => clock);
   };
   const ticket = async (status: TicketStatus = 'NEW', over: Record<string, unknown> = {}) => {
     n++;
@@ -61,7 +56,6 @@ describe('worker loop', () => {
     prisma = new PrismaService();
     await prisma.onModuleInit();
     states = new StateMachine(prisma);
-    jira = new FakeJiraClients();
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -86,7 +80,7 @@ describe('worker loop', () => {
     try {
       const config = new WorkerConfig({ DATA_DIR, DATABASE_URL: db.url } as NodeJS.ProcessEnv);
       const creds = new CredentialsService(prisma);
-      const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, creds), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, [handler('NEW', () => ({ kind: 'stay' }))], () => clock, [], undefined, creds);
+      const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, creds), states, [handler('NEW', () => ({ kind: 'stay' }))], () => clock, [], undefined, creds);
       const t = await ticket('NEW');
       const pending = await prisma.project.update({ where: { id: projectId }, data: { mirrorStatus: 'pending', mirrorError: null } });
       expect(await loop.tick()).toBe('not_configured');
@@ -211,7 +205,7 @@ describe('worker loop', () => {
     const other = { name: 'other', intervalMs: 1, check: async () => void ran2.push('other') };
     const net = { name: 'connectivity', intervalMs: 1, check: async () => void ran2.push('net') };
     const config = new WorkerConfig({ DATA_DIR, DATABASE_URL: db.url } as NodeJS.ProcessEnv);
-    const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, [handler('NEW', () => ({ kind: 'transition', to: 'KB' }))], () => clock, [net, other]);
+    const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), states, [handler('NEW', () => ({ kind: 'transition', to: 'KB' }))], () => clock, [net, other]);
     expect(await loop.tick()).toBe('paused');
     expect(ran).toEqual([]);
     expect(ran2).toEqual(['net']); // the other housekeeping parts would only fail without a connection
@@ -330,39 +324,6 @@ describe('worker loop', () => {
     expect(await loopWith([handler('NEW', () => ({ kind: 'stay' }))]).tick()).toBe('idle');
   });
 
-  it('polls Jira only when due', async () => {
-    const loop = loopWith([]);
-    const project = await prisma.project.create({ data: { name: 'jira', repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'J', jiraMode: 'rest', jiraProjectKey: 'ABC', jiraJql: 'project = ABC', mirrorStatus: 'ok' } });
-    fakeMirror(project.id);
-    await prisma.globalSettings.create({ data: { id: 'global', pollIntervalSec: 120 } });
-    jira.jira.searches = [];
-    await loop.tick();
-    expect(jira.jira.searches).toHaveLength(1);
-    clock += 60_000;
-    await loop.tick();
-    expect(jira.jira.searches).toHaveLength(1); // not due yet
-    clock += 61_000;
-    await loop.tick();
-    expect(jira.jira.searches).toHaveLength(2);
-    void project;
-  });
-
-  it('keeps polling for new tickets while the pipeline is paused, but not while intake is paused', async () => {
-    fakeMirror((await prisma.project.create({ data: { name: 'jira2', repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'J2', jiraMode: 'rest', jiraProjectKey: 'ABC', jiraJql: 'x', mirrorStatus: 'ok' } })).id);
-    jira.jira.tickets = [{ key: 'ABC-1', summary: 's', description: 'd', issuetype: 'Story', labels: [], priority: null }];
-    await prisma.globalSettings.create({ data: { id: 'global', pipelinePaused: true } });
-    const loop = loopWith([]);
-    expect(await loop.tick()).toBe('paused');
-    expect(await prisma.ticket.count({ where: { source: 'jira' } })).toBe(1);
-
-    await prisma.ticket.deleteMany({ where: { source: 'jira' } });
-    await prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: false, intakePaused: true } });
-    clock += 200_000;
-    await loop.tick();
-    expect(await prisma.ticket.count({ where: { source: 'jira' } })).toBe(0);
-    jira.jira.tickets = [];
-  });
-
   it('the orchestrator hook may replace the default move of a step, and a step without it moves as before', async () => {
     const t = await ticket('REVIEW');
     const seen: string[] = [];
@@ -373,7 +334,7 @@ describe('worker loop', () => {
         return outcome.kind === 'transition' ? { ...outcome, to: 'AWAITING_CI' } : outcome;
       },
     };
-    const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, [handler('REVIEW', () => ({ kind: 'transition', to: 'KB_UPDATE', reason: 'done' }))], () => clock, [], undefined, undefined, undefined, orchestrator);
+    const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), states, [handler('REVIEW', () => ({ kind: 'transition', to: 'KB_UPDATE', reason: 'done' }))], () => clock, [], undefined, undefined, undefined, orchestrator);
     await loop.tick();
     expect(seen).toEqual([t.key]);
     expect(await status(t.id)).toBe('AWAITING_CI');

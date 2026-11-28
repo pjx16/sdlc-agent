@@ -43,12 +43,11 @@ describe('stageLoad', () => {
 });
 
 describe('integrationRates', () => {
-  it('uses stage runs for Claude and events for Jira and GitHub', () => {
-    const r = integrationRates({ total: 10, errors: 2 }, [{ source: 'jira', level: 'info' }, { source: 'jira', level: 'warn' }, { source: 'github', level: 'error' }, { source: 'agent', level: 'error' }]);
+  it('uses stage runs for Claude and events for GitHub', () => {
+    const r = integrationRates({ total: 10, errors: 2 }, [{ source: 'github', level: 'info' }, { source: 'github', level: 'warn' }, { source: 'github', level: 'error' }, { source: 'agent', level: 'error' }]);
     expect(r).toEqual([
       { source: 'claude', total: 10, errors: 2, rate: 0.2 },
-      { source: 'jira', total: 2, errors: 1, rate: 0.5 },
-      { source: 'github', total: 1, errors: 1, rate: 1 },
+      { source: 'github', total: 3, errors: 2, rate: 2 / 3 },
     ]);
   });
 });

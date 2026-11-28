@@ -22,8 +22,7 @@ ENV DISABLE_AUTOUPDATER=1 \
 COPY --chmod=755 run-stage run-cmd /usr/local/bin/
 
 # The shared npm cache volume is mounted here; creating it owned by `node` makes a new volume writable by the agent user.
-# /connector-home is the Jira connector's claude.ai login (connector mode only); a named volume is mounted there.
-RUN mkdir /npm-cache /connector-home && chown node:node /npm-cache /connector-home
+RUN mkdir /npm-cache && chown node:node /npm-cache
 
 # The node base image provides user `node` (uid 1000).
 USER node

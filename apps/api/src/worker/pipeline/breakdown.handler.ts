@@ -74,7 +74,7 @@ export class BreakdownHandler implements StepHandler {
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { breakdownDraft: verdict.subtasks as unknown as Prisma.InputJsonValue } });
     await writeArtifact(this.prisma, ticket.id, 'breakdown', { subtasks: verdict.subtasks, filesByOrder: (result.envelope.data as { filesByOrder?: string[] } | undefined)?.filesByOrder ?? [] }, result.stageRunId).catch(() => undefined);
 
-    if (this.comments && ticket.source !== 'jira') await this.comments.post(ticket, 'breakdown', breakdownComment(ticket.key, verdict.subtasks));
+    if (this.comments) await this.comments.post(ticket, 'breakdown', breakdownComment(ticket.key, verdict.subtasks));
 
     // With the gate off the subtasks are created at once (row 8); otherwise the ticket waits for approval (row 7).
     if (!settings.gates.breakdown) return this.approve(ticket, verdict.subtasks, 'Breakdown stored; the breakdown gate is off', result.stageRunId);
@@ -93,11 +93,10 @@ export class BreakdownHandler implements StepHandler {
     return last?.fromStatus === 'AWAITING_BREAKDOWN_APPROVAL' && last.reason ? last.reason : null;
   }
 
-  /** Creates the Subtask rows (and Jira sub-tasks when write-back is on) and goes straight to IN_PROGRESS. */
+  /** Creates the Subtask rows and goes straight to IN_PROGRESS. */
   private async approve(ticket: Ticket, drafts: SubtaskDraft[], reason: string, stageRunId?: string): Promise<StepOutcome> {
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { breakdownDraft: drafts as unknown as Prisma.InputJsonValue } });
     await this.subtasks.create(ticket.id, drafts);
-    await this.subtasks.publishToJira(ticket.id);
     return { kind: 'transition', to: 'IN_PROGRESS', reason, stageRunId };
   }
 }

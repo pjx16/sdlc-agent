@@ -12,7 +12,7 @@ const APPROVALS = ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] as c
 /**
  * Raises and closes the support tickets that follow a ticket's state: an approval while a plan or
  * breakdown waits at its gate, a hold while the ticket is held or failed, a "PR ready" note while it waits for human review.
- * Because it watches every transition, a ticket is closed whoever moved it: the dashboard, Jira or the worker.
+ * Because it watches every transition, a ticket is closed whoever moved it: the dashboard or the worker.
  */
 @Injectable()
 export class SupportTransitionListener implements TransitionListener {

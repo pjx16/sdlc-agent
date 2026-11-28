@@ -43,7 +43,7 @@ export function NumberCards({ summary }: { summary: MetricsSummary }) {
 
 const TONE: Record<Tone, string> = { green: 'bg-green', amber: 'bg-amber', red: 'bg-red', grey: 'bg-grey' };
 
-/** What the worker is doing right now: is it alive, what the pipeline is doing, what Jira intake last did, and recent events. */
+/** What the worker is doing right now: is it alive, what the pipeline is doing, and recent events. */
 export function ActivityCard({ system, now }: { system: SystemView | null; now: number }) {
   const lines = describeActivity(system, now);
   const events = system?.recentEvents ?? [];

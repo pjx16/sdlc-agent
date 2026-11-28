@@ -5,10 +5,10 @@ import type { ProjectView } from './types';
 
 const project: ProjectView = {
   id: 'p1', name: 'Billing', repoUrl: 'https://github.com/a/b', baseBranch: 'dev', stack: 'nestjs', installCmd: 'npm ci',
-  typecheckCmd: '', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', claudeMdMode: 'both', jiraMode: 'rest',
-  jiraProjectKey: 'BILL', jiraJql: undefined, localKeyPrefix: 'BILL', enabled: true, mirrorStatus: 'ok', mirrorError: null,
+  typecheckCmd: '', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', claudeMdMode: 'both',
+  localKeyPrefix: 'BILL', enabled: true, mirrorStatus: 'ok', mirrorError: null,
   nextLocalNumber: 1, createdAt: '', updatedAt: '',
-  settings: { ...DEFAULT_PROJECT_SETTINGS, jiraStatusMap: { ...DEFAULT_PROJECT_SETTINGS.jiraStatusMap, DONE: 'Closed' }, jiraApprovalStatuses: { plan: 'Plan OK' } },
+  settings: { ...DEFAULT_PROJECT_SETTINGS, github: { ...DEFAULT_PROJECT_SETTINGS.github, approval: { ...DEFAULT_PROJECT_SETTINGS.github.approval, plan: 'Plan OK' } } },
 };
 
 describe('initialValues', () => {
@@ -22,10 +22,7 @@ describe('initialValues', () => {
 
   it('loads an existing project, using empty text for unset optional values', () => {
     const v = initialValues(project) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(v.jiraJql).toBe('');
-    expect(v.settings.jiraStatusMap.DONE).toBe('Closed');
-    expect(v.settings.jiraStatusMap.NEW).toBe('');
-    expect(v.settings.jiraApprovalStatuses).toEqual({ plan: 'Plan OK', breakdown: '' });
+    expect(v.settings.github.approval).toEqual({ plan: 'Plan OK', breakdown: '', label: 'sdlc:approved' });
   });
 });
 
@@ -59,14 +56,12 @@ describe('toPayload', () => {
     expect(p.settings.pr.ciTimeoutMin).toBe(30);
   });
 
-  it('splits patterns into lines and maps blank statuses to null or omits them', () => {
+  it('splits patterns into lines and maps blank approval columns to null', () => {
     const v = initialValues(project) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     v.settings.verify.redInvalidPatterns = 'A\n\n  B  \n';
     const p = toPayload(v) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(p.settings.verify.redInvalidPatterns).toEqual(['A', 'B']);
-    expect(p.settings.jiraStatusMap.DONE).toBe('Closed');
-    expect(p.settings.jiraStatusMap.NEW).toBeNull();
-    expect(p.settings.jiraApprovalStatuses).toEqual({ plan: 'Plan OK' });
+    expect(p.settings.github.approval).toEqual({ plan: 'Plan OK', breakdown: null, label: 'sdlc:approved' });
   });
 
   it('omits a blank local prefix so the API derives it', () => {

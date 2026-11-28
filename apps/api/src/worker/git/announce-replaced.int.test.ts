@@ -13,8 +13,8 @@ describe('replacing the pipeline\'s own earlier commits is told on the ticket\'s
   afterAll(async () => h?.close());
 
   /** `announceReplaced` is private and only needs the database and the comments, so it is called on a stand-in for the service. */
-  const announce = (comments: TicketComments | undefined, ticket: { id: string; key: string; source: string; externalKey: string | null }, shas: string[]) =>
-    (WorkspaceService.prototype as unknown as { announceReplaced: (...a: unknown[]) => Promise<void> }).announceReplaced.call({ prisma: h.prisma, comments, jira: undefined, logger: { warn: () => undefined } }, ticket, { jiraMode: 'off', settings: {} }, 'sdlc/T-1', shas);
+  const announce = (comments: TicketComments | undefined, ticket: { id: string; key: string; externalKey: string | null }, shas: string[]) =>
+    (WorkspaceService.prototype as unknown as { announceReplaced: (...a: unknown[]) => Promise<void> }).announceReplaced.call({ prisma: h.prisma, comments, logger: { warn: () => undefined } }, ticket, 'sdlc/T-1', shas);
 
   it('writes the decision and the reason as a comment', async () => {
     const github = new FakeGitHub();
@@ -28,10 +28,10 @@ describe('replacing the pipeline\'s own earlier commits is told on the ticket\'s
     expect(await h.prisma.orchestratorDecision.count({ where: { ticketId: t.id, point: 'push_replace' } })).toBe(1);
   });
 
-  it('a Jira ticket, or no comments service, writes the decision and the event but nothing on GitHub', async () => {
+  it('a ticket that is not on GitHub, or no comments service, writes the decision and the event but nothing on GitHub', async () => {
     const github = new FakeGitHub();
-    const jiraTicket = await h.ticket({ source: 'jira', externalKey: 'SDA-8' });
-    await announce(new TicketComments(h.prisma, github), jiraTicket, ['cccccccc']);
+    const pasted = await h.ticket({ source: 'paste', externalKey: null });
+    await announce(new TicketComments(h.prisma, github), pasted, ['cccccccc']);
     const plain = await h.ticket({ source: 'github', externalKey: 'acme/billing#121' });
     await announce(undefined, plain, ['dddddddd']);
     expect(github.calls).not.toContain('upsertIssueComment');

@@ -20,7 +20,7 @@ export interface RaiseInput {
   dedupeKey?: string;
 }
 
-/** Told when a blocking ticket is raised, to put it where the team looks (Jira comment, PR comment). Worker only. */
+/** Told when a blocking ticket is raised, to put it where the team looks (a comment on the issue, a PR comment). Worker only. */
 export interface SupportNotifierPort {
   onRaised(ticket: SupportTicket): Promise<void>;
 }
@@ -34,7 +34,7 @@ const isUniqueViolation = (e: unknown) => typeof e === 'object' && e !== null &&
 @Injectable()
 export class SupportRaiser {
   private readonly logger = new Logger(SupportRaiser.name);
-  /** Set by the worker, which can reach Jira and GitHub. The API process leaves it empty. */
+  /** Set by the worker, which can reach GitHub. The API process leaves it empty. */
   notifier: SupportNotifierPort | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
@@ -82,11 +82,11 @@ export class SupportRaiser {
   }
 
   /**
-   * A credential the system relies on was refused (Claude, Jira, GitHub). One global ticket per credential, closed by itself
+   * A credential the system relies on was refused (Claude, GitHub). One global ticket per credential, closed by itself
    * when the credential test passes (see CredentialsService.markVerified).
    */
-  async credentialFailed(group: 'claude' | 'jira' | 'github', detail: string): Promise<void> {
-    const name = { claude: 'Claude', jira: 'Jira', github: 'GitHub' }[group];
+  async credentialFailed(group: 'claude' | 'github', detail: string): Promise<void> {
+    const name = { claude: 'Claude', github: 'GitHub' }[group];
     await this.raise({ kind: 'credential', dedupeKey: `credential:${group}`, stage: '', title: `${name} rejected the credential`, body: `${detail}\n\nUpdate it in Settings → Connections. This ticket closes by itself when the credential test passes.` });
   }
 

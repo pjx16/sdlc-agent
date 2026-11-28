@@ -6,7 +6,6 @@ import type { StageEnvelope } from '@sdlc/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { allArtifacts, currentArtifact, latestArtifact, writeArtifact } from '../common/artifacts';
 import { StateMachine } from '../state/state-machine.service';
-import { FakeJiraClients } from '../testing/fake-jira';
 import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import type { StageRequest, StageResult } from '../worker/agent-runner/agent-runner';
@@ -50,7 +49,7 @@ describe('Versioned outputs and rerun context', () => {
       },
     };
     launcher = new StageLauncher(t.prisma, config, runner as never);
-    handler = new PlanHandler(t.prisma, launcher, new StageOutcomes(t.prisma), new FakeJiraClients());
+    handler = new PlanHandler(t.prisma, launcher, new StageOutcomes(t.prisma));
   }, 180_000);
   afterAll(async () => {
     await t?.close();

@@ -21,7 +21,7 @@ export interface TransitionResult {
   transition: StateTransition;
 }
 
-/** Called after a transition is committed (for example to apply the Jira status mapping). Must never block the pipeline. */
+/** Called after a transition is committed (for example to raise or close a support ticket). Must never block the pipeline. */
 export interface TransitionListener {
   onTransition(result: TransitionResult): Promise<void>;
 }

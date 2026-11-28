@@ -2,9 +2,9 @@ import 'reflect-metadata';
 import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../app.module';
-import { ApprovalPoller } from '../jira/approval-poller';
 import { StateMachine } from '../state/state-machine.service';
-import { IntakePoller } from '../worker/intake/intake-poller';
+import { GithubApprovalPoller } from '../worker/github/github-approval-poller';
+import { GithubIntake } from '../worker/intake/github-intake';
 import { RestartRecovery } from '../worker/loop/restart-recovery';
 import { WorkerLoop } from '../worker/loop/worker-loop';
 import { HOUSEKEEPERS } from '../worker/loop/worker-loop';
@@ -32,7 +32,7 @@ describe('application wiring', () => {
   it('the worker module graph compiles and provides everything the loop needs', async () => {
     const app = await Test.createTestingModule({ imports: [WorkerModule] }).compile();
     await app.init();
-    for (const provider of [WorkerRunner, WorkerLoop, RestartRecovery, IntakePoller, ApprovalPoller, StateMachine, AgentRunner]) expect(app.get(provider), provider.name).toBeDefined();
+    for (const provider of [WorkerRunner, WorkerLoop, RestartRecovery, GithubIntake, GithubApprovalPoller, StateMachine, AgentRunner]) expect(app.get(provider), provider.name).toBeDefined();
     await app.close();
   });
 

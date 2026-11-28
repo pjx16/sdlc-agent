@@ -22,7 +22,7 @@ export const INDEX_FILE = 'features.json';
 export const FEATURE_KEY = /^[a-z0-9][a-z0-9._-]*$/;
 
 /**
- * The ticket's feature key (F6): the pasted field, or a Jira label `feature:<key>`.
+ * The ticket's feature key (F6): the pasted field, or a label `feature:<key>`.
  * Returns null when there is none or it is not a valid key.
  */
 export function featureKeyOf(ticket: { featureKey?: string | null; labels?: unknown }): string | null {

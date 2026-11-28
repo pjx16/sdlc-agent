@@ -91,7 +91,7 @@ describe('NEW and KB step handlers', () => {
       expect(out).toMatchObject({ kind: 'transition', to: 'PLANNING', reason: 'KB doc matched: bookings' });
     });
 
-    it('matches a Jira label feature:<key> and records the key on the ticket', async () => {
+    it('matches a label feature:<key> and records the key on the ticket', async () => {
       const t = await ticket({ status: 'KB', source: 'jira', externalKey: `ABC-L${n}`, labels: ['backend', 'feature:bookings'] });
       expect(await handler().run(t)).toMatchObject({ kind: 'transition', to: 'PLANNING' });
       expect((await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).featureKey).toBe('bookings');

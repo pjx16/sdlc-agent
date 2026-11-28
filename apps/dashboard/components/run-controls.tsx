@@ -5,7 +5,7 @@ import { useState } from 'react';
 
 type Action = 'pipeline' | 'intake';
 
-/** Pause or resume the whole pipeline, and pause or resume reading Jira (intake), from the top bar. */
+/** Pause or resume the whole pipeline, and pause or resume reading GitHub (intake), from the top bar. */
 export function RunControls({ pipelinePaused, intakePaused }: { pipelinePaused: boolean; intakePaused: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Action | null>(null);
@@ -38,7 +38,7 @@ export function RunControls({ pipelinePaused, intakePaused }: { pipelinePaused: 
         type="button"
         onClick={() => toggle('intake', intakePaused)}
         disabled={busy !== null}
-        title={intakePaused ? 'Start reading tickets from Jira again' : 'Stop reading tickets from Jira. Tickets already in the pipeline keep going.'}
+        title={intakePaused ? 'Start picking up tickets from GitHub again' : 'Stop picking up tickets from GitHub. Tickets already in the pipeline keep going.'}
         className={`${button} ${intakePaused ? 'border-amber text-amber' : 'border-border text-muted hover:text-text'}`}
       >
         {intakePaused ? 'Resume intake' : 'Pause intake'}

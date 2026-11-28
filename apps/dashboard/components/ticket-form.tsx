@@ -7,7 +7,7 @@ import { FormProvider, Section, Select, Text, TextArea } from './form';
 import { setIn, type FormValues } from '@/lib/form';
 import { KbDocPicker } from './kb-doc-picker';
 
-/** Paste a ticket into a project (F3). Works in every Jira mode. */
+/** Paste a ticket into a project (F3). */
 export function TicketForm({ projects, template = '' }: { projects: { id: string; name: string; mirrorStatus: string; enabled: boolean; onboardingStatus?: string }[]; /** The team's ticket format (guidelines/formats/ticket.md): the description starts with it. */ template?: string }) {
   const router = useRouter();
   const usable = projects.filter((p) => p.enabled && (p.onboardingStatus ?? 'confirmed') === 'confirmed');

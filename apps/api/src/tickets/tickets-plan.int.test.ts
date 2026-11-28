@@ -9,7 +9,6 @@ describe('Plan gate API (F7)', () => {
   let projectId: string;
   let n = 0;
 
-  const setProject = (data: Record<string, unknown>) => t.prisma.project.update({ where: { id: projectId }, data: data as never });
   const ticket = (over: Record<string, unknown> = {}) => t.prisma.ticket.create({ data: { projectId, key: `K-${++n}`, source: 'paste', title: 'title', body: 'body', status: 'AWAITING_PLAN_APPROVAL', planMarkdown: '# Plan v1', ...over } });
   const reload = (id: string) => t.prisma.ticket.findUniqueOrThrow({ where: { id } });
 
@@ -25,9 +24,6 @@ describe('Plan gate API (F7)', () => {
   beforeEach(async () => {
     await t.prisma.event.deleteMany();
     await t.prisma.stateTransition.deleteMany();
-    await setProject({ jiraMode: 'off' });
-    t.jira.jira.calls = [];
-    t.jira.jira.failWith = null;
   });
 
   it('requires a session', async () => {
@@ -63,32 +59,6 @@ describe('Plan gate API (F7)', () => {
       const res = await t.agent.post(`/tickets/${tk.id}/plan/approve`).send({ planMarkdown: '   ' }).expect(400);
       expect(res.body.fields.planMarkdown).toBe('must not be empty');
       expect((await reload(tk.id)).status).toBe('AWAITING_PLAN_APPROVAL');
-    });
-
-    it('re-reads the Jira issue in REST mode, so edits made in Jira reach the breakdown', async () => {
-      await setProject({ jiraMode: 'rest' });
-      const tk = await ticket({ source: 'jira', externalKey: 'ABC-7', key: 'ABC-7', title: 'old', body: 'old body' });
-      t.jira.jira.readStatus = async (key: string) => ({ key, status: 'To Do', summary: 'Retitled in Jira', description: 'Rewritten in Jira' });
-      await t.agent.post(`/tickets/${tk.id}/plan/approve`).send({}).expect(200);
-      expect(await reload(tk.id)).toMatchObject({ status: 'BREAKDOWN', title: 'Retitled in Jira', body: 'Rewritten in Jira' });
-    });
-
-    it('does not re-read Jira for pasted tickets or projects with Jira off', async () => {
-      await t.agent.post(`/tickets/${(await ticket()).id}/plan/approve`).send({}).expect(200);
-      await setProject({ jiraMode: 'off' });
-      await t.agent.post(`/tickets/${(await ticket({ source: 'jira', externalKey: 'ABC-8' })).id}/plan/approve`).send({}).expect(200);
-      expect(t.jira.jira.calls.filter((c) => c.startsWith('read'))).toEqual([]);
-    });
-
-    it('a Jira problem is recorded but never blocks the approval', async () => {
-      await setProject({ jiraMode: 'rest' });
-      t.jira.jira.readStatus = async () => {
-        throw new Error('Jira 503');
-      };
-      const tk = await ticket({ source: 'jira', externalKey: 'ABC-9', key: 'ABC-9' });
-      await t.agent.post(`/tickets/${tk.id}/plan/approve`).send({}).expect(200);
-      expect((await reload(tk.id)).status).toBe('BREAKDOWN');
-      expect((await t.prisma.event.findMany({ where: { ticketId: tk.id, type: 'jira' } }))[0]?.message).toContain('could not re-read the Jira issue');
     });
 
     it('returns 409 unless the ticket is awaiting plan approval, and 404 for an unknown ticket', async () => {

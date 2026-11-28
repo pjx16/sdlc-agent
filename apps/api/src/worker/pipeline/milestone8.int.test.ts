@@ -34,7 +34,7 @@ describe('Milestone 8: from the last subtask to a merged PR', () => {
     ci = new CiPoller(h.prisma, states, h.pr, h.github);
     merge = new MergePoller(h.prisma, states, h.github);
     const handlers = [review, new KbUpdateHandler(kb), new HumanReviewHandler(h.prisma, kb), new CiFixHandler(h.prisma, h.launcher, h.outcomes, h.workspaces, h.git, h.github)];
-    loop = new WorkerLoop(h.prisma, { clone: async () => undefined } as never, { poll: async () => undefined } as never, { check: async () => undefined } as never, states, handlers, undefined, [ci, merge]);
+    loop = new WorkerLoop(h.prisma, { clone: async () => undefined } as never, states, handlers, undefined, [ci, merge]);
   }, 180_000);
   afterAll(async () => h?.close());
 

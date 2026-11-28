@@ -1,9 +1,8 @@
 import type { ProjectView } from '@/lib/types';
-import { jiraModeLabel } from '@/lib/jira-modes';
 
 /** What a confirmed project is, at a glance. Everything else is under Advanced settings. */
 export function ProjectSummary({ project }: { project: ProjectView }) {
-  const routing = Object.entries(project.settings.jiraIssueTypeRouting ?? {});
+  const gh = project.settings.github;
   return (
     <div className="panel p-4 text-sm">
       <dl className="grid grid-cols-[auto,1fr] gap-x-6 gap-y-1">
@@ -16,13 +15,7 @@ export function ProjectSummary({ project }: { project: ProjectView }) {
         <dt className="text-muted">Stack</dt>
         <dd>{project.stack}</dd>
         <dt className="text-muted">Tickets</dt>
-        <dd>{project.jiraMode !== 'off' && project.jiraProjectKey ? `Jira ${project.jiraProjectKey} (${jiraModeLabel(project.jiraMode)}), and pasted tickets` : 'Pasted tickets only'}</dd>
-        {routing.length > 0 && (
-          <>
-            <dt className="text-muted">Issue types</dt>
-            <dd>{routing.map(([t, k]) => `${t} → ${k === 'ignore' ? 'ignored' : k}`).join(', ')}</dd>
-          </>
-        )}
+        <dd>{gh.mode === 'projects' && gh.project ? `GitHub board ${gh.project.owner}/${gh.project.number}, and pasted tickets` : gh.mode === 'issues' ? `GitHub issues labelled "${gh.label}", and pasted tickets` : 'Pasted tickets only'}</dd>
         <dt className="text-muted">Plans</dt>
         <dd>Committed to the knowledge-base folder of the repository</dd>
       </dl>

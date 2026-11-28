@@ -32,7 +32,7 @@ describe('Projects API (F2)', () => {
     const res = await t.agent.post('/projects').send(valid).expect(201);
     expect(res.body).toMatchObject({
       name: 'Billing API', baseBranch: 'dev', mirrorStatus: 'pending', mirrorError: null, enabled: true,
-      localKeyPrefix: 'BILL', nextLocalNumber: 1, claudeMdMode: 'both', jiraMode: 'off', kbDir: 'docs/kb',
+      localKeyPrefix: 'BILL', nextLocalNumber: 1, claudeMdMode: 'both', kbDir: 'docs/kb',
     });
     expect(res.body.settings.stages.solutionDesign).toEqual({ enabled: true, model: 'opus', maxTurns: 15 });
     expect((await t.agent.get('/projects').expect(200)).body).toHaveLength(1);
@@ -42,15 +42,11 @@ describe('Projects API (F2)', () => {
     const full = {
       ...valid,
       baseBranch: 'main', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', kbDir: 'kb/docs', claudeMdMode: 'ours',
-      jiraMode: 'rest', jiraProjectKey: 'BILL', jiraJql: 'project = BILL AND status = "To Do"', localKeyPrefix: 'BLG', enabled: true,
+      localKeyPrefix: 'BLG', enabled: true,
       settings: {
         stages: { solutionDesign: { enabled: false, model: 'sonnet', maxTurns: 7 }, prReview: { enabled: false }, implement: { maxTurns: 55 } },
         gates: { plan: false, breakdown: true },
         intake: { paste: false, mcpPollIntervalSec: 300 },
-        jiraWriteBack: { comments: false, transitions: true, createSubtasks: false },
-        jiraSubtaskTypeName: 'Subtask',
-        jiraStatusMap: { DONE: 'Closed', IN_PROGRESS: 'In Dev' },
-        jiraApprovalStatuses: { plan: 'Plan OK' },
         pr: { earlyDraft: false, ciFixRound: false, ciTimeoutMin: 45 },
         limits: { maxSubtasks: 4, maxTestFixRounds: 1, maxReviewRounds: 3, kbDocMaxLines: 200, reviewMaxDiffLines: 2500 },
         verify: { redInvalidPatterns: ['Boom'] },
@@ -59,11 +55,9 @@ describe('Projects API (F2)', () => {
     const created = (await t.agent.post('/projects').send(full).expect(201)).body;
     const fetched = (await t.agent.get(`/projects/${created.id}`).expect(200)).body;
     expect(fetched).toEqual(created);
-    expect(fetched).toMatchObject({ baseBranch: 'main', claudeMdMode: 'ours', jiraMode: 'rest', jiraProjectKey: 'BILL', localKeyPrefix: 'BLG' });
+    expect(fetched).toMatchObject({ baseBranch: 'main', claudeMdMode: 'ours', localKeyPrefix: 'BLG' });
     expect(fetched.settings.stages.solutionDesign).toEqual({ enabled: false, model: 'sonnet', maxTurns: 7 });
     expect(fetched.settings.stages.implement.maxTurns).toBe(55);
-    expect(fetched.settings.jiraStatusMap.DONE).toBe('Closed');
-    expect(fetched.settings.jiraStatusMap.NEW).toBeNull();
     expect(fetched.settings.limits).toEqual({ ...full.settings.limits, prSoftLines: 600, prHardLines: 1500 }); // the PR size limits take their defaults
     expect(fetched.githubAuth).toBe('token');
     expect(fetched.settings.pr).toEqual(full.settings.pr);
@@ -125,24 +119,6 @@ describe('Projects API (F2)', () => {
     expect((await t.agent.post(`/projects/${id}/mirror/retry`).expect(200)).body).toMatchObject({ mirrorStatus: 'pending', mirrorError: null });
     await t.prisma.project.update({ where: { id }, data: { mirrorStatus: 'ok' } });
     expect((await t.agent.post(`/projects/${id}/mirror/retry`).expect(200)).body).toMatchObject({ mirrorStatus: 'pending' });
-  });
-
-  it('lists Jira statuses for the mapping dropdown, only in REST mode with a project key', async () => {
-    const rest = (await t.agent.post('/projects').send({ ...valid, name: 'Rest', jiraMode: 'rest', jiraProjectKey: 'ABC' }).expect(201)).body;
-    t.jira.jira.projectStatuses = ['To Do', 'In Progress', 'Done'];
-    expect((await t.agent.get(`/projects/${rest.id}/jira/statuses`).expect(200)).body).toEqual(['To Do', 'In Progress', 'Done']);
-    expect(t.jira.jira.calls.at(-1)).toBe('statuses ABC');
-
-    const off = (await t.agent.post('/projects').send({ ...valid, name: 'Off' }).expect(201)).body;
-    expect((await t.agent.get(`/projects/${off.id}/jira/statuses`).expect(409)).body.error).toBe('conflict');
-    const noKey = (await t.agent.post('/projects').send({ ...valid, name: 'NoKey', jiraMode: 'rest' }).expect(201)).body;
-    expect((await t.agent.get(`/projects/${noKey.id}/jira/statuses`).expect(409)).body.message).toContain('project key');
-
-    t.jira.jira.failWith = new Error('Jira 401: bad credentials');
-    const res = await t.agent.get(`/projects/${rest.id}/jira/statuses`).expect(502);
-    expect(res.body).toEqual({ error: 'jira_error', message: 'Jira 401: bad credentials' });
-    t.jira.jira.failWith = null;
-    await t.agent.get('/projects/nope/jira/statuses').expect(404);
   });
 
   it('returns 404 for unknown projects', async () => {

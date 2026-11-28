@@ -47,7 +47,7 @@ describe('the orchestrator', () => {
     const thread = () => github.threads.get(`acme/billing#${issue}`) ?? [];
     beforeEach(() => {
       github = new FakeGitHub();
-      onGithub = new OrchestratorService(h.prisma, h.launcher, undefined, new TicketComments(h.prisma, github));
+      onGithub = new OrchestratorService(h.prisma, h.launcher, new TicketComments(h.prisma, github));
     });
 
     it('writes the move and the reason as a comment of its own', async () => {
@@ -76,11 +76,8 @@ describe('the orchestrator', () => {
       expect(thread()).toHaveLength(0);
     });
 
-    it('a Jira ticket, and a GitHub problem, change nothing about the decision', async () => {
-      const jiraTicket = await h.ticket({ status: 'REVIEW', source: 'jira', externalKey: 'SDA-3' });
+    it('a GitHub problem changes nothing about the decision', async () => {
       h.agent.scripts.orchestrate = () => answer('advance', 'AWAITING_CI');
-      expect(await onGithub.review(jiraTicket, outcome)).toMatchObject({ to: 'AWAITING_CI' });
-      expect(github.calls).not.toContain('upsertIssueComment');
       github.failComments = new Error('gh: HTTP 502');
       expect(await onGithub.review(await issueTicket(), outcome)).toMatchObject({ to: 'AWAITING_CI' });
     });

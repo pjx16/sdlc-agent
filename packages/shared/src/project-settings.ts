@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MODEL_ALIASES, TICKET_STATUSES, type StageName } from './enums';
+import { MODEL_ALIASES, type StageName } from './enums';
 
 const modelAlias = z.enum(MODEL_ALIASES);
 
@@ -24,10 +24,6 @@ const implementStage = z
 
 const count = (def: number, min: number, max: number) =>
   z.number({ error: 'must be a number' }).int('must be a whole number').min(min, `must be at least ${min}`).max(max, `must be at most ${max}`).default(def);
-
-const statusMapShape = Object.fromEntries(
-  TICKET_STATUSES.map((s) => [s, z.string().trim().min(1).nullable().default(null)]),
-) as Record<(typeof TICKET_STATUSES)[number], z.ZodDefault<z.ZodNullable<z.ZodString>>>;
 
 const regexString = z.string().min(1).refine((p) => {
   try {
@@ -58,7 +54,6 @@ export const ProjectSettingsSchema = z.object({
       assist: stage('sonnet', 8),
       repoProfile: stage('sonnet', 25),
       onboardAdvise: stage('haiku', 5),
-      jiraConnector: stage('haiku', 8),
     })
     .prefault({}),
   // The plan is the only approval gate: it lists the subtasks, so there is no breakdown gate (settings saved earlier that ask for one are ignored).
@@ -68,24 +63,6 @@ export const ProjectSettingsSchema = z.object({
   intake: z
     .object({
       paste: z.boolean().default(true),
-    })
-    .prefault({}),
-  jiraWriteBack: z
-    .object({
-      comments: z.boolean().default(true),
-      transitions: z.boolean().default(true),
-      createSubtasks: z.boolean().default(true),
-    })
-    .prefault({}),
-  jiraSubtaskTypeName: z.string().trim().min(1, 'required').default('Sub-task'),
-  /**
-   * Connector mode only. `serverName` is the connector's name as Claude Code lists it (`mcp__claude_ai_<serverName>__*`). Each poll runs a
-   * Claude agent, so connector projects are polled every `pollIntervalMin` minutes instead of on every worker tick.
-   */
-  jiraConnector: z
-    .object({
-      serverName: z.string().trim().regex(/^[A-Za-z0-9_-]{1,64}$/, 'must be letters, digits, _ or -').default('Atlassian'),
-      pollIntervalMin: count(15, 5, 1440),
     })
     .prefault({}),
   /**
@@ -113,13 +90,6 @@ export const ProjectSettingsSchema = z.object({
       useDefaultColumns: z.boolean().default(false),
     })
     .prefault({}),
-  /** What each Jira issue type becomes: feature, bug, chore, or ignore. */
-  jiraIssueTypeRouting: z.record(z.string(), z.enum(['feature', 'bug', 'chore', 'ignore'])).default({}),
-  /** Where plans are published. Null: plans go to Jira comments. */
-  jiraStatusMap: z.object(statusMapShape).prefault({}),
-  jiraApprovalStatuses: z
-    .object({ plan: z.string().trim().min(1).optional(), breakdown: z.string().trim().min(1).optional() })
-    .prefault({}),
   pr: z
     .object({
       earlyDraft: z.boolean().default(true),
@@ -145,7 +115,7 @@ export const ProjectSettingsSchema = z.object({
       kbDocMaxLines: count(300, 50, 5000),
       reviewMaxDiffLines: count(4000, 100, 100_000),
       // Reviewable pull requests: changed lines (added + deleted, without lockfiles and generated files). Past the soft limit the pipeline
-      // records it and tells Jira; past the hard limit it also comments on the PR with a per-commit breakdown and asks you to look.
+      // records it and tells the ticket's issue; past the hard limit it also comments on the PR with a per-commit breakdown and asks you to look.
       prSoftLines: count(600, 50, 100_000),
       prHardLines: count(1500, 50, 100_000),
     })

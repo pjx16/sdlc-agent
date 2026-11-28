@@ -132,7 +132,7 @@ export class CredentialsService implements OnModuleInit {
 
   /** The credential test passed: its support ticket closes by itself. */
   private async resolveCredentialTickets(key: CredentialKey): Promise<void> {
-    const group = key === 'anthropic_api_key' ? 'claude' : key === 'github_token' ? 'github' : key.startsWith('jira_') ? 'jira' : null;
+    const group = key === 'anthropic_api_key' ? 'claude' : key === 'github_token' ? 'github' : null;
     if (!group) return;
     await this.prisma.supportTicket
       .updateMany({ where: { kind: 'credential', status: 'open', dedupeKey: `credential:${group}` }, data: { status: 'resolved', resolvedBy: 'system', resolvedAt: new Date(), response: 'The credential test passed' } })

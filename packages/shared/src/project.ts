@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CLAUDE_MD_MODES, GITHUB_AUTHS, JIRA_MODES, PROJECT_STACKS, type ProjectStack } from './enums';
+import { CLAUDE_MD_MODES, GITHUB_AUTHS, PROJECT_STACKS, type ProjectStack } from './enums';
 import { ProjectSettingsSchema, type Warning } from './project-settings';
 
 export interface StackPrefill {
@@ -14,18 +14,6 @@ export const STACK_PREFILLS: Record<ProjectStack, StackPrefill> = {
   nestjs: { installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}' },
   nextjs: { installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx vitest run {files}' },
 };
-
-/** The Jira label that marks an issue for the agent. The default intake query only picks up issues that carry it. */
-export const DEFAULT_INTAKE_LABEL = 'sdlc-agent';
-
-/**
- * The query a Jira project uses when its JQL field is empty: the project's issues that carry the `sdlc-agent` label, oldest first.
- * A project that sets its own JQL uses exactly that instead, so the query (and with it the label rule) can be changed per project.
- */
-export function defaultJiraJql(projectKey: string | null | undefined): string {
-  const key = (projectKey ?? '').trim();
-  return key ? `project = "${key}" AND labels = "${DEFAULT_INTAKE_LABEL}" ORDER BY created ASC` : '';
-}
 
 /** First 4 letters of the name, upper-cased (section 7). Falls back to "PROJ" if the name has no letters. */
 export function defaultLocalKeyPrefix(name: string): string {
@@ -69,9 +57,6 @@ export const ProjectInputSchema = z
       .default('docs/kb'),
     githubAuth: z.enum(GITHUB_AUTHS, { error: 'must be token or bot' }).default('token'),
     claudeMdMode: z.enum(CLAUDE_MD_MODES).default('both'),
-    jiraMode: z.enum(JIRA_MODES).default('off'),
-    jiraProjectKey: optionalText.refine((v) => v === undefined || /^[A-Z][A-Z0-9_]*$/.test(v), 'must be upper-case letters, digits or _'),
-    jiraJql: optionalText,
     localKeyPrefix: optionalText.refine((v) => v === undefined || /^[A-Z0-9]{1,10}$/.test(v), 'must be 1 to 10 upper-case letters or digits'),
     enabled: z.boolean().default(true),
     settings: ProjectSettingsSchema.prefault({}),

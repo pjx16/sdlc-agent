@@ -34,7 +34,6 @@ export class ApprovalService {
     const verdict = validateBreakdown(ticket.breakdownDraft, { maxSubtasks: ProjectSettingsSchema.parse(ticket.project.settings).limits.maxSubtasks });
     if (!verdict.ok) return { kind: 'invalid', message: 'the proposed list is not valid' };
     await this.subtasks.create(ticketId, verdict.subtasks as SubtaskDraft[]);
-    await this.subtasks.publishToJira(ticketId);
     await this.states.transition(ticketId, 'IN_PROGRESS', 'user', reason, undefined, { kind: 'approve' });
     return { kind: 'approved' };
   }

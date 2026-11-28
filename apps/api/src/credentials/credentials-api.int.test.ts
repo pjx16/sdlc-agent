@@ -17,7 +17,7 @@ let db: TestDatabase;
 let app: INestApplication;
 let cookie = '';
 let ghStatus = 200;
-let jiraStatus = 200;
+let brokerStatus = 200;
 let anthropicStatus = 200;
 const calls: { url: string; headers: Record<string, string> }[] = [];
 
@@ -25,13 +25,13 @@ const fakeFetch = (async (url: string, init: { headers: Record<string, string> }
   calls.push({ url, headers: init.headers });
   if (url.includes('/v1/models')) return new Response(JSON.stringify({ data: [] }), { status: anthropicStatus });
   if (url.includes('/user')) return new Response(JSON.stringify({ login: 'octo' }), { status: ghStatus });
-  return new Response(JSON.stringify({ displayName: 'Jira Dev' }), { status: jiraStatus });
+  return new Response(JSON.stringify({ installations: [{ id: 1 }] }), { status: brokerStatus });
 }) as unknown as typeof fetch;
 
 beforeAll(async () => {
   db = await createTestDatabase();
   process.env = { ...saved, DATABASE_URL: db.url, DASHBOARD_PASSWORD: PASSWORD, ENCRYPTION_KEY: randomBytes(32).toString('base64') };
-  for (const k of ['GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'JIRA_BASE_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL']) delete process.env[k];
+  for (const k of ['GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'BROKER_URL', 'BROKER_KEY', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL']) delete process.env[k];
   const moduleRef = await Test.createTestingModule({ imports: [PrismaModule, AuthModule] })
     .overrideProvider(TESTER_OPTIONS)
     .useValue({ githubApiUrl: 'https://github.test', anthropicApiUrl: 'https://anthropic.test', fetch: fakeFetch })
@@ -50,7 +50,7 @@ afterAll(async () => {
 beforeEach(() => {
   calls.length = 0;
   ghStatus = 200;
-  jiraStatus = 200;
+  brokerStatus = 200;
 });
 
 const api = () => ({
@@ -81,12 +81,12 @@ describe('credentials API', () => {
     await api().put('/credentials/github_token', 'nope').expect(400);
     await api().put('/credentials/not_a_key', 'x').expect(404);
     await api().del('/credentials/not_a_key').expect(404);
-    process.env.JIRA_EMAIL = 'env@example.com';
+    process.env.GIT_AUTHOR_NAME = 'Env Author';
     try {
-      await api().put('/credentials/jira_email', 'other@example.com').expect(409);
-      expect((await api().get('/credentials')).body.find((v: { key: string }) => v.key === 'jira_email')).toMatchObject({ source: 'env' });
+      await api().put('/credentials/git_author_name', 'Other Author').expect(409);
+      expect((await api().get('/credentials')).body.find((v: { key: string }) => v.key === 'git_author_name')).toMatchObject({ source: 'env' });
     } finally {
-      delete process.env.JIRA_EMAIL;
+      delete process.env.GIT_AUTHOR_NAME;
     }
   });
 
@@ -104,15 +104,14 @@ describe('credentials API', () => {
     expect((await api().get('/credentials')).body.find((v: { key: string }) => v.key === 'github_token')).toMatchObject({ verifiedAt: null, verifyError: 'GitHub rejected the token' });
   });
 
-  it('tests Jira with the three values, and says what is missing otherwise', async () => {
-    expect((await api().post('/credentials/jira_api_token/test').expect(200)).body.ok).toBe(false);
-    await api().put('/credentials/jira_base_url', 'https://acme.atlassian.net').expect(200);
-    await api().put('/credentials/jira_email', 'me@example.com').expect(200);
-    await api().put('/credentials/jira_api_token', 'j'.repeat(30)).expect(200);
-    expect((await api().post('/credentials/jira_api_token/test').expect(200)).body).toEqual({ ok: true, message: 'Connected as Jira Dev' });
-    expect(calls.some((c) => c.url === 'https://acme.atlassian.net/rest/api/3/myself')).toBe(true);
-    jiraStatus = 401;
-    expect((await api().post('/credentials/jira_email/test').expect(200)).body).toEqual({ ok: false, message: 'Jira rejected the credentials' });
+  it('tests the broker with its URL and key, and says what is missing otherwise', async () => {
+    expect((await api().post('/credentials/broker_key/test').expect(200)).body.ok).toBe(false);
+    await api().put('/credentials/broker_url', 'https://broker.test').expect(200);
+    await api().put('/credentials/broker_key', `${'a'.repeat(16)}.${'b'.repeat(24)}`).expect(200);
+    expect((await api().post('/credentials/broker_key/test').expect(200)).body).toEqual({ ok: true, message: 'Connected to the broker; 1 GitHub installation' });
+    expect(calls.some((c) => c.url === 'https://broker.test/v1/installations')).toBe(true);
+    brokerStatus = 401;
+    expect((await api().post('/credentials/broker_url/test').expect(200)).body).toEqual({ ok: false, message: 'The broker does not know this key' });
   });
 
   it('tests the Anthropic API key against /v1/models and deletes credentials', async () => {

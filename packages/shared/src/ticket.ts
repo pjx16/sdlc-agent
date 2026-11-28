@@ -128,13 +128,3 @@ export type GithubIssueState = (typeof GITHUB_ISSUE_STATES)[number];
 export const kindOfType = (type: TicketType): TicketKind => (type === 'bug' ? 'bug' : type === 'tech' ? 'chore' : 'feature');
 export const typeOfKind = (kind: TicketKind): TicketType => (kind === 'bug' ? 'bug' : kind === 'chore' ? 'tech' : 'story');
 
-/** Jira issue types map to ticket types (F3): "bug" is bug; "story" or "user story" is story; everything else is tech. */
-export function mapJiraIssueType(name: string | null | undefined): TicketType {
-  const n = (name ?? '').trim().toLowerCase();
-  if (n === 'bug') return 'bug';
-  if (n === 'story' || n === 'user story') return 'story';
-  return 'tech';
-}
-
-/** A Jira key as accepted from MCP intake (F3): `^[A-Z][A-Z0-9]+-[0-9]+$`. */
-export const JIRA_KEY_PATTERN = /^[A-Z][A-Z0-9]+-[0-9]+$/;

@@ -21,12 +21,11 @@ describe('event messages read as plain English', () => {
     const when = new Date(2026, 10, 14, 14, 32);
     const e = events.error({ code: 'CLAUDE_API_ERROR', vars: { detail: '529' }, retry: { n: 1, of: 3 }, retryAt: when });
     expect(e).toMatchObject({ level: 'error', source: 'claude', errorCode: 'CLAUDE_API_ERROR', message: 'Claude API error (529). Retry 1/3 at 14:32.' });
-    expect(events.error({ code: 'JIRA_ERROR', vars: { detail: '503' } }).source).toBe('jira');
+    expect(events.error({ code: 'GITHUB_ERROR', vars: { detail: '503' } }).source).toBe('github');
   });
-  it('decisions, reruns and skipped Jira moves', () => {
+  it('decisions and reruns', () => {
     expect(events.decision({ chosen: 'fixer', over: ['re-plan'], reason: '2 high findings, both in cancel.service.ts' }).message).toBe('Orchestrator chose fixer over re-plan: 2 high findings, both in cancel.service.ts');
     expect(events.rerun({ stage: 'PLANNING', actor: 'user', note: 'use the existing booking repository' }).message).toBe('Rerun of PLANNING requested by user: "use the existing booking repository"');
-    expect(events.jiraSkipped({ target: 'In Review', from: 'Blocked' }).message).toBe('Jira transition to "In Review" skipped: not available from "Blocked"');
   });
   it('a transition names the ticket and the move', () => {
     expect(events.transition({ ticketKey: 'SDA-1', from: 'KB', to: 'PLANNING', reason: 'KB ready', actor: 'system' }).message).toBe('SDA-1: KB -> PLANNING (KB ready)');

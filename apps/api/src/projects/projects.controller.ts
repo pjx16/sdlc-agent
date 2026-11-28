@@ -17,7 +17,7 @@ export class ProjectsController {
     return this.projects.list();
   }
 
-  /** The two-field start: a repo URL and, optionally, a Jira project key. */
+  /** The two-field start: a repo URL. */
   @Post('onboard')
   start(@Body() body: unknown): Promise<ProjectDto> {
     return this.onboarding.start(body);
@@ -43,12 +43,6 @@ export class ProjectsController {
   @Patch(':id/onboarding/sections/:section')
   section(@Param('id') id: string, @Param('section') section: string, @Body() body: unknown) {
     return this.onboarding.section(id, section, body);
-  }
-
-  @Post(':id/onboarding/dry-run')
-  @HttpCode(HttpStatus.OK)
-  dryRun(@Param('id') id: string) {
-    return this.onboarding.dryRun(id);
   }
 
   @Post(':id/onboarding/confirm')
@@ -93,11 +87,6 @@ export class ProjectsController {
   @HttpCode(HttpStatus.OK)
   remove(@Param('id') id: string) {
     return this.projects.remove(id);
-  }
-
-  @Get(':id/jira/statuses')
-  jiraStatuses(@Param('id') id: string): Promise<string[]> {
-    return this.projects.jiraStatuses(id);
   }
 
   @Post(':id/mirror/retry')

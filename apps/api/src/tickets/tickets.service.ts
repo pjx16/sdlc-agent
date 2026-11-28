@@ -1,11 +1,10 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { DECISION_POINTS, planFileUrl, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TicketDraftSchema, buildTicketMarkdown, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus, jiraOn } from '@sdlc/shared';
+import { DECISION_POINTS, planFileUrl, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TicketDraftSchema, buildTicketMarkdown, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { allArtifacts, writeArtifact } from '../common/artifacts';
 import { GuidelinesService } from '../guidelines/guidelines.service';
 import { parseBody } from '../common/parse-body';
 import { z } from 'zod';
-import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
 import { StateMachine } from '../state/state-machine.service';
 import { SubtasksService } from '../subtasks/subtasks.service';
@@ -42,9 +41,6 @@ export interface TransitionDto {
   /** advance | rerun | hold | resume | fail | retry | approve | reject */
   kind: string;
   note: string | null;
-  jiraStatusApplied: string | null;
-  jiraSyncResult: 'none' | 'applied' | 'failed';
-  jiraSyncError: string | null;
 }
 
 export interface ArtifactDto {
@@ -119,7 +115,6 @@ export class TicketsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly states: StateMachine,
-    private readonly jira: JiraClients,
     private readonly subtasks: SubtasksService,
     private readonly guidelines: GuidelinesService,
   ) {}
@@ -177,13 +172,13 @@ export class TicketsService {
     };
   }
 
-  /** GET /tickets/:id/transitions: the state history, oldest first, with the Jira sync result of each step. */
+  /** GET /tickets/:id/transitions: the state history, oldest first. */
   async transitions(id: string): Promise<TransitionDto[]> {
     await this.findOr404(id);
     const rows = await this.prisma.stateTransition.findMany({ where: { ticketId: id }, orderBy: [{ at: 'asc' }, { id: 'asc' }] });
     return rows.map((r) => ({
       id: r.id, at: r.at.toISOString(), fromStatus: r.fromStatus, toStatus: r.toStatus, actor: r.actor, reason: r.reason, stageRunId: r.stageRunId,
-      kind: r.kind, note: r.note, jiraStatusApplied: r.jiraStatusApplied, jiraSyncResult: r.jiraSyncResult, jiraSyncError: r.jiraSyncError,
+      kind: r.kind, note: r.note,
     }));
   }
 
@@ -236,7 +231,7 @@ export class TicketsService {
 
   /**
    * POST /tickets: a ticket made in the dashboard, with a local key `<localKeyPrefix>-<n>`, status NEW. It is either the fields of the
-   * create-ticket form (`problem`, `criteria`, ...: the text is built from them) or, as before, a title and a body. Works in every Jira mode.
+   * create-ticket form (`problem`, `criteria`, ...: the text is built from them) or, as before, a title and a body.
    */
   async paste(body: unknown): Promise<TicketDto> {
     const github = isDraft(body) ? (parseBody(TicketDraftSchema, body).github ?? null) : null;
@@ -348,8 +343,7 @@ export class TicketsService {
   }
 
   /**
-   * POST /tickets/:id/plan/approve: stores the edited plan if one is sent, and in REST mode re-reads the issue's title and
-   * description so edits made in Jira reach the breakdown stage (F7). Then BREAKDOWN (row 5).
+   * POST /tickets/:id/plan/approve: stores the edited plan if one is sent, then BREAKDOWN (row 5).
    */
   async approvePlan(id: string, body: unknown): Promise<TicketDto> {
     const { planMarkdown: edited, answers } = parseBody(ApproveBody, body ?? {});
@@ -369,7 +363,6 @@ export class TicketsService {
       await writeArtifact(this.prisma, id, 'plan', { planMarkdown, editedBy: 'user' }).catch(() => undefined);
     }
     if (decisions.length > 0) await this.prisma.supportTicket.updateMany({ where: { ticketId: id, kind: 'open_question', status: { in: ['open', 'answered'] } }, data: { status: 'resolved', resolvedBy: 'user', resolvedAt: new Date() } });
-    if (ticket.source === 'jira' && ticket.externalKey && jiraOn(ticket.project.jiraMode)) await this.refreshFromJira(ticket.id, ticket.key, ticket.externalKey, ticket.project.jiraMode);
 
     const { ticket: updated } = await this.states.transition(id, 'BREAKDOWN', 'user', planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown ? 'Plan approved with edits' : 'Plan approved', undefined, { kind: 'approve' });
     return toTicketDto(updated);
@@ -381,16 +374,6 @@ export class TicketsService {
     await this.awaitingPlan(id);
     const { ticket } = await this.states.transition(id, 'PLANNING', 'user', note, undefined, { kind: 'reject', note });
     return toTicketDto(ticket);
-  }
-
-  /** Developer edits made in Jira reach the next stages. A Jira problem is recorded and never blocks the approval. */
-  private async refreshFromJira(ticketId: string, key: string, externalKey: string, mode: string): Promise<void> {
-    try {
-      const issue = await (await this.jira.forMode(mode)).readStatus(externalKey);
-      await this.prisma.ticket.update({ where: { id: ticketId }, data: { title: issue.summary || undefined, body: issue.description } });
-    } catch (err) {
-      await this.prisma.event.create({ data: { ticketId, type: 'jira', message: `${key}: could not re-read the Jira issue: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500) } });
-    }
   }
 
   /** POST /tickets/:id/kb-update/rerun: queues one more kbUpdate on the current branch. Only in IN_HUMAN_REVIEW. */
@@ -496,7 +479,6 @@ export class TicketsService {
       await writeArtifact(this.prisma, id, 'breakdown', { subtasks: verdict.subtasks, editedBy: 'user' }).catch(() => undefined);
     }
     await this.subtasks.create(id, verdict.subtasks as SubtaskDraft[]);
-    await this.subtasks.publishToJira(id); // Jira sub-tasks when write-back is on; a Jira problem never blocks
     const { ticket: updated } = await this.states.transition(id, 'IN_PROGRESS', 'user', changed ? 'Breakdown approved with edits' : 'Breakdown approved', undefined, { kind: 'approve' });
     return toTicketDto(updated);
   }

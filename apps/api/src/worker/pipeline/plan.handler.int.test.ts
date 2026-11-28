@@ -6,7 +6,6 @@ import type { StageEnvelope } from '@sdlc/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FakeGitHub } from '../../testing/fake-github';
-import { FakeJira, FakeJiraClients } from '../../testing/fake-jira';
 import { TicketComments } from '../github/ticket-comments';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import type { StageRequest, StageResult } from '../agent-runner/agent-runner';
@@ -21,7 +20,6 @@ describe('plan stage (F7)', () => {
   let db: TestDatabase;
   let prisma: PrismaService;
   let tmp: string;
-  let jira: FakeJira;
   let handler: PlanHandler;
   let onGithub: PlanHandler;
   let github: FakeGitHub;
@@ -48,12 +46,10 @@ describe('plan stage (F7)', () => {
         return failWith ?? { kind: 'done', envelope: answer, stageRunId: 'run-plan', attempts: 1 };
       },
     };
-    const clients = new FakeJiraClients();
-    jira = clients.jira;
     const launcher = new StageLauncher(prisma, config, runner as never);
-    handler = new PlanHandler(prisma, launcher, new StageOutcomes(prisma), clients);
+    handler = new PlanHandler(prisma, launcher, new StageOutcomes(prisma));
     github = new FakeGitHub();
-    onGithub = new PlanHandler(prisma, launcher, new StageOutcomes(prisma), clients, undefined, undefined, undefined, new TicketComments(prisma, github));
+    onGithub = new PlanHandler(prisma, launcher, new StageOutcomes(prisma), undefined, undefined, undefined, new TicketComments(prisma, github));
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -64,12 +60,10 @@ describe('plan stage (F7)', () => {
     requests = [];
     failWith = null;
     answer = planAnswer();
-    jira.calls = [];
-    jira.failWith = null;
     github.reset();
     await prisma.event.deleteMany();
     await prisma.stateTransition.deleteMany();
-    await setProject({ jiraMode: 'off', settings: {} });
+    await setProject({ settings: {} });
   });
 
   it('composes the plan with its risks and open questions', () => {
@@ -159,35 +153,6 @@ describe('plan stage (F7)', () => {
     });
   });
 
-  describe('Jira comment', () => {
-    const jiraTicket = () => ticket({ source: 'jira', externalKey: `JIRA-${n + 1}` });
-
-    it('posts the plan as a comment when write-back is on (REST mode)', async () => {
-      await setProject({ jiraMode: 'rest' });
-      const t = await jiraTicket();
-      await handler.run(t);
-      expect(jira.calls).toEqual([`comment ${t.externalKey}`]);
-    });
-
-    it('does not post when comments are off, the ticket was pasted, or Jira is off for the project', async () => {
-      await setProject({ jiraMode: 'rest', settings: { jiraWriteBack: { comments: false } } });
-      await handler.run(await jiraTicket());
-      await setProject({ jiraMode: 'rest', settings: {} });
-      await handler.run(await ticket());
-      await setProject({ jiraMode: 'off' });
-      await handler.run(await jiraTicket());
-      expect(jira.calls).toEqual([]);
-    });
-
-    it('a failed comment is recorded as a warning and never blocks the plan', async () => {
-      await setProject({ jiraMode: 'rest' });
-      jira.failWith = new Error('Jira 403: no permission');
-      const t = await jiraTicket();
-      expect(await handler.run(t)).toMatchObject({ kind: 'transition', to: 'AWAITING_PLAN_APPROVAL' });
-      expect((await prisma.event.findMany({ where: { ticketId: t.id, type: 'jira' } }))[0]?.message).toContain('Could not post the plan to Jira: Jira 403');
-    });
-  });
-
   describe('the plan on the ticket\'s GitHub issue', () => {
     let issue = 6;
     const issueTicket = (over: Record<string, unknown> = {}) => ticket({ source: 'github', externalKey: `acme/billing#${++issue}`, ...over });
@@ -217,14 +182,6 @@ describe('plan stage (F7)', () => {
       expect(await onGithub.run(t)).toMatchObject({ kind: 'transition', to: 'AWAITING_PLAN_APPROVAL' });
       expect(github.calls).not.toContain('upsertIssueComment');
       expect((await prisma.event.findMany({ where: { ticketId: t.id, type: 'github' } })).map((e) => e.message)).toEqual(['The plan was not posted: this ticket has no GitHub issue to comment on']);
-    });
-
-    it('a Jira ticket keeps its Jira comment and gets nothing on GitHub', async () => {
-      await setProject({ jiraMode: 'rest', settings: { jiraWriteBack: { comments: true } } });
-      const t = await ticket({ source: 'jira', externalKey: 'SDA-1' });
-      await onGithub.run(t);
-      expect(github.calls).not.toContain('upsertIssueComment');
-      expect(jira.calls.some((c) => c.startsWith('comment'))).toBe(true);
     });
 
     it('a GitHub problem never blocks the plan', async () => {

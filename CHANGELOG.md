@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Removed
 
+- **Jira is gone.** GitHub now covers every job Jira did: intake (issues and Projects boards), comments, progress and approval. The Jira REST, Rovo MCP and Claude Jira connector modes, the Jira credentials, the Jira onboarding proposal and the `jira-connector` agent are removed.
+  - *Upgrade:* the migration deletes the stored Jira credentials, the Jira project columns, the Jira sync columns of transitions and the `intakeJiraEnabled` switch, and strips the `jira*` keys from project settings. Remove the `JIRA_*` variables from your `.env`. Tickets that came from Jira keep their history (their source stays `jira`) but are no longer synced; the Jira comment formats `jira-plan` and `jira-needs-you` are now `issue-plan` and `issue-needs-you` (a customised copy in your guidelines folder must be renamed).
+  - Projects that used Jira need a GitHub source (a Projects board or labelled issues) on the project page; tickets are no longer polled from Jira.
+
 - **The Confluence integration is gone.** Plans are no longer published to Confluence. Each ticket's plan is committed to the repository as `<kb folder>/plans/<KEY>.md` on the ticket's branch (so it is part of the pull request), and is posted to Jira as a comment as before. **Upgrading:** the migration drops the Confluence page links of existing plans and removes the Confluence space from project settings; the plans themselves are kept. The Jira credential no longer checks Confluence, the onboarding review has no Confluence card, and the `CONFLUENCE_ERROR` code is removed. Old plan pages in Confluence are left as they are.
 
 ### Added

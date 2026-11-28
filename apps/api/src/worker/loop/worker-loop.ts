@@ -1,13 +1,10 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ACTIONABLE_STATUSES, isNetworkErrorText, type TicketStatus } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
-import { ApprovalPoller } from '../../jira/approval-poller';
-import { JiraUnavailableError } from '../../jira/jira-client';
 import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StateMachine } from '../../state/state-machine.service';
 import { MirrorService } from '../git/mirror.service';
-import { IntakePoller } from '../intake/intake-poller';
 import { STEP_HANDLERS, type StepHandler, type StepOutcome } from '../pipeline/step-handler';
 import { logLine } from '../../common/log-context';
 import { recordTick, setPhase } from '../status/worker-status';
@@ -51,8 +48,6 @@ export class WorkerLoop {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mirrors: MirrorService,
-    private readonly intake: IntakePoller,
-    private readonly approvals: ApprovalPoller,
     private readonly states: StateMachine,
     @Optional() @Inject(STEP_HANDLERS) private readonly handlers: StepHandler[] = [],
     private readonly now: () => number = () => Date.now(),
@@ -181,7 +176,7 @@ export class WorkerLoop {
     if (outcome.kind === 'stay' && outcome.network) this.networkCooldownUntil = this.now() + NETWORK_COOLDOWN_MS;
     // At a decision point with several legal moves the orchestrator may replace the default move.
     if (this.orchestrator) outcome = await this.orchestrator.review(ticket, outcome);
-    // A step that would stop the ticket for a person is first given to the orchestrator to recover (a few attempts, each recorded and written to Jira).
+    // A step that would stop the ticket for a person is first given to the orchestrator to recover (a few attempts, each recorded and written to the ticket's issue).
     if (outcome.kind === 'hold' && this.recovery) outcome = (await this.recovery.attempt(ticket, outcome)) ?? outcome;
     switch (outcome.kind) {
       case 'transition':
@@ -242,25 +237,12 @@ export class WorkerLoop {
     await setPhase(this.prisma, 'housekeeping');
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     const pollSec = settings?.pollIntervalSec ?? 120;
-    const intervalMs = pollSec * 1000;
     // With no internet only the connectivity check runs: every other part would fail and fill the log.
     const offline = Boolean(settings?.networkOffline);
     for (const h of this.housekeepers) {
       if (offline && h.name !== 'connectivity') continue;
       if (!this.schedule.due(h.name, typeof h.intervalMs === 'function' ? h.intervalMs(pollSec) * 1000 : h.intervalMs)) continue;
       await h.check().catch((err: unknown) => this.logger.error(`${h.name} check failed: ${String(err)}`));
-    }
-    if (offline || !this.schedule.due('jira', intervalMs)) return;
-
-    await setPhase(this.prisma, 'intake');
-    // The intake poller applies the intake-pause switch and its own Jira backoff.
-    await this.intake.poll().catch((err: unknown) => this.logger.error(`Intake poll failed: ${String(err)}`));
-    if (settings?.intakePaused) return;
-    try {
-      await this.approvals.check();
-    } catch (err) {
-      if (err instanceof JiraUnavailableError) this.logger.warn(`Approval check skipped: ${err.message}`);
-      else this.logger.error(`Approval check failed: ${String(err)}`);
     }
   }
 

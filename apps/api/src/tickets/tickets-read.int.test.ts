@@ -71,11 +71,11 @@ describe('Tickets API: list, detail, history, timeline', () => {
     expect(bad.body.fields.status).toContain('must be one of');
   });
 
-  it('shows pasted and polled tickets together, all as NEW', async () => {
+  it('shows pasted and GitHub tickets together, all as NEW', async () => {
     await ticket(a);
-    await ticket(a, { source: 'jira', externalKey: 'ABC-5', key: 'ABC-5' });
+    await ticket(a, { source: 'github', externalKey: 'acme/billing#5', key: 'ABC-5' });
     const res = (await t.agent.get('/tickets').expect(200)).body;
-    expect(res.map((x: { source: string; status: string }) => [x.source, x.status]).sort()).toEqual([['jira', 'NEW'], ['paste', 'NEW']]);
+    expect(res.map((x: { source: string; status: string }) => [x.source, x.status]).sort()).toEqual([['github', 'NEW'], ['paste', 'NEW']]);
   });
 
   it('returns the ticket with subtasks, stage runs, findings and support queries', async () => {
@@ -93,16 +93,14 @@ describe('Tickets API: list, detail, history, timeline', () => {
     expect(res.supportQueries[0]).toMatchObject({ question: 'Which db?', status: 'open', answer: null });
   });
 
-  it('records every transition and returns the history oldest first, with Jira sync results', async () => {
+  it('records every transition and returns the history oldest first', async () => {
     const tk = await ticket(a);
     await sm.transition(tk.id, 'KB', 'system', 'picked up');
-    const planning = await sm.transition(tk.id, 'PLANNING', 'system');
-    await t.prisma.stateTransition.update({ where: { id: planning.transition.id }, data: { jiraSyncResult: 'failed', jiraStatusApplied: 'Shipped', jiraSyncError: 'Jira has no transition to "Shipped"' } });
+    await sm.transition(tk.id, 'PLANNING', 'system');
     await sm.hold(tk.id, 'needs_help', 'system', 'failed twice');
     const res = (await t.agent.get(`/tickets/${tk.id}/transitions`).expect(200)).body;
     expect(res.map((r: { fromStatus: string; toStatus: string }) => `${r.fromStatus}>${r.toStatus}`)).toEqual(['NEW>KB', 'KB>PLANNING', 'PLANNING>ON_HOLD']);
-    expect(res[0]).toMatchObject({ actor: 'system', reason: 'picked up', jiraSyncResult: 'none', jiraStatusApplied: null });
-    expect(res[1]).toMatchObject({ jiraSyncResult: 'failed', jiraStatusApplied: 'Shipped', jiraSyncError: 'Jira has no transition to "Shipped"' });
+    expect(res[0]).toMatchObject({ actor: 'system', reason: 'picked up' });
   });
 
   it('returns stage runs as timeline bars', async () => {

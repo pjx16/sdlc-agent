@@ -2,11 +2,10 @@ import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
-  DEFAULT_GLOBAL_SETTINGS, GlobalSettingsSchema, ProjectSettingsSchema, defaultRouting, describeError, events,
-  type CommandCheck, type OnboardingPhaseId, type OnboardingProgress, type JiraFacts, type ModelAlias, type BoardAdvice, type OnboardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus, jiraOn } from '@sdlc/shared';
+  DEFAULT_GLOBAL_SETTINGS, GlobalSettingsSchema, ProjectSettingsSchema, describeError, events,
+  type CommandCheck, type OnboardingPhaseId, type OnboardingProgress, type ModelAlias, type BoardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus } from '@sdlc/shared';
 import { logEvent } from '../../common/event-log';
 import { Prisma, type Project } from '../../generated/prisma/client';
-import { JiraClients, JiraNotConfiguredError } from '../../jira/jira-clients';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SupportRaiser } from '../../support/support-raiser';
 import { AgentRunner, type StageResult } from '../agent-runner/agent-runner';
@@ -23,7 +22,7 @@ const CHECKOUT_TIMEOUT_MS = 5 * 60_000;
 
 /**
  * Writes where profiling is (`Project.onboardingProgress`) as phases start and end, so the dashboard can show them, and keeps how long each
- * took. Phases may overlap: the Jira advice does not wait for the code profiling.
+ * took. Phases may overlap: the board advice does not wait for the code profiling.
  */
 export class ProgressTracker {
   private readonly progress: OnboardingProgress;
@@ -68,35 +67,12 @@ export class ProgressTracker {
 }
 
 /** The facts as plain text for the agents. */
-export function factsText(projectName: string, facts: OnboardingFacts, about: 'jira' | 'board' = 'jira'): string {
+export function factsText(projectName: string, facts: OnboardingFacts): string {
   const out = [`Project: ${projectName}`, `Default branch: ${facts.github.defaultBranch}`, `Languages (most used first): ${facts.github.languages.join(', ') || 'unknown'}`];
-  if (about === 'board' && facts.github.board) {
+  if (facts.github.board) {
     out.push('', 'Task: propose the GitHub Projects board mapping (answer with the `board` shape).', `Status columns of the board: ${facts.github.board.columns.join(', ') || 'none'}`);
-  } else if (facts.jira) {
-    out.push('', `Jira project: ${facts.jira.projectName}`, 'Issue types:', ...facts.jira.issueTypes.map((t) => `- ${t.name}${t.subtask ? ' (the sub-task type)' : ''}`));
-    out.push('', 'Statuses per issue type (name [category]):', ...facts.jira.statusesByType.map((t) => `- ${t.type}: ${t.statuses.map((s) => `${s.name} [${s.category}]`).join(', ')}`));
-    out.push('', `Labels already in use: ${facts.jira.labels.join(', ') || 'none'}`);
   }
   return out.join('\n');
-}
-
-/**
- * The advisor only proposes: code checks that every name it used exists in the facts, so a proposal never carries an invented
- * status or issue type.
- */
-export function sanitizeAdvice(advice: OnboardAdvice | null, jira: JiraFacts | null): OnboardAdvice {
-  const statuses = new Set((jira?.statusesByType ?? []).flatMap((t) => t.statuses.map((s) => s.name)));
-  const known = (name: string | null | undefined) => (name && statuses.has(name) ? name : null);
-  const fallback = defaultRouting(jira?.issueTypes ?? []);
-  const routing: OnboardAdvice['issueTypeRouting'] = {};
-  for (const t of jira?.issueTypes ?? []) {
-    const proposed = advice?.issueTypeRouting[t.name];
-    routing[t.name] = t.subtask ? 'ignore' : (proposed ?? fallback[t.name] ?? 'feature');
-  }
-  const statusMap: OnboardAdvice['statusMap'] = {};
-  for (const [state, name] of Object.entries(advice?.statusMap ?? {})) statusMap[state as TicketStatus] = known(name as string | null);
-  const label = advice?.intakeLabel && /^\S+$/.test(advice.intakeLabel) ? advice.intakeLabel : 'sdlc-agent';
-  return { statusMap, approvalStatuses: { plan: known(advice?.approvalStatuses.plan), breakdown: known(advice?.approvalStatuses.breakdown) }, issueTypeRouting: routing, intakeLabel: label };
 }
 
 /**
@@ -133,7 +109,7 @@ function failureOf(stage: string, r: Exclude<StageResult, { kind: 'done' }>): st
 
 /**
  * Onboarding: for a project in `profiling`, code collects the facts, `repo-profiler` proposes the commands, code
- * checks them once, `onboarding-advisor` proposes the Jira mapping, and the result waits as a proposal for the person to review.
+ * checks them once, `onboarding-advisor` proposes the GitHub board mapping, and the result waits as a proposal for the person to review.
  * Nothing is applied to the project until it is confirmed.
  */
 @Injectable()
@@ -149,7 +125,6 @@ export class OnboardingWorker implements Housekeeper {
     private readonly mirrors: MirrorService,
     private readonly git: GitRunner,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
-    private readonly jira: JiraClients,
     private readonly runner: AgentRunner,
     private readonly verify: VerifyService,
     private readonly raiser: SupportRaiser,
@@ -175,10 +150,9 @@ export class OnboardingWorker implements Housekeeper {
   async onboard(project: Project): Promise<void> {
     const checkout = path.join(this.config.dataDir, 'onboarding', project.id);
     try {
-      const hasJira = jiraOn(project.jiraMode) && Boolean(project.jiraProjectKey);
       const boardSettings = ProjectSettingsSchema.parse(project.settings).github;
       const hasBoard = boardSettings.mode === 'projects' && Boolean(boardSettings.project);
-      const planned: OnboardingPhaseId[] = [...(this.access ? (['access'] as const) : []), 'facts', 'mirror', 'checkout', 'profile', 'install', 'typecheck', ...(hasJira || hasBoard ? (['advise'] as const) : [])];
+      const planned: OnboardingPhaseId[] = [...(this.access ? (['access'] as const) : []), 'facts', 'mirror', 'checkout', 'profile', 'install', 'typecheck', ...(hasBoard ? (['advise'] as const) : [])];
       const t = new ProgressTracker(this.prisma, project.id, planned);
 
       // First of all: a project that works as the bot must have the sdlc-agent GitHub App installed on its repository.
@@ -192,13 +166,10 @@ export class OnboardingWorker implements Housekeeper {
       const global = await this.global();
       const settings = ProjectSettingsSchema.parse(project.settings);
 
-      // The Jira advice needs only the facts, so it runs while the repository is cloned, profiled and checked.
-      const advicePromise: Promise<{ jira: OnboardAdvice | null; board: { board: BoardAdvice } | null }> = facts.jira || facts.github.board
-        ? t.track('advise', async () => ({
-            jira: facts.jira ? await this.stage<OnboardAdvice>(project, 'onboardAdvise', { onboard: { facts: text } }, undefined, settings, global) : null,
-            board: facts.github.board ? await this.stage<{ board: BoardAdvice }>(project, 'onboardAdvise', { onboard: { facts: factsText(project.name, facts, 'board') } }, undefined, settings, global) : null,
-          }))
-        : Promise.resolve({ jira: null, board: null });
+      // The board advice needs only the facts, so it runs while the repository is cloned, profiled and checked.
+      const advicePromise: Promise<{ board: BoardAdvice } | null> = facts.github.board
+        ? t.track('advise', () => this.stage<{ board: BoardAdvice }>(project, 'onboardAdvise', { onboard: { facts: text } }, undefined, settings, global))
+        : Promise.resolve(null);
 
       const codeChain = async () => {
         await this.prisma.project.update({ where: { id: project.id }, data: { baseBranch, mirrorStatus: 'pending', mirrorError: null } });
@@ -223,14 +194,12 @@ export class OnboardingWorker implements Housekeeper {
       if (code.status === 'rejected') throw code.reason;
       if (adviceResult.status === 'rejected') throw adviceResult.reason;
       const { profile, installCheck, typecheckCheck } = code.value;
-      const advice = adviceResult.value.jira;
       await t.flush();
 
       const proposal: OnboardingProposal = {
         facts,
         profile: { ...profile, baseBranch, installCheck, typecheckCheck },
-        advice: sanitizeAdvice(advice, facts.jira),
-        ...(facts.github.board ? { board: sanitizeBoardAdvice(adviceResult.value.board?.board ?? null, facts.github.board.columns) } : {}),
+        ...(facts.github.board ? { board: sanitizeBoardAdvice(adviceResult.value?.board ?? null, facts.github.board.columns) } : {}),
         accepted: {},
         createdAt: new Date().toISOString(),
         timings: t.timings(),
@@ -239,7 +208,7 @@ export class OnboardingWorker implements Housekeeper {
       await this.raiser.raise({
         kind: 'onboarding', projectId: project.id, stage: 'onboarding', dedupeKey: `onboarding:${project.id}`,
         title: `Review the setup of ${project.name}`,
-        body: `The proposal for **${project.name}** is ready: commands, Jira statuses, issue types, and the intake label. Review each part, then confirm. Nothing is used until you do.`,
+        body: `The proposal for **${project.name}** is ready: commands and, when the project uses a GitHub board, its columns. Review each part, then confirm. Nothing is used until you do.`,
       });
       await logEvent(this.prisma, events.note({ source: 'system', type: 'system', message: `Onboarding proposal for ${project.name} is ready for review` }));
     } catch (err) {
@@ -287,16 +256,7 @@ export class OnboardingWorker implements Housekeeper {
     await this.checkBoardOwner(project);
     const board = await this.boardFacts(project);
     if (board) github = { ...github, board };
-    let jira: JiraFacts | null = null;
-    if (jiraOn(project.jiraMode) && project.jiraProjectKey) {
-      try {
-        jira = await (await this.jira.forMode(project.jiraMode)).projectFacts(project.jiraProjectKey);
-      } catch (err) {
-        if (err instanceof JiraNotConfiguredError) throw new Error(`${err.message}. Or onboard without a Jira project key.`, { cause: err });
-        throw new Error(`Jira: ${err instanceof Error ? err.message : String(err)}. Check the project key and the Jira credential.`, { cause: err });
-      }
-    }
-    return { github, jira };
+    return { github };
   }
 
   private async stage<T>(project: Project, stage: 'repoProfile' | 'onboardAdvise', inputs: { onboard: { facts: string } }, workspacePath: string | undefined, settings: ReturnType<typeof ProjectSettingsSchema.parse>, global: typeof DEFAULT_GLOBAL_SETTINGS): Promise<T> {

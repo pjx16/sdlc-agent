@@ -2,11 +2,9 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { ProjectSettingsSchema, type TicketType, jiraOn } from '@sdlc/shared';
-import { jiraMarker } from '../../jira/jira-client';
+import { type TicketType } from '@sdlc/shared';
 import { TicketComments } from '../github/ticket-comments';
 import { GitHubAuth } from '../github/github-auth.service';
-import { JiraClients } from '../../jira/jira-clients';
 import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { type CmdResult, VerifyService } from '../verify/verify.service';
@@ -59,7 +57,6 @@ export class WorkspaceService {
     private readonly git: GitRunner,
     private readonly verify: VerifyService,
     private readonly creds: CredentialsService,
-    @Optional() private readonly jira?: JiraClients,
     @Optional() private readonly auth?: GitHubAuth,
     @Optional() private readonly signer?: CommitSigner,
     @Optional() private readonly comments?: TicketComments,
@@ -140,7 +137,7 @@ export class WorkspaceService {
 
   /**
    * `Git.push(ticket)`. A normal push is never forced. When the remote branch only holds the pipeline's own earlier attempt at this ticket
-   * (a rerun rebuilt the branch), that superseded work is replaced under a lease (see `pushBranch`); the decision is recorded and written to Jira.
+   * (a rerun rebuilt the branch), that superseded work is replaced under a lease (see `pushBranch`); the decision is recorded and written to the ticket's issue.
    * Anything else throws PushRejectedError, which puts the ticket on hold (`needs_help`).
    */
   async push(ticketId: string): Promise<void> {
@@ -158,22 +155,16 @@ export class WorkspaceService {
     });
     // Remember what was pushed: a later rerun may replace exactly these commits, and nothing else.
     if (result.pushed.length > 0) await this.prisma.ticket.update({ where: { id: ticketId }, data: { pushedShas: [...new Set([...ticket.pushedShas, ...result.pushed])] } });
-    if (result.replaced.length > 0) await this.announceReplaced(ticket, project, branch, result.replaced);
+    if (result.replaced.length > 0) await this.announceReplaced(ticket, branch, result.replaced);
     await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Pushed ${ticket.branch}` } });
   }
 
-  /** Records the replacement as a decision and writes it on the Jira ticket, so the team can see what was overwritten and why. */
-  private async announceReplaced(ticket: { id: string; key: string; source: string; externalKey: string | null }, project: { jiraMode: string; settings: unknown }, branch: string, shas: string[]): Promise<void> {
+  /** Records the replacement as a decision and writes it on the ticket's issue, so the team can see what was overwritten and why. */
+  private async announceReplaced(ticket: { id: string; key: string; externalKey: string | null }, branch: string, shas: string[]): Promise<void> {
     const short = shas.map((s) => s.slice(0, 8)).join(', ');
     const reason = `GitHub still held ${shas.length} earlier commit${shas.length === 1 ? '' : 's'} of this ticket's branch (${short}), all made by the pipeline, from an attempt that a rerun replaced. They were replaced with the current work, under a lease that fails if anyone pushed in the meantime.`;
     await this.prisma.orchestratorDecision.create({ data: { ticketId: ticket.id, point: 'push_replace', legalMoves: [{ kind: 'push', to: 'push' }, { kind: 'replace_own_commits', to: 'push' }] as never, chosen: 'replace_own_commits push', reason, fallbackUsed: false } });
     await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'git', level: 'warn', source: 'git', message: `Replaced ${shas.length} earlier commit(s) of ${branch} on the remote (${short}): ${reason}`.slice(0, 500) } });
-    if (this.comments && ticket.source !== 'jira') await this.comments.post(ticket, `decision-push-${Date.now()}`, `sdlc-agent decided (push): replace its own earlier commits on ${branch}.\n\nWhy: ${reason}`);
-    try {
-      if (!this.jira || ticket.source !== 'jira' || !ticket.externalKey || !jiraOn(project.jiraMode) || !ProjectSettingsSchema.parse(project.settings).jiraWriteBack.comments) return;
-      await (await this.jira.forMode(project.jiraMode)).comment(ticket.externalKey, `sdlc-agent decided (push): replace its own earlier commits on ${branch}.\nWhy: ${reason}`, jiraMarker(ticket.key, 'decision-push', `${Date.now()}`));
-    } catch (err) {
-      this.logger.warn(`Could not write the push decision to Jira for ${ticket.key}: ${err instanceof Error ? err.message : String(err)}`);
-    }
+    if (this.comments) await this.comments.post(ticket, `decision-push-${Date.now()}`, `sdlc-agent decided (push): replace its own earlier commits on ${branch}.\n\nWhy: ${reason}`);
   }
 }

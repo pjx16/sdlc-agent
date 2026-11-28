@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ago, describeActivity, inFuture } from './activity';
-import type { IntakeStatusView, SystemView, WorkerStatusView } from './types';
+import type { SystemView, WorkerStatusView } from './types';
 
 const NOW = Date.parse('2026-11-12T12:00:00Z');
 const at = (secondsAgo: number) => new Date(NOW - secondsAgo * 1000).toISOString();
 
-const intake = (over: Partial<IntakeStatusView> = {}): IntakeStatusView => ({ mode: 'rest', at: at(30), projects: 1, waiting: 0, created: 0, seen: 0, error: null, skipped: null, ...over });
-const worker = (over: Partial<WorkerStatusView> = {}): WorkerStatusView => ({ online: true, state: 'idle', phase: 'idle', phaseDetail: null, phaseSince: at(3), startedAt: at(900), pid: 1, version: '1.0.0', restartingRepeatedly: false, heartbeatAt: at(3), tickOutcome: 'idle', tickDetail: null, intake: [], ...over });
+const worker = (over: Partial<WorkerStatusView> = {}): WorkerStatusView => ({ online: true, state: 'idle', phase: 'idle', phaseDetail: null, phaseSince: at(3), startedAt: at(900), pid: 1, version: '1.0.0', restartingRepeatedly: false, heartbeatAt: at(3), tickOutcome: 'idle', tickDetail: null, ...over });
 const system = (over: { worker?: WorkerStatusView | null; paused?: boolean; intakePaused?: boolean; running?: boolean; reason?: string | null } = {}): SystemView =>
   ({
     settings: { pipelinePaused: over.paused ?? false, pausedReason: over.reason ?? null, intakePaused: over.intakePaused ?? false, pollIntervalSec: 120 },
@@ -69,32 +68,12 @@ describe('describeActivity: the pipeline', () => {
   });
 });
 
-describe('describeActivity: Jira intake', () => {
-  it('has not polled yet', () => {
-    expect(line(system(), 'intake')?.text).toContain('Has not polled yet');
+describe('describeActivity: intake', () => {
+  it('says nothing about intake while it runs', () => {
+    expect(line(system(), 'intake')).toBeUndefined();
   });
   it('is paused by you, and says pasted tickets still work', () => {
     expect(line(system({ intakePaused: true }), 'intake')).toMatchObject({ tone: 'amber', text: expect.stringContaining('Pasted tickets still work') });
-  });
-  it('REST: last poll, what it found and when the next one is', () => {
-    const l = line(system({ worker: worker({ intake: [intake({ seen: 3, created: 1 })] }) }), 'intake-rest');
-    expect(l).toMatchObject({ tone: 'green' });
-    expect(l?.text).toBe('Polled 30s ago: found 3 tickets, 1 new. Next poll in 90s.');
-  });
-  it('reminds that the default query needs the label when a poll found nothing, but not when it found tickets', () => {
-    const none = line(system({ worker: worker({ intake: [intake({ seen: 0 })] }) }), 'intake-rest');
-    expect(none?.text).toContain('found 0 tickets (the default query only picks up issues labelled "sdlc-agent")');
-    expect(line(system({ worker: worker({ intake: [intake({ seen: 2, created: 1 })] }) }), 'intake-rest')?.text).not.toContain('labelled');
-  });
-  it('no project uses the mode, or the projects are waiting for their mirror', () => {
-    expect(line(system({ worker: worker({ intake: [intake({ projects: 0 })] }) }), 'intake-rest')).toMatchObject({ tone: 'grey', text: 'No project uses Jira intake.' });
-    const waiting = line(system({ worker: worker({ intake: [intake({ projects: 0, waiting: 1 })] }) }), 'intake-rest');
-    expect(waiting).toMatchObject({ tone: 'amber' });
-    expect(waiting?.text).toContain('mirror is not Ready');
-  });
-  it('shows an error in red, and a backoff', () => {
-    expect(line(system({ worker: worker({ intake: [intake({ error: 'Jira rejected the credentials' })] }) }), 'intake-rest')).toMatchObject({ tone: 'red', text: expect.stringContaining('Jira rejected the credentials') });
-    expect(line(system({ worker: worker({ intake: [intake({ skipped: 'backoff' })] }) }), 'intake-rest')?.text).toContain('unreachable');
   });
 });
 

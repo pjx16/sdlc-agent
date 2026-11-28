@@ -72,7 +72,7 @@ be touched (a type before the code that uses it, code before its callers).
 ## In the pipeline
 
 - The tests and implement stages build each subtask.
-- You return output only: you never write to Jira. The orchestrator publishes the
+- You return output only: you never write to the tracker. The orchestrator publishes the
   subtasks.
 
 ## Output `data`

@@ -43,9 +43,9 @@ test('save and test the GitHub token; the banner stays until every required cred
   await login(page);
   await page.goto('/setup/connections');
 
-  // One Save and one Test per card (Claude, GitHub, Jira REST, Jira Rovo MCP), not per field.
-  await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(4);
-  await expect(page.getByRole('button', { name: 'Test' })).toHaveCount(4);
+  // One Save and one Test per card (Claude and GitHub), not per field.
+  await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Test' })).toHaveCount(2);
 
   await saveCard(page, 'github', { 'GitHub token': 'ghp_e2eFakeTokenForTheSetupSpec1234' });
   await expect(card(page, 'github')).toContainText('••••1234');

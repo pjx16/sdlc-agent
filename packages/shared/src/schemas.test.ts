@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_GLOBAL_SETTINGS, DEFAULT_PROJECT_SETTINGS, GlobalSettingsSchema, ProjectInputSchema, ProjectSettingsSchema,
-  STACK_PREFILLS, TICKET_STATUSES, commandWarnings, DEFAULT_INTAKE_LABEL, deepMerge, defaultJiraJql, defaultLocalKeyPrefix, stageWarnings, zodFields,
+  STACK_PREFILLS, commandWarnings, deepMerge, defaultLocalKeyPrefix, stageWarnings, zodFields,
 } from './index';
 
 const valid = { name: 'Billing API', repoUrl: 'https://github.com/acme/billing', stack: 'nestjs', testCmdTemplate: 'npx jest {files}' };
@@ -19,25 +19,15 @@ describe('ProjectSettings defaults (section 7)', () => {
     expect(s.stages.fix).toEqual({ enabled: true, model: 'sonnet', maxTurns: 15 });
     expect(s.stages.prReview).toEqual({ enabled: true, model: 'sonnet', maxTurns: 10 });
     expect(s.stages.kbUpdate).toEqual({ enabled: true, model: 'sonnet', maxTurns: 15 });
-    expect(Object.keys(s.stages)).not.toContain('jiraIntake');
-    expect(Object.keys(s.stages)).not.toContain('jiraSync');
     expect(s.gates).toEqual({ plan: true, breakdown: false });
     expect(s.intake).toEqual({ paste: true });
-    expect(s.jiraWriteBack).toEqual({ comments: true, transitions: true, createSubtasks: true });
-    expect(s.jiraSubtaskTypeName).toBe('Sub-task');
     expect(s.pr).toEqual({ earlyDraft: true, ciFixRound: true, ciTimeoutMin: 30 });
     expect(s.limits).toEqual({ maxSubtasks: 8, maxTestFixRounds: 2, maxReviewRounds: 2, kbDocMaxLines: 300, reviewMaxDiffLines: 4000, prSoftLines: 600, prHardLines: 1500 });
     expect(s.verify.redInvalidPatterns).toEqual(['Cannot find module', 'SyntaxError', 'error TS[0-9]+']);
-    expect(s.jiraApprovalStatuses).toEqual({});
   });
 
   it('has no breakdown gate: a stored setting that asks for one is ignored', () => {
     expect(ProjectSettingsSchema.parse({ gates: { plan: true, breakdown: true } }).gates).toEqual({ plan: true, breakdown: false });
-  });
-
-  it('maps every ticket status to null by default', () => {
-    expect(Object.keys(DEFAULT_PROJECT_SETTINGS.jiraStatusMap).sort()).toEqual([...TICKET_STATUSES].sort());
-    expect(Object.values(DEFAULT_PROJECT_SETTINGS.jiraStatusMap).every((v) => v === null)).toBe(true);
   });
 
   it('keeps unspecified siblings when one nested value is given', () => {
@@ -64,11 +54,6 @@ describe('ProjectSettings defaults (section 7)', () => {
     expect(fields['verify.redInvalidPatterns.0']).toBe('must be a valid regular expression');
   });
 
-  it('rejects an unknown status key in the Jira status map only by dropping it', () => {
-    const s = ProjectSettingsSchema.parse({ jiraStatusMap: { DONE: 'Closed', BOGUS: 'x' } });
-    expect(s.jiraStatusMap.DONE).toBe('Closed');
-    expect('BOGUS' in s.jiraStatusMap).toBe(false);
-  });
 });
 
 describe('stage dependency warnings (F2)', () => {
@@ -86,7 +71,7 @@ describe('stage dependency warnings (F2)', () => {
 describe('ProjectInput', () => {
   it('accepts a minimal project and applies defaults', () => {
     const p = ProjectInputSchema.parse(valid);
-    expect(p).toMatchObject({ baseBranch: 'dev', installCmd: '', typecheckCmd: '', kbDir: 'docs/kb', claudeMdMode: 'both', jiraMode: 'off', enabled: true, localKeyPrefix: 'BILL' });
+    expect(p).toMatchObject({ baseBranch: 'dev', installCmd: '', typecheckCmd: '', kbDir: 'docs/kb', claudeMdMode: 'both', enabled: true, localKeyPrefix: 'BILL' });
     expect(p.settings).toEqual(DEFAULT_PROJECT_SETTINGS);
   });
 
@@ -113,15 +98,13 @@ describe('ProjectInput', () => {
     expect(Object.keys(fields).sort()).toEqual(['name', 'repoUrl', 'stack', 'testCmdTemplate']);
   });
 
-  it('validates kbDir, Jira key and local prefix', () => {
-    const f = zodFields(ProjectInputSchema.safeParse({ ...valid, kbDir: '../x', jiraProjectKey: 'abc', localKeyPrefix: 'a b' }).error!);
-    expect(Object.keys(f).sort()).toEqual(['jiraProjectKey', 'kbDir', 'localKeyPrefix']);
+  it('validates kbDir and local prefix', () => {
+    const f = zodFields(ProjectInputSchema.safeParse({ ...valid, kbDir: '../x', localKeyPrefix: 'a b' }).error!);
+    expect(Object.keys(f).sort()).toEqual(['kbDir', 'localKeyPrefix']);
   });
 
   it('treats blank optional text as absent and keeps an explicit prefix', () => {
-    const p = ProjectInputSchema.parse({ ...valid, jiraJql: '  ', jiraProjectKey: '', localKeyPrefix: 'XY' });
-    expect(p.jiraJql).toBeUndefined();
-    expect(p.jiraProjectKey).toBeUndefined();
+    const p = ProjectInputSchema.parse({ ...valid, localKeyPrefix: 'XY' });
     expect(p.localKeyPrefix).toBe('XY');
   });
 
@@ -150,21 +133,10 @@ describe('GlobalSettings', () => {
       stageTimeoutMin: 20, verifyTimeoutSec: 600, githubIssueOnCreate: 'ask', workspaceRetentionDays: 7, logRetentionDays: 30,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
-    expect(Object.keys(DEFAULT_GLOBAL_SETTINGS)).not.toContain('jiraMcp');
   });
   it('validates ranges with field-level errors', () => {
     const f = zodFields(GlobalSettingsSchema.safeParse({ budgetDailyCredits: 0, timezone: 'Mars/Base', pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } }).error!);
     expect(Object.keys(f).sort()).toEqual(['budgetDailyCredits', 'modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'timezone']);
-  });
-});
-
-describe('defaultJiraJql', () => {
-  it("is the project's issues labelled sdlc-agent, oldest first, and empty without a key", () => {
-    expect(defaultJiraJql('ABC')).toBe('project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC');
-    expect(defaultJiraJql('  ABC ')).toBe('project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC');
-    expect(defaultJiraJql('')).toBe('');
-    expect(defaultJiraJql(undefined)).toBe('');
-    expect(DEFAULT_INTAKE_LABEL).toBe('sdlc-agent');
   });
 });
 

@@ -22,7 +22,6 @@ describe('Hold, resume and retry (3.7)', () => {
     await db?.drop();
   });
   beforeEach(async () => {
-    await t.prisma.project.update({ where: { id: projectId }, data: { jiraMode: 'off' } });
   });
 
   it('requires a session', async () => {

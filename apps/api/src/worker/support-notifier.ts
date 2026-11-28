@@ -1,17 +1,15 @@
 import { Inject, Injectable, Logger, type OnModuleInit, Optional } from '@nestjs/common';
-import { ProjectSettingsSchema, events, jiraOn } from '@sdlc/shared';
+import { events } from '@sdlc/shared';
 import { logEvent } from '../common/event-log';
 import type { SupportTicket } from '../generated/prisma/client';
-import { jiraMarker } from '../jira/jira-client';
-import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupportRaiser, type SupportNotifierPort } from '../support/support-raiser';
 import { GITHUB_CLIENT, type GitHubClient, parseRepo } from './github/github-client';
 import { TicketComments } from './github/ticket-comments';
 
 /**
- * A blocking support ticket also reaches the places people look: a comment on the Jira issue and, when
- * there is a PR, a comment on the PR. Best effort: a Jira or GitHub problem is a recorded warning, never a block.
+ * A blocking support ticket also reaches the places people look: a comment on the ticket's GitHub issue and, when
+ * there is a PR, a comment on the PR. Best effort: a GitHub problem is a recorded warning, never a block.
  * The PR comment for a `needs_help` hold is already written by the HoldNotifier, so it is not written twice.
  */
 import { FormatLoader } from './format-loader';
@@ -21,7 +19,6 @@ export class SupportNotifier implements SupportNotifierPort, OnModuleInit {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jira: JiraClients,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     private readonly raiser: SupportRaiser,
     @Optional() formats?: FormatLoader,
@@ -43,16 +40,8 @@ export class SupportNotifier implements SupportNotifierPort, OnModuleInit {
     if (!t) return;
     const text = `**Needs you:** ${ticket.title}\n\n${ticket.body}`.slice(0, 4000);
 
-    const settings = ProjectSettingsSchema.parse(t.project.settings);
-    if (t.source === 'jira' && t.externalKey && jiraOn(t.project.jiraMode) && settings.jiraWriteBack.comments) {
-      try {
-        await (await this.jira.forMode(t.project.jiraMode)).comment(t.externalKey, await this.formats.fill('issue-needs-you', { title: ticket.title, body: ticket.body.slice(0, 3800) }), jiraMarker(t.key, `support-${ticket.id}`, ticket.id));
-      } catch (err) {
-        await this.warn(t.id, 'JIRA_ERROR', 'jira', `Could not tell Jira about "${ticket.title}": ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-    // The ticket's own issue, for a ticket that is not a Jira one: one comment for each thing that needs a person.
-    if (this.comments && t.source !== 'jira') await this.comments.post(t, `support-${ticket.id}`, await this.formats.fill('issue-needs-you', { title: ticket.title, body: ticket.body.slice(0, 3800) }));
+    // The ticket's own issue: one comment for each thing that needs a person.
+    if (this.comments) await this.comments.post(t, `support-${ticket.id}`, await this.formats.fill('issue-needs-you', { title: ticket.title, body: ticket.body.slice(0, 3800) }));
     const coveredByHoldNotifier = ticket.kind === 'hold' && t.holdReason === 'needs_help';
     if (t.prNumber && !coveredByHoldNotifier) {
       try {
@@ -63,8 +52,8 @@ export class SupportNotifier implements SupportNotifierPort, OnModuleInit {
     }
   }
 
-  private async warn(ticketId: string, code: 'JIRA_ERROR' | 'GITHUB_ERROR', source: 'jira' | 'github', message: string): Promise<void> {
+  private async warn(ticketId: string, code: 'GITHUB_ERROR', source: 'github', message: string): Promise<void> {
     this.logger.warn(message);
-    await logEvent(this.prisma, { ...events.note({ source, type: source === 'jira' ? 'jira' : 'git', level: 'warn', message: message.slice(0, 500) }), errorCode: code }, { ticketId });
+    await logEvent(this.prisma, { ...events.note({ source, type: 'git', level: 'warn', message: message.slice(0, 500) }), errorCode: code }, { ticketId });
   }
 }

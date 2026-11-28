@@ -21,9 +21,9 @@ A self-hosted, Docker-based **shipping engine** for solo developers. It turns ti
 
 ## What it does
 
-sdlc-agent takes a ticket from Jira (or one pasted into its dashboard) and:
+sdlc-agent takes a ticket from GitHub (an issue or a Projects card), or one created in its dashboard, and:
 
-1. **Plans** it with AI (a solution design for a feature, a root-cause investigation for a bug; the plan lists the subtasks), posts it to Jira and commits it to the repository's knowledge-base folder, then waits for your approval.
+1. **Plans** it with AI (a solution design for a feature, a root-cause investigation for a bug; the plan lists the subtasks), posts it on the ticket's GitHub issue and commits it to the repository's knowledge-base folder, then waits for your approval.
 2. **Breaks the approved plan down** into subtasks by itself.
 3. **Implements each subtask test-first**, with AI agents running in isolated containers.
 4. **Opens one pull request per ticket**, with one `test:` and one `feat:` commit per subtask, and keeps an eye on its size.
@@ -38,7 +38,7 @@ You stay in control at two points only: plan approval and merge. Anything else t
 Turning tickets into reviewable PRs should take little hand-holding. This project aims to do that while:
 
 - keeping AI usage efficient (one AI stage at a time, capped turns, small prompts, the right model per stage, and spend budgets that pause the pipeline), and
-- never exposing your machine, GitHub credentials or Jira credentials to AI agents.
+- never exposing your machine or GitHub credentials to AI agents.
 
 Anyone can clone the repository and run it with Docker Compose on macOS or a Linux VM.
 
@@ -46,7 +46,7 @@ Anyone can clone the repository and run it with Docker Compose on macOS or a Lin
 
 ```mermaid
 flowchart TD
-  T[Ticket: Jira or pasted] --> KB[Knowledge base lookup / build]
+  T[Ticket: GitHub issue or created in the dashboard] --> KB[Knowledge base lookup / build]
   KB --> P[AI plan]
   P --> G1{{You approve the plan}}
   G1 --> B[AI breakdown into subtasks]
@@ -71,22 +71,22 @@ Key points:
 - **One branch and one PR per ticket.** A draft PR opens after the first subtask and is marked ready after review and CI.
 - **Scripted checks between stages:** dependency install, typecheck, targeted tests, a test-file tamper guard and a commit guard. The full test suite, lint and security scanners stay with your repository's CI.
 - **Support queries:** an agent can ask you a question. The ticket goes on hold and the next ticket starts while you answer.
-- **Self-recovery:** when a step gets stuck (for example a test that fails for the wrong reason), the orchestrator reads the failure and tries again with a note it writes, up to a limit you set (default 3), before it asks you. Every decision is stored, shown on the ticket's Decisions tab and commented on the Jira ticket. A push blocked by the pipeline's own earlier attempt is replaced under a lease; commits by anyone else never are.
-- **Reviewable PRs:** the branch's changed lines are measured after every subtask against a soft (600) and a hard (1500) limit, both set per project. Crossing them is reported to Jira and, at the hard limit, on the PR with the size of each commit. Nothing is blocked.
+- **Self-recovery:** when a step gets stuck (for example a test that fails for the wrong reason), the orchestrator reads the failure and tries again with a note it writes, up to a limit you set (default 3), before it asks you. Every decision is stored, shown on the ticket's Decisions tab and commented on the ticket's GitHub issue. A push blocked by the pipeline's own earlier attempt is replaced under a lease; commits by anyone else never are.
+- **Reviewable PRs:** the branch's changed lines are measured after every subtask against a soft (600) and a hard (1500) limit, both set per project. Crossing them is reported on the ticket's issue and, at the hard limit, on the PR with the size of each commit. Nothing is blocked.
 - **Spend budgets:** the pipeline runs on an Anthropic API key and is billed per token. Set daily, weekly and monthly budgets in credits (1 credit = 1 USD of Anthropic credit balance), counted in your timezone. When one is used up the pipeline pauses until the next period starts, with *Resume* and *Ignore budgets until then* actions. A banner warns at 80% of a budget (configurable). The Usage page shows spend against each budget, the spend rate, a month-end projection and the average cost per ticket.
 - **GitHub access, per project:** your own personal token (the default), or **sdlc-agent-bot**: you install the sdlc-agent GitHub App on the repository and everything is done in the bot's name with one-hour, single-repository tokens, so no personal token is needed. See [`docs/BOT.md`](./docs/BOT.md).
 - **Knowledge base:** per-feature docs live in the target repository and are looked up through a deterministic index (a ticket is first mapped to a feature), then built or updated by AI stages.
 - **Sixteen agents, one job each:** the prompts are markdown in [`guidelines/agents`](./guidelines/agents) and are also written to `.claude/agents/`. Eleven of them ship as a [Claude Code plugin](#use-the-agents-in-your-own-claude-code) you can use without the stack.
-- **Onboarding and the inbox:** give a repository URL and the pipeline profiles it (stack, commands, Jira mapping) for you to accept; anything that needs you lands in the inbox, and you can rerun a ticket from any finished stage with a note.
+- **Onboarding and the inbox:** give a repository URL and the pipeline profiles it (stack, commands, board columns) for you to accept; anything that needs you lands in the inbox, and you can rerun a ticket from any finished stage with a note.
 - **Dashboard:** single-user password login, a live pipeline diagram that shows which step is moving, per-ticket overview (tokens, cost, time, PR size), inbox with the plan and breakdown to read before approving, live logs, settings, guideline editing and charts. Dates and chart axes use your own time zone.
-- **Jira:** REST polling with a configurable JQL per project, issue-type routing, and ticket states mapped to Jira statuses. Plans are posted to Jira and committed to `<kb folder>/plans/<KEY>.md` in the repository. Pasting tickets works with or without Jira.
+- **GitHub:** a ticket is an issue (or a card on a Projects board) or is created in the dashboard, with an optional GitHub issue. The plan, the breakdown and every decision are written on the issue, progress shows as a label or a board column, and a plan or breakdown is approved by moving the card to an approval column or adding the `sdlc:approved` label. Plans are also committed to `<kb folder>/plans/<KEY>.md` in the repository.
 
-The integrations are described in [`docs/TRACKER.md`](./docs/TRACKER.md) For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
+The GitHub integration is described in [`docs/GITHUB.md`](./docs/GITHUB.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
 
 ## Design principles
 
-1. **Code does everything that needs no judgment.** Jira calls, git, GitHub, running tests, state tracking and scheduling are plain deterministic code. AI is used only for planning, breakdown, test writing, implementation, fixing, review, triage, choosing among legal moves and knowledge-base writing.
-2. **Agents only edit files.** The orchestrator makes every commit, push, PR and Jira call. Agent containers never hold GitHub credentials, and never Jira credentials.
+1. **Code does everything that needs no judgment.** git, GitHub, running tests, state tracking and scheduling are plain deterministic code. AI is used only for planning, breakdown, test writing, implementation, fixing, review, triage, choosing among legal moves and knowledge-base writing.
+2. **Agents only edit files.** The orchestrator makes every commit, push, PR and GitHub call. Agent containers never hold GitHub credentials.
 3. **Every AI stage is a fresh, narrow, capped run:** its own container, its own model, its own step limit, and only the context it needs.
 4. **Humans gate two points:** plan approval and merge. Stuck steps are recovered by the orchestrator first, within a limit, and every decision is recorded.
 5. **One AI stage runs at a time**, system-wide, to keep usage predictable.
@@ -96,9 +96,9 @@ The integrations are described in [`docs/TRACKER.md`](./docs/TRACKER.md) For how
 
 This tool runs AI-generated code and holds a GitHub token. The short version; the full threat model and residual risks are in [`SECURITY.md`](./SECURITY.md).
 
-- **Agents only edit files.** Agent containers run as a non-root user with all capabilities dropped, `no-new-privileges`, resource limits and a timeout, with no Docker socket, **no Anthropic API key** and no GitHub or Jira credentials (Jira connector mode's `jiraConnector` stage alone holds a claude.ai login, see [TRACKER.md](docs/TRACKER.md#credential-boundary)). The workspace's `.git` is mounted read-only.
+- **Agents only edit files.** Agent containers run as a non-root user with all capabilities dropped, `no-new-privileges`, resource limits and a timeout, with no Docker socket, **no Anthropic API key** and no GitHub credentials). The workspace's `.git` is mounted read-only.
 - **Model calls go through an LLM gateway** inside the worker, which adds the Anthropic API key and forwards only `POST /v1/messages`, and only with the key it gave that run's container. **npm goes through a read-only mirror**, so an agent cannot publish. The egress proxy allows only Prisma's binary host. The worker reaches Docker through a **filtering `docker-proxy`** on a network of its own. It requires the agent image and the full sandbox on every container it starts, and it only touches containers carrying the agent label.
-- The worker holds the GitHub and Jira credentials (in bot mode, one-hour single-repository tokens from the optional broker) and runs git with hooks, fsmonitor and credential helpers disabled. Repositories are restricted to `https://github.com/...`.
+- The worker holds the GitHub credentials (in bot mode, one-hour single-repository tokens from the optional broker) and runs git with hooks, fsmonitor and credential helpers disabled. Repositories are restricted to `https://github.com/...`.
 - The API is not published to the host, the dashboard binds to `127.0.0.1`, cross-site state-changing requests are refused, and secrets are redacted from logs and the dashboard.
 - Tokens entered in the dashboard are encrypted in Postgres with `ENCRYPTION_KEY`; back up `.env` separately from the database.
 - Ticket text and repository content are untrusted data. There is no auto-merge. Enable branch protection on every base branch.
@@ -134,7 +134,7 @@ Requirements:
 
 - Docker (Engine 26 or newer, as in Docker Desktop 4.29 and later) and Docker Compose, on macOS or a Linux VM (the host user must be able to use the Docker socket)
 - An Anthropic API key from the [Anthropic Console](https://console.anthropic.com/settings/keys), with credits. Set a spend limit on its workspace too
-- A GitHub repository to ship into, and optionally a Jira Cloud project
+- A GitHub repository to ship into
 
 ### Install with the CLI
 
@@ -226,11 +226,11 @@ for the agents and how to use them.
 
 ## Adding a project
 
-Open **Projects → New** and give a **repository URL** (an HTTPS `github.com` URL such as `https://github.com/acme/billing`) and, optionally, a Jira project key. The pipeline collects the facts (default branch and languages, Jira issue types, statuses and labels), asks the repo-profiler and onboarding-advisor agents for a proposal, and shows it for you to review and accept: stack and its install, typecheck and targeted-test commands (the test command must contain `{files}`), knowledge-base folder, Jira status mapping and approval status, issue-type routing, and intake label. Everything stays editable on the project page. Choose how the project reaches GitHub (your token or sdlc-agent-bot) and the **CLAUDE.md mode**: `ours` (our defaults; the repository's own `CLAUDE.md` is hidden from Claude), `theirs` (only the repository's) or `both`.
+Open **Projects → New** and give a **repository URL** (an HTTPS `github.com` URL such as `https://github.com/acme/billing`) The pipeline collects the facts (default branch and languages, and the columns of the Projects board when the project uses one), asks the repo-profiler and onboarding-advisor agents for a proposal, and shows it for you to review and accept: stack and its install, typecheck and targeted-test commands (the test command must contain `{files}`), knowledge-base folder, the GitHub board's column mapping, approval columns and intake column. Everything stays editable on the project page. Choose how the project reaches GitHub (your token or sdlc-agent-bot) and the **CLAUDE.md mode**: `ours` (our defaults; the repository's own `CLAUDE.md` is hidden from Claude), `theirs` (only the repository's) or `both`.
 
 The worker then clones a bare mirror in the background. The project shows *Cloning*, then *Ready*, or *Failed* with the error (fix the URL or token and press Retry). A project accepts tickets only when it is *Ready*.
 
-**Which Jira tickets are picked up.** By default only issues that carry the label **`sdlc-agent`**. With an empty JQL the query is `project = "KEY" AND labels = "sdlc-agent" ORDER BY created ASC`. A JQL you write is used exactly as written, so you can drop the label or filter on a status (for example `project = ABC AND issuetype in (Story, Bug, Task) AND status = "Ready for Dev" ORDER BY created ASC`). Jira sub-tasks are never picked up, and each issue becomes a ticket once. Pasting a ticket in the dashboard works in every Jira mode. Details: [`docs/TRACKER.md`](./docs/TRACKER.md).
+**Which tickets are picked up.** For a Projects board, the cards in the intake column; for issues, the open issues that carry the project's label (`sdlc-agent` by default). See [`docs/GITHUB.md`](./docs/GITHUB.md).
 
 Every per-project setting is listed in [`docs/CONFIGURATION.md`](./docs/CONFIGURATION.md#per-project-dashboard).
 
@@ -242,7 +242,7 @@ What the agents are told lives in [`guidelines/`](./guidelines) as markdown, and
 - `agents/pipeline/*.md`: what each agent gets and returns in the pipeline (inputs, the shape of the answer). A stage's prompt is its base plus this overlay. `npm run agents` regenerates `.claude/agents/` from both; a test fails when they drift.
 - `agents/plugin/*.md` and `agents/plugin-preamble.md`: the same for the [`sdlc-subagents` plugin](#use-the-agents-in-your-own-claude-code), for the agents that ship in it (`plugin: true` in `packages/shared/src/agents.ts`). `npm run agents` regenerates `plugins/sdlc-subagents/` too. Dashboard edits change the pipeline only; the plugin changes with a release.
 - `agents/shared-rules.md`: the rules every agent follows (scope, safety, small context, code standards, evidence, when to ask).
-- `formats/*.md`: the ticket, plan, pull request description, review comments and Jira comments, with `{{placeholders}}`; `npm run formats` rewrites them from the defaults.
+- `formats/*.md`: the ticket, plan, pull request description, review comments and issue comments, with `{{placeholders}}`; `npm run formats` rewrites them from the defaults.
 - `stacks/*.md`: conventions for each supported stack, added to every stage's system prompt.
 - `default-CLAUDE.md`: how the pipeline runs and reports (headless, JSON only). With the shared rules it is our default `CLAUDE.md`, used in modes `ours` and `both`.
 - `review-checklist.md` and `kb-doc-template.md`: what the review checks, and the shape of a knowledge-base doc.
@@ -257,7 +257,7 @@ Secrets and the few settings that must exist before the dashboard does live in `
 
 ```text
 apps/
-  api/            NestJS API and worker (Prisma, state machine, agent runner, LLM gateway, Git/GitHub/Jira clients)
+  api/            NestJS API and worker (Prisma, state machine, agent runner, LLM gateway, Git/GitHub clients)
   dashboard/      Next.js dashboard
   broker/         Optional token broker for sdlc-agent-bot (GitHub App); see docs/BOT.md
   e2e/            Playwright browser tests (own Postgres, built API, dashboard)
@@ -296,7 +296,7 @@ The end-to-end suite starts its own Postgres container and the API and dashboard
 
 ## Scope and known limitations
 
-Out of scope for now: Jira MCP mode (removed), a QA agent or post-merge testing, concurrency above 1, Jira webhooks or intake other than Jira and paste, git hosts other than GitHub (HTTPS only, no SSH URLs), multiple users or roles, stacks other than TS/Node, NestJS and Next.js, notifications, auto-merge, and cloud deployment scripts.
+Out of scope for now: a QA agent or post-merge testing, concurrency above 1, webhooks or intake other than GitHub and the dashboard, git hosts other than GitHub (HTTPS only, no SSH URLs), multiple users or roles, stacks other than TS/Node, NestJS and Next.js, notifications, auto-merge, and cloud deployment scripts.
 
 Known limitations:
 
@@ -304,7 +304,7 @@ Known limitations:
 - Spend is the cost Claude Code reports for each run. A run's cost counts when the run ends, so a budget can be overshot by the run that was in progress when it was reached.
 - Only one stage runs at a time, system-wide, and a ticket's whole run is sequential.
 - The first-pass rate on the Overview is approximate: a subtask has no completion time of its own, so it counts in the range where its last stage run ended.
-- Only two small tickets have run with live Claude ([`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)). Review fixes, CI fixes, support queries, Jira and larger tickets have only been tested against the stand-in.
+- Only two small tickets have run with live Claude ([`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)). Review fixes, CI fixes, support queries and larger tickets have only been tested against the stand-in.
 - A failed first dependency install leaves a half-installed `node_modules`, and Retry skips the reinstall. Delete the workspace's `node_modules` and reinstall, or delete the workspace (see [`docs/LIVE_RUNS.md`](./docs/LIVE_RUNS.md)).
 - Creating a ticket through the API requires the text in `body`; unknown fields are rejected.
 
@@ -328,4 +328,4 @@ Released under the [MIT License](./LICENSE).
 
 ## Disclaimer
 
-This is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, Atlassian or GitHub. "Claude" and "Claude Code" are trademarks of Anthropic, "Jira" and "Atlassian" of Atlassian, and "GitHub" of GitHub, Inc. You are responsible for making sure your use of this tool complies with the terms of your Claude Code plan and of every service it connects to.
+This is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic or GitHub. "Claude" and "Claude Code" are trademarks of Anthropic, and "GitHub" of GitHub, Inc. You are responsible for making sure your use of this tool complies with the terms of your Claude Code plan and of every service it connects to.

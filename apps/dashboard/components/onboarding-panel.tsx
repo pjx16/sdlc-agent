@@ -1,9 +1,9 @@
 'use client';
 
-import { MUST_ACCEPT, ISSUE_KINDS, TICKET_STATUSES, type OnboardingProposal, type OnboardingSection } from '@sdlc/shared';
+import { TICKET_STATUSES, type OnboardingProposal, type OnboardingSection } from '@sdlc/shared';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import type { DryRunView, OnboardingView } from '@/lib/types';
+import type { OnboardingView } from '@/lib/types';
 import { ProfilingModal } from './profiling-modal';
 
 const POLL_MS = 3000;
@@ -56,7 +56,6 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
   const [view, setView] = useState<OnboardingView>(initial);
   const [editing, setEditing] = useState<OnboardingSection | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
-  const [dry, setDry] = useState<DryRunView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -116,10 +115,9 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
   }
 
   const p: OnboardingProposal = view.proposal;
-  const jira = p.facts.jira;
   const accepted = (s: OnboardingSection) => Boolean(p.accepted[s]);
   const board = p.board;
-  const needs = [...(jira ? MUST_ACCEPT.filter((s) => !accepted(s)) : []), ...(board && !accepted('board') ? (['board'] as const) : [])];
+  const needs = board && !accepted('board') ? (['board'] as const) : [];
   const AcceptEdit = (s: OnboardingSection, onEdit: () => void) => (
     <>
       <button type="button" onClick={() => section(s, 'accept')} disabled={busy !== null || accepted(s)} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-text disabled:opacity-50">
@@ -233,75 +231,7 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
         </Card>
       )}
 
-      {jira ? (
-        <>
-          <Card title="Jira statuses" required accepted={accepted('statusMap')} actions={AcceptEdit('statusMap', startEdit('statusMap'))}>
-            <p className="text-xs text-muted">Where each pipeline state moves the Jira issue. Several states may share a status.</p>
-            <ul className="mt-2 grid gap-x-6 sm:grid-cols-2">
-              {TICKET_STATUSES.map((s) => (
-                <li key={s} className="flex justify-between gap-2">
-                  <span className="font-mono text-xs text-muted">{s}</span>
-                  <span>{p.advice.statusMap[s] ?? 'not mapped'}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2">
-              Plan approved when moved to: <strong>{p.advice.approvalStatuses.plan ?? 'none'}</strong> · Breakdown approved: <strong>{p.advice.approvalStatuses.breakdown ?? 'none'}</strong>
-            </p>
-            {editBox('statusMap', [
-              { key: 'statusMap', label: 'One "STATE: Jira status" per line (leave the status empty to not map)', initial: lines(p.advice.statusMap), multiline: true },
-              { key: 'plan', label: 'Plan approved status (empty for none)', initial: p.advice.approvalStatuses.plan ?? '' },
-              { key: 'breakdown', label: 'Breakdown approved status (empty for none)', initial: p.advice.approvalStatuses.breakdown ?? '' },
-            ], (v) => ({ statusMap: parseLines(v.statusMap ?? ''), approvalStatuses: { plan: v.plan || null, breakdown: v.breakdown || null } }))}
-          </Card>
-
-          <Card title="Issue types" accepted={accepted('routing')} actions={AcceptEdit('routing', startEdit('routing'))}>
-            <ul>
-              {Object.entries(p.advice.issueTypeRouting).map(([type, kind]) => (
-                <li key={type} className="flex justify-between gap-2">
-                  <span>{type}</span>
-                  <span className={kind === 'ignore' ? 'text-muted' : ''}>{kind === 'ignore' ? 'ignored' : kind}</span>
-                </li>
-              ))}
-            </ul>
-            {editBox('routing', [{ key: 'routing', label: `One "Issue type: ${ISSUE_KINDS.join(' | ')}" per line`, initial: lines(p.advice.issueTypeRouting), multiline: true }], (v) => ({ issueTypeRouting: parseLines(v.routing ?? '') }))}
-          </Card>
-
-          <Card title="Intake label" required accepted={accepted('label')} actions={AcceptEdit('label', startEdit('label'))}>
-            <p>
-              Tickets with the label <strong className="font-mono">{p.advice.intakeLabel}</strong> are picked up.
-            </p>
-            {!jira.labels.includes(p.advice.intakeLabel) && <p className="mt-1 text-xs text-muted">No ticket uses this label yet. Jira creates a label the first time it is applied to a ticket, so add it to one to start.</p>}
-            {editBox('label', [{ key: 'intakeLabel', label: 'Label', initial: p.advice.intakeLabel }], (v) => v)}
-          </Card>
-        </>
-      ) : (
-        !board && <p className="text-sm text-muted">No Jira project and no GitHub board: this project takes pasted tickets and GitHub issues only.</p>
-      )}
-
-      {jira && (
-        <section aria-label="Dry run" className="panel p-4">
-          <h3 className="text-sm font-medium">Dry run</h3>
-          <p className="mt-1 text-xs text-muted">See which tickets the intake query would pick up right now. Nothing is changed.</p>
-          <button type="button" onClick={() => run('dry', () => call<DryRunView>(`${base}/dry-run`, 'POST'), setDry)} disabled={busy !== null} className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium disabled:opacity-50">
-            {busy === 'dry' ? 'Checking…' : 'Run the dry run'}
-          </button>
-          {dry && (
-            <div className="mt-3 text-sm">
-              <p>{dry.count} ticket{dry.count === 1 ? '' : 's'} currently match.</p>
-              <ul className="mt-1">
-                {dry.tickets.map((t) => (
-                  <li key={t.key}>
-                    <span className="font-mono">{t.key}</span> {t.summary} <span className="text-muted">({t.issueType})</span>
-                  </li>
-                ))}
-              </ul>
-              {dry.note && <p className="mt-1 text-xs text-muted">{dry.note}</p>}
-              <p className="mt-1 break-all font-mono text-xs text-muted">{dry.jql}</p>
-            </div>
-          )}
-        </section>
-      )}
+      {!board && <p className="text-sm text-muted">No GitHub board: this project takes pasted tickets and GitHub issues only.</p>}
 
       {warnings.length > 0 && (
         <ul role="status" className="text-sm text-amber">
@@ -324,7 +254,7 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
         >
           {busy === 'confirm' ? 'Confirming…' : 'Confirm the project'}
         </button>
-        {needs.length > 0 && <span className="text-xs text-muted">Accept the required cards first (Jira statuses, label, GitHub board columns).</span>}
+        {needs.length > 0 && <span className="text-xs text-muted">Accept the GitHub board columns first.</span>}
         <button type="button" onClick={() => run('rerun', () => call<OnboardingView>(`${base}/rerun`, 'POST'), setView)} disabled={busy !== null} className="rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50">
           Propose again
         </button>

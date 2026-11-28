@@ -9,7 +9,7 @@ export type SupportPriority = (typeof SUPPORT_PRIORITIES)[number];
 export const SUPPORT_STATUSES = ['open', 'answered', 'resolved', 'dismissed'] as const;
 export type SupportStatus = (typeof SUPPORT_STATUSES)[number];
 
-/** The pipeline waits for these: they get a Jira comment and, with a PR, a PR comment. */
+/** The pipeline waits for these: they get a comment on the ticket's issue and, with a PR, a PR comment. */
 export const BLOCKING_BY_DEFAULT: readonly SupportKind[] = ['approval', 'question', 'hold', 'ci_infra', 'onboarding', 'credential'];
 
 export const defaultPriority = (kind: SupportKind): SupportPriority => (BLOCKING_BY_DEFAULT.includes(kind) ? 'blocking' : kind === 'pr_ready' ? 'fyi' : 'normal');

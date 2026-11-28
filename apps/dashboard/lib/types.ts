@@ -1,11 +1,9 @@
 import type { OnboardingProgress, OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
 
 /** A project as returned by the API. */
-export type ProjectView = Omit<ProjectInput, 'settings' | 'jiraProjectKey' | 'jiraJql' | 'githubAuth'> & {
+export type ProjectView = Omit<ProjectInput, 'settings' | 'githubAuth'> & {
   /** token: the personal token from Settings. bot: sdlc-agent-bot through the token broker. Missing means token. */
   githubAuth?: 'token' | 'bot';
-  jiraProjectKey?: string;
-  jiraJql?: string;
   id: string;
   mirrorStatus: 'pending' | 'ok' | 'failed';
   mirrorError: string | null;
@@ -47,7 +45,6 @@ export interface GlobalSettingsView {
   /** True while the worker finds no internet connection; the pipeline resumes by itself. */
   networkOffline?: boolean;
   offlineSince?: string | null;
-  intakeJiraEnabled?: boolean;
   intakeGithubEnabled?: boolean;
   intakePasteEnabled?: boolean;
 }
@@ -116,17 +113,6 @@ export interface TicketCostsView {
   top: { id: string; key: string; title: string; kind: string; credits: number }[];
 }
 
-export interface IntakeStatusView {
-  mode: 'rest' | 'mcp' | 'connector';
-  at: string | null;
-  projects: number;
-  waiting: number;
-  created: number;
-  seen: number;
-  error: string | null;
-  skipped: string | null;
-}
-
 /** What the worker last reported; `online` comes from its heartbeat. */
 export interface WorkerStatusView {
   online: boolean;
@@ -142,7 +128,6 @@ export interface WorkerStatusView {
   tickOutcome: string;
   tickDetail: string | null;
   agentImageError?: string | null;
-  intake: IntakeStatusView[];
 }
 
 export interface RecentEvent {
@@ -194,9 +179,6 @@ export interface TransitionView {
   stageRunId: string | null;
   kind?: string;
   note?: string | null;
-  jiraStatusApplied: string | null;
-  jiraSyncResult: 'none' | 'applied' | 'failed';
-  jiraSyncError: string | null;
 }
 
 export interface TicketEventView {

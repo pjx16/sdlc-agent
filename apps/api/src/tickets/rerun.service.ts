@@ -1,10 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, FORWARD_ORDER, ProjectSettingsSchema, RERUNNABLE_STATES, checkMove, loopLimitMessage, orderOf, rerunCount, type MoveRecord, type TicketStatus, jiraOn } from '@sdlc/shared';
+import { ErrorCodes, FORWARD_ORDER, ProjectSettingsSchema, RERUNNABLE_STATES, checkMove, loopLimitMessage, orderOf, rerunCount, type MoveRecord, type TicketStatus } from '@sdlc/shared';
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
-import { JiraClients } from '../jira/jira-clients';
-import { jiraMarker } from '../jira/jira-client';
 import type { Ticket } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StateMachine } from '../state/state-machine.service';
@@ -44,7 +42,6 @@ export class RerunService {
     private readonly prisma: PrismaService,
     private readonly states: StateMachine,
     private readonly raiser: SupportRaiser,
-    private readonly jira: JiraClients,
   ) {}
 
   private async ticket(id: string) {
@@ -100,7 +97,6 @@ export class RerunService {
     const dismissed = await this.raiser.close({ ticketId: id, kind: ['approval', 'question', 'open_question', 'ci_infra', 'pr_ready', 'hold'] }, 'dismissed', 'system', 'The ticket was sent back to an earlier stage');
     if (dismissed > 0) await logEvent(this.prisma, events.note({ source: 'system', type: 'support', message: `${dismissed} open item${dismissed === 1 ? '' : 's'} about the stale work ${dismissed === 1 ? 'was' : 'were'} dismissed` }), { ticketId: id });
 
-    await this.tellJira(ticket, stage, note);
     return toTicketDto(await this.prisma.ticket.findUniqueOrThrow({ where: { id } }));
   }
 
@@ -131,18 +127,6 @@ export class RerunService {
     if (stage === 'IN_PROGRESS') {
       const lastFailure = note ? `The implementation is being redone. Developer note: ${note}` : null;
       await this.prisma.subtask.updateMany({ where: { ticketId: ticket.id }, data: { status: 'PENDING', fixRounds: 0, lastFailure, testCommit: null, featCommit: null, testFiles: [], redoTests: false, rerunPart: null, retriedAt: new Date() } });
-    }
-  }
-
-  /** Outbound only: the Jira status follows the transition, and one marker comment says why. A Jira problem never blocks. */
-  private async tellJira(ticket: Ticket & { project: { jiraMode: string; settings: unknown } }, stage: TicketStatus, note: string | undefined): Promise<void> {
-    const settings = ProjectSettingsSchema.parse(ticket.project.settings);
-    if (ticket.source !== 'jira' || !ticket.externalKey || !jiraOn(ticket.project.jiraMode) || !settings.jiraWriteBack.comments) return;
-    const text = `Rerun of ${stage} requested${note ? `: ${note}` : '.'}`;
-    try {
-      await (await this.jira.forMode(ticket.project.jiraMode)).comment(ticket.externalKey, text, jiraMarker(ticket.key, `rerun-${stage}`, `${Date.now()}`));
-    } catch (err) {
-      await logEvent(this.prisma, events.warning({ code: 'JIRA_ERROR', detail: err instanceof Error ? err.message : String(err) }), { ticketId: ticket.id });
     }
   }
 

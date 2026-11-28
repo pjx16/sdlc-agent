@@ -6,7 +6,6 @@ import type { StageEnvelope } from '@sdlc/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SupportRaiser } from '../../support/support-raiser';
 import { StateMachine } from '../../state/state-machine.service';
-import { FakeJiraClients } from '../../testing/fake-jira';
 import { StepsHarness, sh } from '../../testing/steps-harness';
 import { RerunService } from '../../tickets/rerun.service';
 import { WorkerLoop } from '../loop/worker-loop';
@@ -19,13 +18,11 @@ describe('commit ranges and the revert before a rerun', () => {
   let prep: RerunPrep;
   let reruns: RerunService;
   let states: StateMachine;
-  let jira: FakeJiraClients;
 
   beforeAll(async () => {
     h = await StepsHarness.create();
     states = new StateMachine(h.prisma, []);
-    jira = new FakeJiraClients();
-    reruns = new RerunService(h.prisma, states, new SupportRaiser(h.prisma), jira);
+    reruns = new RerunService(h.prisma, states, new SupportRaiser(h.prisma));
     prep = new RerunPrep(h.prisma, h.workspaces);
   }, 180_000);
   afterAll(async () => h?.close());
@@ -74,7 +71,6 @@ describe('commit ranges and the revert before a rerun', () => {
   it('the whole rerun: the plan is sent back, the stale work is reverted with one commit, pushed normally, and the stage then runs', async () => {
     const { t, ws, start, commitSha } = await atReview();
     await h.prisma.supportTicket.create({ data: { kind: 'question', title: 'Which delimiter?', body: 'q', ticketId: t.id, projectId: h.projectId, stage: 'implement' } });
-    await jira.jira.comment('X-1', 'warm');
 
     await reruns.rerun(t.id, { stage: 'PLANNING', note: 'use the existing booking repository' });
     const marked = await h.reloadTicket(t.id);
@@ -145,7 +141,7 @@ describe('commit ranges and the revert before a rerun', () => {
     await reruns.rerun(t.id, { stage: 'PLANNING' });
     let stageRan = false;
     const handler = { status: 'PLANNING' as const, async run() { stageRan = true; return { kind: 'continue' as const }; } };
-    const loop = new WorkerLoop(h.prisma, {} as never, {} as never, {} as never, states, [handler], undefined, [], undefined, undefined, prep);
+    const loop = new WorkerLoop(h.prisma, {} as never, states, [handler], undefined, [], undefined, undefined, prep);
     await (loop as unknown as { runStep(t: unknown): Promise<unknown> }).runStep(await h.reloadTicket(t.id));
     expect(stageRan).toBe(false);
     expect(await h.reloadTicket(t.id)).toMatchObject({ status: 'ON_HOLD', holdReason: 'needs_help' });

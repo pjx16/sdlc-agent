@@ -6,14 +6,14 @@
 export const ERROR_SOURCES = ['claude', 'agent', 'workspace', 'integration', 'user'] as const;
 export type ErrorSource = (typeof ERROR_SOURCES)[number];
 
-/** Who the dashboard names on the badge. Integrations are split so the badge says Jira, GitHub or Git. */
-export type ErrorBadge = 'Claude' | 'Agent' | 'Workspace' | 'Jira' | 'GitHub' | 'Git' | 'Network' | 'User';
+/** Who the dashboard names on the badge. Integrations are split so the badge says GitHub or Git. */
+export type ErrorBadge = 'Claude' | 'Agent' | 'Workspace' | 'GitHub' | 'Git' | 'Network' | 'User';
 
 export const ERROR_CODES = [
   'CLAUDE_AUTH', 'CLAUDE_RATE_LIMIT', 'CLAUDE_CREDITS', 'CLAUDE_API_ERROR', 'CLAUDE_CONTEXT_TOO_LONG', 'SPEND_BUDGET_REACHED',
   'TURN_LIMIT', 'INVALID_OUTPUT', 'NEEDS_INPUT', 'BLOCKED', 'GUARD_VIOLATION',
   'TESTS_STILL_FAILING', 'CONTAINER_ERROR', 'TIMEOUT',
-  'GIT_ERROR', 'GITHUB_ERROR', 'JIRA_ERROR', 'NETWORK_ERROR', 'KILLED',
+  'GIT_ERROR', 'GITHUB_ERROR', 'NETWORK_ERROR', 'KILLED',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -61,7 +61,6 @@ export const ERROR_POLICY: Record<ErrorCode, ErrorPolicy> = {
   TIMEOUT: { source: 'workspace', badge: 'Workspace', recovery: { kind: 'retry', retries: 1, backoffMin: [0], then: 'fail' }, message: '{stage} took longer than {limit}.', action: 'Raise the stage time limit in Settings, or split the work.' },
   GIT_ERROR: { source: 'integration', badge: 'Git', recovery: { kind: 'retry', retries: 3, backoffMin: [1, 4, 10], then: 'hold' }, message: 'Git failed: {detail}.', action: 'Check the repository and the GitHub token, then resume.' },
   GITHUB_ERROR: { source: 'integration', badge: 'GitHub', recovery: { kind: 'retry', retries: 3, backoffMin: [1, 4, 10], then: 'hold' }, message: 'GitHub failed: {detail}.', action: 'Check the GitHub token and its permissions, then resume.' },
-  JIRA_ERROR: { source: 'integration', badge: 'Jira', recovery: { kind: 'retry_never_block', retries: 3, backoffMin: [1, 4, 10] }, message: 'Jira failed: {detail}.', action: 'Check the Atlassian credential. The ticket carries on without Jira.' },
   NETWORK_ERROR: { source: 'integration', badge: 'Network', recovery: { kind: 'retry_until_online' }, message: 'The network connection failed: {detail}. Trying again when it is back.', action: 'Nothing: the ticket carries on by itself when the connection is back.' },
   KILLED: { source: 'user', badge: 'User', recovery: { kind: 'none' }, message: 'Stopped from the dashboard.', action: 'Resume the ticket when you are ready.' },
 };

@@ -3,7 +3,7 @@ import type { GlobalSettings, Prisma } from '../generated/prisma/client';
 import type { PrismaService } from '../prisma/prisma.service';
 
 /**
- * Runs billed to the Anthropic API key. Jira connector runs use their own claude.ai login, so they are not part of the spend.
+ * Runs billed to the Anthropic API key. Runs of the removed Jira connector stage used their own claude.ai login, so they stay out of the spend.
  */
 export const BILLED_RUNS: Prisma.StageRunWhereInput = { stage: { not: 'jiraConnector' } };
 

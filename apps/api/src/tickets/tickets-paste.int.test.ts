@@ -98,14 +98,6 @@ describe('Pasted tickets (F3)', () => {
     expect(bad.body.fields.kind).toContain('feature, bug, chore');
   });
 
-  it('works in every Jira mode', async () => {
-    for (const jiraMode of ['off', 'rest'] as const) {
-      const p = await makeProject({ jiraMode, localKeyPrefix: jiraMode.toUpperCase() });
-      const res = await t.agent.post('/tickets').send({ projectId: p.id, title: `in ${jiraMode}` }).expect(201);
-      expect(res.body).toMatchObject({ key: `${jiraMode.toUpperCase()}-1`, status: 'NEW', source: 'paste' });
-    }
-  });
-
   it('numbers each project independently', async () => {
     const other = await makeProject({ localKeyPrefix: 'OTHR' });
     await t.agent.post('/tickets').send({ projectId, title: 'a' }).expect(201);

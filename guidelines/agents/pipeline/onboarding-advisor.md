@@ -2,21 +2,9 @@
 
 All of it is in the facts below; you have no tools and no repository.
 
-- the Jira project's issue types, which one is the sub-task type, and the statuses of each type with their category
-- the labels already in use on recent issues
+- the Status columns of the project's GitHub Projects board
 
 ## Output `data`
-
-```json
-{ "statusMap": { "KB": "In Progress", "DONE": "Done" },
-  "approvalStatuses": { "plan": "Plan Approved", "breakdown": null },
-  "issueTypeRouting": { "Story": "feature", "Bug": "bug", "Epic": "ignore", "Sub-task": "ignore" },
-  "intakeLabel": "sdlc-agent" }
-```
-
-### When the facts are about a GitHub Projects board
-
-The facts list the board's Status columns. Answer with the `board` shape instead:
 
 ```json
 { "board": { "statusMap": { "KB": "In Progress", "AWAITING_PLAN_APPROVAL": "Plan review", "DONE": "Done" },
