@@ -5,7 +5,7 @@ import { useState } from 'react';
 import type { GlobalSettingsView } from '@/lib/types';
 
 const SOURCES = [
-  { key: 'intakeGithubEnabled', label: 'GitHub', hint: 'Issues and Projects boards, per project (recommended: a Projects board)' },
+  { key: 'intakeGithubEnabled', label: 'GitHub', hint: 'Issues and GitHub Projects boards (recommended: a Projects board)' },
   { key: 'intakeJiraEnabled', label: 'Jira', hint: 'The projects that use Jira' },
   { key: 'intakePasteEnabled', label: 'Pasted tickets', hint: 'Tickets created in the dashboard' },
 ] as const;
