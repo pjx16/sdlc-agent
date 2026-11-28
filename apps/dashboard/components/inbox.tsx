@@ -11,7 +11,7 @@ import { InboxRedoTests } from './inbox-redo-tests';
 import { RerunPicker } from './rerun-picker';
 import { OpenQuestions, answersToSend, unanswered } from './open-questions';
 import type { InboxGroupView, MoveView, SupportTicketView } from '@/lib/types';
-import { renderRichText } from '@/lib/rich-text';
+import { Markdown } from './markdown';
 
 const KIND_LABEL: Record<SupportTicketView['kind'], string> = {
   approval: 'Approval', question: 'Question', open_question: 'Open question', hold: 'Hold', ci_infra: 'CI problem', onboarding: 'Onboarding', credential: 'Credential', pr_ready: 'PR ready',
@@ -164,7 +164,7 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
         <span className="ml-auto">{open ? `waiting ${ago(t.createdAt, now).replace(' ago', '')}` : `${t.status} ${ago(t.resolvedAt, now)}${t.resolvedBy ? ` by ${t.resolvedBy}` : ''}`}</span>
       </div>
       <h3 className="mt-2 text-sm font-medium">{t.title}</h3>
-      {t.body && t.body !== t.title && <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{renderRichText(stripAnsi(t.body))}</p>}
+      {t.body && t.body !== t.title && <Markdown source={stripAnsi(t.body)} compact toggle={false} className="mt-1 text-sm text-muted" />}
       {t.kind === 'approval' && t.ticketId && (t.stage === 'plan' || t.stage === 'breakdown') && <ApprovalPreview ticketId={t.ticketId} stage={t.stage} />}
       {t.defaultAnswer && <p className="mt-1 text-sm text-muted">The plan assumed: {t.defaultAnswer}</p>}
       {t.response && (

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { OpenQuestionView } from '@/lib/types';
 import { OpenQuestions, answersToSend, unanswered } from './open-questions';
+import { Markdown } from './markdown';
 
 interface Props {
   ticketId: string;
@@ -66,7 +67,9 @@ export function PlanPanel({ ticketId, status, planMarkdown, planFileUrl, openQue
             Open the plan file in the repository
           </a>
         )}
-        <pre className="whitespace-pre-wrap panel p-4 font-sans text-sm">{planMarkdown}</pre>
+        <div className="panel p-4">
+          <Markdown source={planMarkdown} />
+        </div>
       </div>
     ) : (
       <p className="text-sm text-muted">No plan yet. It appears here once the plan stage has run.</p>
