@@ -260,8 +260,11 @@ describe('AgentRunner', () => {
     it('stops waiting between retries when aborted, instead of sleeping for minutes', async () => {
       const { runner, engine } = setup({ exitCode: 1, lines: [JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['too many requests'], api_error_status: 429 })] });
       const ctrl = new AbortController();
-      runner.sleep = () => new Promise(() => undefined); // would wait for ever
-      setTimeout(() => ctrl.abort(), 30);
+      // The abort comes exactly when the runner starts to wait between attempts (a timer would race the first attempt on a slow machine).
+      runner.sleep = () => {
+        ctrl.abort();
+        return new Promise(() => undefined); // would wait for ever
+      };
       const res = await runner.run({ ...request(), signal: ctrl.signal });
       expect(res).toMatchObject({ kind: 'failed', errorCode: 'CLAUDE_RATE_LIMIT', attempts: 1 });
       expect(engine.created).toHaveLength(1);
