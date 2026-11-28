@@ -1,11 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { JIRA_MODE_INFO } from '@sdlc/shared';
 
 /** The two-field start of a project: a repo URL and, optionally, a Jira project key. Everything else is proposed. */
-export function OnboardForm() {
+export function OnboardForm({ onCreated, onDirtyChange }: { /** Called with the new project's id instead of opening its page (the form is in a modal). */ onCreated?: (id: string) => void; /** Tells the modal whether there is anything to lose. */ onDirtyChange?: (dirty: boolean) => void } = {}) {
   const router = useRouter();
   const [repoUrl, setRepoUrl] = useState('');
   const [jiraProjectKey, setKey] = useState('');
@@ -14,6 +14,7 @@ export function OnboardForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEffect(() => onDirtyChange?.(repoUrl.trim() !== '' || jiraProjectKey.trim() !== ''), [repoUrl, jiraProjectKey, onDirtyChange]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -24,7 +25,8 @@ export function OnboardForm() {
       const res = await fetch('/api/projects/onboard', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ repoUrl, jiraProjectKey, githubAuth, jiraMode }) });
       const body = await res.json().catch(() => ({}));
       if (res.ok) {
-        router.push(`/projects/${body.id}`);
+        if (onCreated) onCreated(body.id);
+        else router.push(`/projects/${body.id}`);
         return;
       }
       if (res.status === 400 && body.fields) {

@@ -73,7 +73,7 @@ export class GithubIntake implements Housekeeper {
   private async issuesOf(project: Project, gh: ReturnType<typeof ProjectSettingsSchema.parse>['github']): Promise<GithubIssue[]> {
     const repo = parseRepo(project.repoUrl);
     if (gh.mode === 'issues') return this.github.listIssues(repo, gh.label);
-    if (!gh.project) throw new Error('Choose the GitHub project (owner and number) in the project settings');
+    if (!gh.project) throw new Error('Choose the GitHub Projects board (owner and number) in the project settings');
     const items = await this.github.listProjectItems(gh.project.owner, gh.project.number, gh.statusField);
     return items
       .filter((i) => !i.closed && (i.status ?? '').toLowerCase() === gh.intakeStatus.toLowerCase() && i.issue.repo.toLowerCase() === repo.toLowerCase())

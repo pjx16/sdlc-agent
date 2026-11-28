@@ -18,8 +18,9 @@ beforeEach(() => {
 describe('PlanPanel (F7)', () => {
   it('shows the plan read-only when the ticket is not at the gate', () => {
     render(<PlanPanel ticketId="t1" status="BREAKDOWN" planMarkdown="# The plan" />);
-    expect(screen.getByText('# The plan')).toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'The plan' })).toBeInTheDocument();
+    // The only button is Copy (the Preview / Raw switch is tabs): nothing to approve or edit.
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Copy']);
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 

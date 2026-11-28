@@ -116,6 +116,12 @@ export class TicketsController {
     return this.tickets.retryTicket(id);
   }
 
+  @Post(':id/github-issue/retry')
+  @HttpCode(HttpStatus.OK)
+  retryGithubIssue(@Param('id') id: string) {
+    return this.tickets.retryGithubIssue(id);
+  }
+
   @Post(':id/kb-update/rerun')
   @HttpCode(HttpStatus.OK)
   rerunKbUpdate(@Param('id') id: string) {

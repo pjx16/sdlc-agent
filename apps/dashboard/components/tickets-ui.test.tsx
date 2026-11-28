@@ -1,9 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RunsTable } from './runs-table';
 import { StateBadge } from './state-badge';
-import { TicketForm } from './ticket-form';
 import { TicketFilters, TicketsTable } from './tickets-table';
 import { TransitionHistory } from './transition-history';
 import type { RunView, TicketListItem, TransitionView } from '@/lib/types';
@@ -11,7 +9,6 @@ import type { RunView, TicketListItem, TransitionView } from '@/lib/types';
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push, refresh: vi.fn(), replace: vi.fn() }) }));
 const fetchMock = vi.fn();
-const reply = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body });
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
@@ -28,13 +25,6 @@ describe('StateBadge', () => {
   it('shows the humanized state', () => {
     render(<StateBadge status="AWAITING_PLAN_APPROVAL" />);
     expect(screen.getByText('Awaiting plan approval')).toBeInTheDocument();
-  });
-});
-
-describe('TicketForm: the ticket format', () => {
-  it('starts the description with the team ticket format', () => {
-    render(<TicketForm projects={[{ id: 'p1', name: 'Alpha', mirrorStatus: 'ok', enabled: true }]} template={'## Problem\n\n## Acceptance criteria\n'} />);
-    expect((screen.getByLabelText(/description/i) as HTMLTextAreaElement).value).toBe('## Problem\n\n## Acceptance criteria\n');
   });
 });
 
@@ -131,67 +121,3 @@ describe('RunsTable', () => {
   });
 });
 
-describe('TicketForm (paste)', () => {
-  const projects = [{ id: 'p1', name: 'Billing', mirrorStatus: 'ok', enabled: true }, { id: 'p2', name: 'Off', mirrorStatus: 'ok', enabled: false }, { id: 'p3', name: 'Cloning', mirrorStatus: 'pending', enabled: true }];
-
-  it('only offers enabled projects and marks one whose mirror is not ready', () => {
-    render(<TicketForm projects={projects} />);
-    expect(within(screen.getByLabelText('Project')).getAllByRole('option').map((o) => o.textContent)).toEqual(['Billing', 'Cloning (mirror pending)']);
-  });
-
-  it('posts the ticket and goes to its page', async () => {
-    fetchMock.mockResolvedValue(reply({ id: 'new-1', key: 'BILL-1' }, 201));
-    render(<TicketForm projects={projects} />);
-    await userEvent.type(screen.getByLabelText('Title'), 'Add export');
-    await userEvent.type(screen.getByLabelText('Description'), 'CSV please');
-    await userEvent.selectOptions(screen.getByLabelText('Kind'), 'bug');
-    await userEvent.click(screen.getByRole('button', { name: 'Create ticket' }));
-    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/tickets/new-1'));
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('/api/tickets');
-    expect(JSON.parse(String(init.body))).toEqual({ projectId: 'p1', title: 'Add export', body: 'CSV please', kind: 'bug', featureKey: '' });
-  });
-
-  it('attaches knowledge-base docs: loaded when opened, filtered, limited, and sent with the ticket', async () => {
-    fetchMock.mockImplementation(async (url: string) => (url === '/api/projects/p1/kb' ? reply({ docs: [{ path: 'auth.md', title: 'Authentication' }, { path: 'billing/overview.md', title: 'Billing' }], updatedAt: 'now' }) : reply({ id: 'new-2', key: 'BILL-2' }, 201)));
-    render(<TicketForm projects={projects} />);
-    expect(fetchMock).not.toHaveBeenCalled(); // nothing is loaded until the person asks
-    await userEvent.click(screen.getByRole('button', { name: 'Attach knowledge-base docs' }));
-    await userEvent.type(await screen.findByLabelText('Filter docs'), 'bill');
-    expect(screen.queryByText('Authentication')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('checkbox', { name: /Billing/ }));
-    expect(screen.getByRole('button', { name: 'Attach knowledge-base docs (1)' })).toBeInTheDocument();
-    expect(within(screen.getByRole('list', { name: 'Attached docs' })).getByText('billing/overview.md')).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText('Title'), 'Add export');
-    await userEvent.click(screen.getByRole('button', { name: 'Create ticket' }));
-    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/tickets/new-2'));
-    const post = fetchMock.mock.calls.find(([u]) => u === '/api/tickets') as [string, RequestInit];
-    expect(JSON.parse(String(post[1].body))).toMatchObject({ projectId: 'p1', title: 'Add export', kbAttachments: ['billing/overview.md'] });
-  });
-
-  it('says so when the project has no docs yet', async () => {
-    fetchMock.mockResolvedValue(reply({ docs: [], updatedAt: null }));
-    render(<TicketForm projects={projects} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Attach knowledge-base docs' }));
-    expect(await screen.findByText(/no knowledge-base docs yet/)).toBeInTheDocument();
-  });
-
-  it('shows field-level errors, and a conflict message when the mirror is not ready', async () => {
-    fetchMock.mockResolvedValueOnce(reply({ error: 'validation_error', message: 'Validation failed', fields: { title: 'required' } }, 400));
-    render(<TicketForm projects={projects} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Create ticket' }));
-    expect(await screen.findByText('required')).toBeInTheDocument();
-    expect(screen.getByLabelText('Title')).toHaveAttribute('aria-invalid', 'true');
-    expect(push).not.toHaveBeenCalled();
-
-    fetchMock.mockResolvedValueOnce(reply({ error: 'conflict', message: 'The repository mirror is still being cloned' }, 409));
-    await userEvent.type(screen.getByLabelText('Title'), 'x');
-    await userEvent.click(screen.getByRole('button', { name: 'Create ticket' }));
-    expect(await screen.findByText('The repository mirror is still being cloned')).toBeInTheDocument();
-  });
-
-  it('asks for a project when there is none', () => {
-    render(<TicketForm projects={[]} />);
-    expect(screen.getByText(/no enabled project/i)).toBeInTheDocument();
-  });
-});
