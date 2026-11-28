@@ -24,4 +24,5 @@ export * from './agent-files';
 export * from './security-rules';
 export * from './orchestrator';
 export * from './formats';
+export * from './guideline-catalogue';
 export * from './budgets';
