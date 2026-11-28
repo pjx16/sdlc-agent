@@ -7,6 +7,7 @@ import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupportRaiser, type SupportNotifierPort } from '../support/support-raiser';
 import { GITHUB_CLIENT, type GitHubClient, parseRepo } from './github/github-client';
+import { TicketComments } from './github/ticket-comments';
 
 /**
  * A blocking support ticket also reaches the places people look: a comment on the Jira issue and, when
@@ -24,6 +25,7 @@ export class SupportNotifier implements SupportNotifierPort, OnModuleInit {
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     private readonly raiser: SupportRaiser,
     @Optional() formats?: FormatLoader,
+    @Optional() private readonly comments?: TicketComments,
   ) {
     this.formats = formats ?? new FormatLoader();
   }
@@ -44,11 +46,13 @@ export class SupportNotifier implements SupportNotifierPort, OnModuleInit {
     const settings = ProjectSettingsSchema.parse(t.project.settings);
     if (t.source === 'jira' && t.externalKey && jiraOn(t.project.jiraMode) && settings.jiraWriteBack.comments) {
       try {
-        await (await this.jira.forMode(t.project.jiraMode)).comment(t.externalKey, await this.formats.fill('jira-needs-you', { title: ticket.title, body: ticket.body.slice(0, 3800) }), jiraMarker(t.key, `support-${ticket.id}`, ticket.id));
+        await (await this.jira.forMode(t.project.jiraMode)).comment(t.externalKey, await this.formats.fill('issue-needs-you', { title: ticket.title, body: ticket.body.slice(0, 3800) }), jiraMarker(t.key, `support-${ticket.id}`, ticket.id));
       } catch (err) {
         await this.warn(t.id, 'JIRA_ERROR', 'jira', `Could not tell Jira about "${ticket.title}": ${err instanceof Error ? err.message : String(err)}`);
       }
     }
+    // The ticket's own issue, for a ticket that is not a Jira one: one comment for each thing that needs a person.
+    if (this.comments && t.source !== 'jira') await this.comments.post(t, `support-${ticket.id}`, await this.formats.fill('issue-needs-you', { title: ticket.title, body: ticket.body.slice(0, 3800) }));
     const coveredByHoldNotifier = ticket.kind === 'hold' && t.holdReason === 'needs_help';
     if (t.prNumber && !coveredByHoldNotifier) {
       try {

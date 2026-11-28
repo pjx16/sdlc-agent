@@ -29,6 +29,8 @@ export interface GlobalSettingsView {
   pollIntervalSec: number;
   stageTimeoutMin: number;
   verifyTimeoutSec: number;
+  /** Whether a ticket made in the dashboard also gets a GitHub issue: ask each time, always, or never. */
+  githubIssueOnCreate: 'ask' | 'always' | 'never';
   workspaceRetentionDays: number;
   logRetentionDays: number;
   assistantTokenCap: number;

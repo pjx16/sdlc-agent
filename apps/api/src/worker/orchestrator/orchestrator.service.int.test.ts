@@ -1,7 +1,9 @@
 import 'reflect-metadata';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { StageEnvelope } from '@sdlc/shared';
+import { FakeGitHub } from '../../testing/fake-github';
 import { StepsHarness } from '../../testing/steps-harness';
+import { TicketComments } from '../github/ticket-comments';
 import { OrchestratorService } from './orchestrator.service';
 
 const answer = (kind: string, to: string, reason = 'Only a test changed.'): StageEnvelope => ({ status: 'done', summary: 'chose', data: { move: { kind, to }, reason } as never });
@@ -35,6 +37,53 @@ describe('the orchestrator', () => {
     ]);
     expect(await h.prisma.orchestratorDecision.findMany({ where: { ticketId: t.id } })).toMatchObject([{ point: 'kb_update', chosen: 'advance AWAITING_CI', fallbackUsed: false, reason: 'Only a test changed.' }]);
     expect(await h.prisma.event.count({ where: { ticketId: t.id, source: 'orchestrator', level: 'info' } })).toBe(1);
+  });
+
+  describe('what it decided, on the ticket\'s GitHub issue', () => {
+    let issue = 70;
+    let github: FakeGitHub;
+    let onGithub: OrchestratorService;
+    const issueTicket = () => h.ticket({ status: 'REVIEW', source: 'github', externalKey: `acme/billing#${++issue}` });
+    const thread = () => github.threads.get(`acme/billing#${issue}`) ?? [];
+    beforeEach(() => {
+      github = new FakeGitHub();
+      onGithub = new OrchestratorService(h.prisma, h.launcher, undefined, new TicketComments(h.prisma, github));
+    });
+
+    it('writes the move and the reason as a comment of its own', async () => {
+      const t = await issueTicket();
+      h.agent.scripts.orchestrate = () => answer('advance', 'AWAITING_CI', 'Only a test changed.');
+      await onGithub.review(t, outcome);
+      expect(thread()).toHaveLength(1);
+      expect(thread()[0]!.body).toContain('sdlc-agent decided (kb update): Move on to AWAITING_CI.');
+      expect(thread()[0]!.body).toContain('Why: Only a test changed.');
+    });
+
+    it('each decision is a new comment: they are a history, not one thing rewritten', async () => {
+      const t = await issueTicket();
+      h.agent.scripts.orchestrate = () => answer('advance', 'AWAITING_CI', 'First.');
+      await onGithub.review(t, outcome);
+      await new Promise((r) => setTimeout(r, 5));
+      h.agent.scripts.orchestrate = () => answer('advance', 'AWAITING_CI', 'Second.');
+      await onGithub.review(t, outcome);
+      expect(thread()).toHaveLength(2);
+    });
+
+    it('says nothing when the default was taken because the answer could not be used', async () => {
+      const t = await issueTicket();
+      h.agent.scripts.orchestrate = () => answer('advance', 'DONE');
+      await onGithub.review(t, outcome);
+      expect(thread()).toHaveLength(0);
+    });
+
+    it('a Jira ticket, and a GitHub problem, change nothing about the decision', async () => {
+      const jiraTicket = await h.ticket({ status: 'REVIEW', source: 'jira', externalKey: 'SDA-3' });
+      h.agent.scripts.orchestrate = () => answer('advance', 'AWAITING_CI');
+      expect(await onGithub.review(jiraTicket, outcome)).toMatchObject({ to: 'AWAITING_CI' });
+      expect(github.calls).not.toContain('upsertIssueComment');
+      github.failComments = new Error('gh: HTTP 502');
+      expect(await onGithub.review(await issueTicket(), outcome)).toMatchObject({ to: 'AWAITING_CI' });
+    });
   });
 
   it('choosing the default leaves the outcome alone', async () => {

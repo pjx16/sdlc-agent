@@ -1,7 +1,8 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { DECISION_POINTS, planFileUrl, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus, jiraOn } from '@sdlc/shared';
+import { DECISION_POINTS, planFileUrl, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TicketDraftSchema, buildTicketMarkdown, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { allArtifacts, writeArtifact } from '../common/artifacts';
+import { GuidelinesService } from '../guidelines/guidelines.service';
 import { parseBody } from '../common/parse-body';
 import { z } from 'zod';
 import { JiraClients } from '../jira/jira-clients';
@@ -110,6 +111,9 @@ const RejectBody = z.object({ note: z.string({ error: 'required' }).trim().min(1
 
 const fieldError = (field: string, message: string) => new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { [field]: message });
 
+/** The create-ticket form sends its fields (`problem` is the one that every draft has); the older shape is a title and a body. */
+const isDraft = (body: unknown): boolean => typeof body === 'object' && body !== null && 'problem' in body;
+
 @Injectable()
 export class TicketsService {
   constructor(
@@ -117,6 +121,7 @@ export class TicketsService {
     private readonly states: StateMachine,
     private readonly jira: JiraClients,
     private readonly subtasks: SubtasksService,
+    private readonly guidelines: GuidelinesService,
   ) {}
 
   /** GET /tickets, newest activity first. Filters: `projectId`, `status`. */
@@ -229,16 +234,24 @@ export class TicketsService {
     return runs.map((r) => ({ id: r.id, stage: r.stage, attempt: r.attempt, round: r.round, status: r.status, startedAt: iso(r.startedAt), endedAt: iso(r.endedAt) }));
   }
 
-  /** POST /tickets: a pasted ticket with a local key `<localKeyPrefix>-<n>`, status NEW. Works in every Jira mode. */
+  /**
+   * POST /tickets: a ticket made in the dashboard, with a local key `<localKeyPrefix>-<n>`, status NEW. It is either the fields of the
+   * create-ticket form (`problem`, `criteria`, ...: the text is built from them) or, as before, a title and a body. Works in every Jira mode.
+   */
   async paste(body: unknown): Promise<TicketDto> {
-    const input = parseBody(PasteTicketSchema, body);
+    const github = isDraft(body) ? (parseBody(TicketDraftSchema, body).github ?? null) : null;
+    const input = isDraft(body) ? await this.fromDraft(body) : parseBody(PasteTicketSchema, body);
     // A pasted ticket carries a kind. The older `type` field still works and the two stay consistent.
     const kind = input.kind ?? kindOfType(input.type ?? 'story');
     const type = input.type && !input.kind ? input.type : typeOfKind(kind);
     const project = await this.prisma.project.findUnique({ where: { id: input.projectId } });
     if (!project) throw fieldError('projectId', 'unknown project');
     if (!project.enabled) throw fieldError('projectId', 'this project is disabled');
-    if (!ProjectSettingsSchema.parse(project.settings).intake.paste) throw fieldError('projectId', 'pasting tickets is turned off for this project');
+    const settings = ProjectSettingsSchema.parse(project.settings);
+    if (!settings.intake.paste) throw fieldError('projectId', 'pasting tickets is turned off for this project');
+    // The issue is made (or linked) by the worker afterwards; the ticket does not wait for it.
+    const wantsIssue = Boolean(github && (github.create || github.link));
+    if (wantsIssue && settings.github.mode === 'off') throw fieldError('github', 'this project does not use GitHub issues or a Projects board');
     await this.checkAttachments(project, input.kbAttachments);
     const global = await this.prisma.globalSettings.findUnique({ where: { id: 'global' }, select: { intakePasteEnabled: true } });
     if (global && !global.intakePasteEnabled) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Pasting tickets is switched off in Settings (intake sources)');
@@ -252,12 +265,29 @@ export class TicketsService {
       const updated = await tx.project.update({ where: { id: project.id }, data: { nextLocalNumber: { increment: 1 } }, select: { nextLocalNumber: true, localKeyPrefix: true } });
       const key = `${updated.localKeyPrefix}-${updated.nextLocalNumber - 1}`;
       const created = await tx.ticket.create({
-        data: { projectId: project.id, key, source: 'paste', type, kind, title: input.title, body: input.body, featureKey: input.featureKey ?? null, kbAttachments: input.kbAttachments, status: 'NEW' },
+        data: {
+          projectId: project.id, key, source: 'paste', type, kind, title: input.title, body: input.body, featureKey: input.featureKey ?? null, kbAttachments: input.kbAttachments, status: 'NEW',
+          githubIssueState: wantsIssue ? 'pending' : 'none', githubIssueLink: github?.link ?? null,
+        },
       });
       await tx.event.create({ data: { ticketId: created.id, type: 'intake', message: `${key} pasted` } });
       return created;
     });
     return toTicketDto(ticket);
+  }
+
+  /** The form's fields as a pasted ticket: the text is built from them with the team's ticket format, exactly as the dashboard previews it. */
+  private async fromDraft(body: unknown): Promise<z.infer<typeof PasteTicketSchema>> {
+    const d = parseBody(TicketDraftSchema, body);
+    const template = await this.guidelines.read('formats/ticket.md').then((f) => f.content, () => undefined);
+    return { projectId: d.projectId, title: d.title, body: buildTicketMarkdown(d, template), kind: d.kind, featureKey: d.featureKey, kbAttachments: d.kbAttachments };
+  }
+
+  /** POST /tickets/:id/github-issue/retry: tries again to make the GitHub issue of a ticket where it failed. */
+  async retryGithubIssue(id: string): Promise<TicketDto> {
+    const ticket = await this.findOr404(id);
+    if (ticket.githubIssueState !== 'failed') throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'There is no failed GitHub issue to retry');
+    return toTicketDto(await this.prisma.ticket.update({ where: { id }, data: { githubIssueState: 'pending', githubIssueError: null } }));
   }
 
   /** Attached docs must be docs of the project's KB: when the worker has listed them, each path has to be one of them. */
