@@ -226,6 +226,8 @@ model GlobalSettings {
   pollIntervalSec         Int       @default(120)
   stageTimeoutMin         Int       @default(20)
   verifyTimeoutSec        Int       @default(600)
+  /// Profiling a repository (onboarding) is stopped after this many minutes.
+  onboardingTimeoutMin    Int       @default(15)
   workspaceRetentionDays  Int       @default(7)
   logRetentionDays        Int       @default(30)
   assistantTokenCap       Int       @default(200000)

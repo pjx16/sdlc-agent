@@ -41,6 +41,8 @@ export interface StageRequest {
   workspacePath?: string;
   /** Orchestrator validation of a valid envelope (for example "featureKey must be in the index"). Return a message to fail the attempt. */
   validate?: (envelope: StageEnvelope) => string | null;
+  /** Aborting kills the running container and stops all further attempts (onboarding's deadline or cancel). */
+  signal?: AbortSignal;
 }
 
 export type StageResult =
@@ -72,6 +74,9 @@ export const JIRA_CONNECTOR_HOME = '/connector-home';
 /** The proxy port that lets the connector reach Anthropic and claude.ai, and nothing else. */
 export const JIRA_CONNECTOR_PROXY = 'http://proxy:3129';
 export const JIRA_CONNECTOR_LOGIN_EXPIRED = 'The Jira connector is not signed in to claude.ai, or its login expired: run scripts/jira-connector-login.sh again';
+
+/** Resolves when the signal aborts (never, without one). */
+const abortion = (signal?: AbortSignal): Promise<void> => (signal ? new Promise((resolve) => (signal.aborted ? resolve() : signal.addEventListener('abort', () => resolve(), { once: true }))) : new Promise(() => undefined));
 
 /** Hard stop on automatic attempts, whatever the policies say. */
 const MAX_TOTAL_ATTEMPTS = 8;
@@ -108,6 +113,7 @@ export class AgentRunner {
     for (let attempt = 1; attempt <= MAX_TOTAL_ATTEMPTS; attempt++) {
       const outcome = await this.runAttempt(req, attempt, { turnFactor, retryNote });
       last = outcome;
+      if (req.signal?.aborted) return { ...outcome, attempts: attempt } as StageResult; // stopped on purpose: no retry, no waiting
       // Every attempt that ended has its cost stored: check the spend budgets (the gate pauses the pipeline when one is used up).
       await this.gate?.check().catch((e: unknown) => this.logger.warn(`Budget gate failed: ${String(e)}`));
       if (outcome.kind !== 'failed' && outcome.kind !== 'turn_limit') return { ...outcome, attempts: attempt } as StageResult;
@@ -126,7 +132,8 @@ export class AgentRunner {
       if (waitMin > 0) {
         const ms = waitMin * 60_000 * this.backoffScale;
         await this.store.setRetryAt(outcome.stageRunId, new Date(Date.now() + waitMin * 60_000)).catch(() => undefined);
-        await this.sleep(ms);
+        await Promise.race([this.sleep(ms), abortion(req.signal)]);
+        if (req.signal?.aborted) return { ...(outcome as AttemptResult), attempts: attempt } as StageResult;
       }
     }
     return { ...(last as AttemptResult), attempts: MAX_TOTAL_ATTEMPTS } as StageResult;
@@ -207,6 +214,7 @@ export class AgentRunner {
           log.write(line);
         },
         shouldKill: () => this.store.isKillRequested(stageRunId),
+        signal: req.signal,
         onStarted: (id) => this.store.markRunning(stageRunId, id),
       });
     } catch (err) {
@@ -223,7 +231,7 @@ export class AgentRunner {
     const base = { usage: parsed.usage, resultJson: this.resultJson(parsed), logPath };
 
     if (container.killed) {
-      await this.store.finish(stageRunId, { ...base, status: 'killed', error: 'Killed from the dashboard', errorCode: 'KILLED' });
+      await this.store.finish(stageRunId, { ...base, status: 'killed', error: req.signal?.aborted ? 'Stopped: the time limit was reached or it was cancelled' : 'Killed from the dashboard', errorCode: 'KILLED' });
       return { kind: 'killed', errorCode: 'KILLED', stageRunId };
     }
     // Error phrases ("rate limit", "credit balance", ...) are looked for in what Claude says went wrong, never in a successful answer:

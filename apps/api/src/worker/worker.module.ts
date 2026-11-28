@@ -50,6 +50,7 @@ import { RerunPrep } from './pipeline/rerun-prep';
 import { AssistantRunner } from './assistant/assistant-runner';
 import { LlmGateway } from './llm-gateway/llm-gateway';
 import { GatewayTokens } from './llm-gateway/gateway-tokens';
+import { OnboardingWatchdog } from './onboarding/onboarding-watchdog';
 import { OnboardingWorker } from './onboarding/onboarding-worker';
 import { RepoAccessService } from './github/repo-access.service';
 import { GitHubAuth } from './github/github-auth.service';
@@ -129,6 +130,7 @@ import { WorkerRunner } from './worker-runner';
     BrokerClient,
     GitHubAuth,
     OnboardingWorker,
+    OnboardingWatchdog,
     OrphanCleanup,
     AgentImageCheck,
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },
@@ -140,7 +142,7 @@ import { WorkerRunner } from './worker-runner';
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
     { provide: RecoveryService, useFactory: (p: PrismaService, o: OrchestratorService) => new RecoveryService(p, o), inject: [PrismaService, OrchestratorService] },
     { provide: OrchestratorService, useFactory: (p: PrismaService, l: StageLauncher, j: JiraClients) => new OrchestratorService(p, l, j), inject: [PrismaService, StageLauncher, JiraClients] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, onboarding: OnboardingWorker, image: AgentImageCheck, kb: KbCatalogSync, ghIntake: GithubIntake, ghSync: GithubSync, net: ConnectivityMonitor): Housekeeper[] => [net, ci, merge, cleanup, orphans, onboarding, image, kb, ghIntake, ghSync], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, OnboardingWorker, AgentImageCheck, KbCatalogSync, GithubIntake, GithubSync, ConnectivityMonitor] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, watchdog: OnboardingWatchdog, onboarding: OnboardingWorker, image: AgentImageCheck, kb: KbCatalogSync, ghIntake: GithubIntake, ghSync: GithubSync, net: ConnectivityMonitor): Housekeeper[] => [net, ci, merge, cleanup, orphans, watchdog, onboarding, image, kb, ghIntake, ghSync], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, OnboardingWatchdog, OnboardingWorker, AgentImageCheck, KbCatalogSync, GithubIntake, GithubSync, ConnectivityMonitor] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },

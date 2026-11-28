@@ -58,6 +58,8 @@ export interface GitRunOptions {
   env?: Record<string, string>;
   /** Run repository hooks. Always false for the worker: hooks of a target repository never run there (F5, 6.2). */
   hooks?: boolean;
+  /** Stops the git process when aborted (onboarding's deadline or a cancel). */
+  signal?: AbortSignal;
 }
 
 export interface GitRunnerConfig {
@@ -80,11 +82,13 @@ export class GitRunner {
         cwd: opts.cwd,
         timeout: opts.timeoutMs ?? 10 * 60 * 1000,
         maxBuffer: 20 * 1024 * 1024,
+        signal: opts.signal,
         env: minimalGitEnv({ GIT_ASKPASS: process.env.GIT_ASKPASS ?? DEFAULT_ASKPASS, GITHUB_TOKEN: token, ...opts.env }),
       });
       return { stdout, stderr };
     } catch (err) {
-      const e = err as { stderr?: string; code?: number | string; killed?: boolean; message?: string };
+      const e = err as { stderr?: string; code?: number | string; killed?: boolean; message?: string; name?: string };
+      if (opts.signal?.aborted || e.name === 'AbortError') throw new GitError('git was stopped', args, '', null);
       let stderr = (e.stderr ?? e.message ?? '').toString().trim();
       if (token) stderr = stderr.split(token).join('***');
       const first = stderr.split('\n').find((l) => /^(fatal|error|remote):/i.test(l.trim())) ?? stderr.split('\n')[0] ?? 'git failed';

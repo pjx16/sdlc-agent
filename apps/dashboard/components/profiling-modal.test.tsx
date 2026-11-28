@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { OnboardingProgress } from '@sdlc/shared';
 import { describe, expect, it, vi } from 'vitest';
@@ -31,7 +31,7 @@ describe('ProfilingModal', () => {
     const onClose = vi.fn();
     render(<ProfilingModal progress={progress} onClose={onClose} />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue in background' }));
-    await userEvent.keyboard('{Escape}');
+    fireEvent(document.querySelector('dialog') as HTMLDialogElement, new Event('cancel', { cancelable: true })); // what Esc does to a dialog
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 });
