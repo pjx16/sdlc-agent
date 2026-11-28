@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import type { SubtaskDraft } from '@sdlc/shared';
 import type { TicketFull } from '@/lib/types';
+import { Markdown } from './markdown';
 
 type Loaded = { kind: 'plan'; text: string } | { kind: 'breakdown'; items: SubtaskDraft[] } | { kind: 'error'; message: string };
 
@@ -34,13 +35,13 @@ export function ApprovalPreview({ ticketId, stage }: { ticketId: string; stage: 
       <div className="border-t border-border p-3 text-sm">
         {!loaded && <p className="text-muted">Loading…</p>}
         {loaded?.kind === 'error' && <p role="alert" className="text-red">{loaded.message}</p>}
-        {loaded?.kind === 'plan' && <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-sans">{loaded.text}</pre>}
+        {loaded?.kind === 'plan' && <Markdown source={loaded.text} maxHeight="max-h-96" />}
         {loaded?.kind === 'breakdown' && (
           <ol className="max-h-96 list-decimal space-y-4 overflow-auto pl-5">
             {loaded.items.map((s) => (
               <li key={s.seq}>
                 <p className="font-medium">{s.title}</p>
-                {s.description && <p className="mt-1 whitespace-pre-wrap text-muted">{s.description}</p>}
+                {s.description && <Markdown source={s.description} compact toggle={false} className="mt-1 text-muted" />}
                 {s.acceptanceCriteria.length > 0 && (
                   <ul className="mt-1 list-disc pl-5">
                     {s.acceptanceCriteria.map((c) => (

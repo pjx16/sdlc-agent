@@ -25,7 +25,9 @@ test('pages need a session; a wrong password is refused; the right one logs in',
 
 test('create a project', async ({ page }) => {
   await login(page);
-  await page.goto('/projects/new?manual=1');
+  await page.goto('/projects');
+  await page.getByRole('button', { name: 'New project' }).click(); // a modal, not another page
+  await page.getByRole('tab', { name: 'Manual' }).click();
   await page.getByLabel('Name', { exact: true }).fill('Shipping');
   await page.getByLabel('Repository URL').fill('https://github.com/acme/shipping');
   await page.getByLabel('Local ticket prefix').fill('SHIP');
@@ -38,11 +40,15 @@ test('create a project', async ({ page }) => {
 
 test('paste a ticket into a ready project', async ({ page }) => {
   await login(page);
-  await page.goto('/tickets/new');
-  await page.getByLabel('Project').selectOption({ label: SEED.project });
-  await page.getByLabel('Title').fill('Pasted from the browser');
-  await page.getByLabel('Description').fill('A ticket that was typed in.');
-  await page.getByRole('button', { name: 'Create ticket' }).click();
+  await page.goto('/tickets');
+  await page.getByRole('button', { name: 'New ticket' }).click(); // a window over the list, not another page
+  const dialog = page.getByRole('dialog', { name: 'New ticket' });
+  await dialog.getByLabel('Project').selectOption({ label: SEED.project });
+  await dialog.getByLabel('Title').fill('Pasted from the browser');
+  await dialog.getByLabel('Problem').fill('A ticket that was typed in.');
+  await dialog.getByLabel('Criterion 1', { exact: true }).fill('It shows up on its page');
+  await expect(dialog.getByRole('region', { name: 'Preview of the ticket' }).getByRole('heading', { name: 'Problem' })).toBeVisible(); // the preview follows what is typed
+  await dialog.getByRole('button', { name: 'Create ticket' }).click();
   await page.waitForURL(/\/tickets\/[0-9a-f-]+/);
   await expect(page.getByRole('heading', { name: 'Pasted from the browser' })).toBeVisible();
   await expect(page.getByText('BIL-10 · Billing · pasted')).toBeVisible();

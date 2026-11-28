@@ -12,10 +12,16 @@ const STUB = `#!/usr/bin/env node
 const fs = require('node:fs');
 const args = process.argv.slice(2);
 const bodyIdx = args.indexOf('--body-file');
-const record = { args, token: process.env.GH_TOKEN, body: bodyIdx >= 0 ? fs.readFileSync(args[bodyIdx + 1], 'utf8') : null };
+const fieldFile = args.find((a) => a.startsWith('body=@'));
+const body = bodyIdx >= 0 ? fs.readFileSync(args[bodyIdx + 1], 'utf8') : fieldFile ? fs.readFileSync(fieldFile.slice(6), 'utf8') : null;
+const key = args.slice(0, 2).join(' ');
+const earlier = fs.existsSync(process.env.FAKE_GH_LOG) ? fs.readFileSync(process.env.FAKE_GH_LOG, 'utf8').split('\\n').filter(Boolean).filter((l) => JSON.parse(l).args.slice(0, 2).join(' ') === key).length : 0;
+const record = { args, token: process.env.GH_TOKEN, body };
 fs.appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(record) + '\\n');
 const replies = JSON.parse(process.env.FAKE_GH_REPLIES || '{}');
-const r = replies[args.slice(0, 2).join(' ')] || { stdout: '' };
+// A list answers the first call with its first entry, the second with the next, and the last one keeps answering.
+const answer = replies[key];
+const r = (Array.isArray(answer) ? answer[Math.min(earlier, answer.length - 1)] : answer) || { stdout: '' };
 if (r.stderr) process.stderr.write(r.stderr);
 if (r.stdout) process.stdout.write(r.stdout);
 process.exit(r.exit || 0);
@@ -24,7 +30,8 @@ process.exit(r.exit || 0);
 let tmp: string;
 let log: string;
 let client: GhCliClient;
-const reply = (replies: Record<string, { stdout?: string; stderr?: string; exit?: number }>) => {
+type Reply = { stdout?: string; stderr?: string; exit?: number };
+const reply = (replies: Record<string, Reply | Reply[]>) => {
   process.env.FAKE_GH_REPLIES = JSON.stringify(replies);
 };
 const calls = () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { args: string[]; token: string; body: string | null });
@@ -237,7 +244,7 @@ describe('GhCliClient: GitHub issues and Projects', () => {
 
   it('says what is wrong when the board cannot be read', async () => {
     reply({ 'api graphql': { stdout: JSON.stringify({ data: { repositoryOwner: { projectV2: null } } }) } });
-    await expect(client.listProjectItems('acme', 99, 'Status')).rejects.toThrow(/project acme\/99 was not found.*"project" scope/);
+    await expect(client.listProjectItems('acme', 99, 'Status')).rejects.toThrow(/GitHub Projects board acme\/99 was not found.*"project" scope/);
     reply({ 'api graphql': { stdout: JSON.stringify({ errors: [{ message: 'Resource not accessible' }] }) } });
     await expect(client.listProjectItems('acme', 3, 'Status')).rejects.toThrow('Resource not accessible');
   });
@@ -275,5 +282,67 @@ describe('GhCliClient: GitHub issues and Projects', () => {
     expect(c.body).toBe('Done: $(not run)');
     await client.closeIssue('acme/billing', 7);
     expect(calls().at(-1)!.args).toEqual(['issue', 'close', '7', '-R', 'acme/billing']);
+  });
+
+  describe('making, finding and boarding an issue', () => {
+    it('creates an issue through the REST API with the body in a file, never on the command line', async () => {
+      reply({ 'api repos/acme/billing/issues': { stdout: JSON.stringify({ number: 42, node_id: 'I_kw42', html_url: 'https://github.com/acme/billing/issues/42' }) } });
+      const body = '## Problem\nFinance $(rm -rf /) cannot export.\n- [ ] one';
+      const made = await client.createIssue('acme/billing', 'Add CSV export', body, ['sdlc:new', 'feature']);
+      expect(made).toEqual({ number: 42, nodeId: 'I_kw42', url: 'https://github.com/acme/billing/issues/42' });
+      const c = calls().at(-1)!;
+      expect(c.args.slice(0, 4)).toEqual(['api', 'repos/acme/billing/issues', '-X', 'POST']);
+      expect(c.args).toEqual(expect.arrayContaining(['-f', 'title=Add CSV export', '-f', 'labels[]=sdlc:new', '-f', 'labels[]=feature']));
+      expect(c.body).toBe(body); // read from the file named by body=@
+      expect(c.args.join(' ')).not.toContain('Finance'); // the text is not among the arguments
+    });
+
+    it('fails clearly when GitHub does not return the issue it made', async () => {
+      reply({ 'api repos/acme/billing/issues': { stdout: '{}' } });
+      await expect(client.createIssue('acme/billing', 't', 'b', [])).rejects.toThrow('did not return the issue it made');
+    });
+
+    it('reads an issue as it is now, and refuses a pull request', async () => {
+      reply({ 'api repos/acme/billing/issues/42': { stdout: JSON.stringify({ number: 42, state: 'closed', title: 'Add CSV export', node_id: 'I_kw42', html_url: 'https://github.com/acme/billing/issues/42' }) } });
+      expect(await client.getIssue('acme/billing', 42)).toEqual({ number: 42, state: 'closed', title: 'Add CSV export', nodeId: 'I_kw42', url: 'https://github.com/acme/billing/issues/42' });
+      reply({ 'api repos/acme/billing/issues/43': { stdout: JSON.stringify({ number: 43, state: 'open', title: 'A PR', node_id: 'PR_1', html_url: 'x', pull_request: {} }) } });
+      await expect(client.getIssue('acme/billing', 43)).rejects.toThrow('is a pull request');
+    });
+
+    it('finds open issues by title: exact match only, without regard to case or spaces', async () => {
+      reply({ 'api search/issues': { stdout: JSON.stringify({ items: [
+        { number: 1, title: 'Add CSV export', html_url: 'u1' },
+        { number: 2, title: '  add csv EXPORT ', html_url: 'u2' },
+        { number: 3, title: 'Add CSV export to the admin panel', html_url: 'u3' },
+      ] }) } });
+      const found = await client.searchOpenIssuesByTitle('acme/billing', 'Add CSV export');
+      expect(found).toEqual([{ number: 1, title: 'Add CSV export', url: 'u1' }, { number: 2, title: '  add csv EXPORT ', url: 'u2' }]);
+      const q = calls().at(-1)!.args.find((a) => a.startsWith('q='))!;
+      expect(q).toBe('q=repo:acme/billing is:issue is:open in:title "Add CSV export"');
+    });
+
+    it('keeps quotes in a title from ending the search phrase early, and searches for nothing when the title is empty', async () => {
+      reply({ 'api search/issues': { stdout: '{}' } });
+      expect(await client.searchOpenIssuesByTitle('acme/billing', 'Fix "quoted" thing')).toEqual([]);
+      expect(calls().at(-1)!.args.find((a) => a.startsWith('q='))).toBe('q=repo:acme/billing is:issue is:open in:title "Fix  quoted  thing"');
+      const before = calls().length;
+      expect(await client.searchOpenIssuesByTitle('acme/billing', '   ')).toEqual([]);
+      expect(calls()).toHaveLength(before);
+    });
+
+    it('puts an issue on a board: first the board id, then the card', async () => {
+      reply({ 'api graphql': [{ stdout: JSON.stringify({ data: { repositoryOwner: { projectV2: { id: 'PVT_board' } } } }) }, { stdout: JSON.stringify({ data: { addProjectV2ItemById: { item: { id: 'PVTI_card' } } } }) }] });
+      expect(await client.addIssueToProject('acme', 3, 'I_kw42')).toBe('PVTI_card');
+      const [find, add] = calls().slice(-2);
+      expect(find!.args.join(' ')).toContain('projectV2(number:$number)');
+      expect(find!.args).toEqual(expect.arrayContaining(['owner=acme', 'number=3']));
+      expect(add!.args.join(' ')).toContain('addProjectV2ItemById');
+      expect(add!.args).toEqual(expect.arrayContaining(['project=PVT_board', 'content=I_kw42']));
+    });
+
+    it('says what is wrong when the board cannot be found', async () => {
+      reply({ 'api graphql': { stdout: JSON.stringify({ data: { repositoryOwner: { projectV2: null } } }) } });
+      await expect(client.addIssueToProject('acme', 9, 'I_kw42')).rejects.toThrow(/GitHub Projects board acme\/9 was not found.*"project" scope/);
+    });
   });
 });

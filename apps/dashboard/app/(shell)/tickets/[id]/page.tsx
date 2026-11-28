@@ -8,6 +8,7 @@ import { AssistantToggle } from '@/components/assistant-chat';
 import { BreakdownPanel } from '@/components/breakdown-panel';
 import { DecisionsPanel } from '@/components/decisions-panel';
 import { EventTimeline } from '@/components/event-timeline';
+import { GithubIssueChip } from '@/components/github-issue-chip';
 import { HoldPanel } from '@/components/hold-panel';
 import { PlanPanel } from '@/components/plan-panel';
 import { TicketTimeline } from '@/components/charts/ticket-timeline';
@@ -21,6 +22,7 @@ import { apiGet } from '@/lib/server-api';
 import { ticketStats } from '@/lib/ticket-stats';
 import {humanizeStatus} from '@/lib/ticket-status';
 import type { ArtifactView, DecisionView, HoldInfo, MoveView, SupportTicketView, TicketEventView, TicketFull, TransitionView } from '@/lib/types';
+import { Markdown } from '@/components/markdown';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +60,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       {/* A ticket that is still moving updates itself; a finished one does not need to. */}
       {ticket.status !== 'DONE' && ticket.status !== 'FAILED' && <AutoRefresh />}
       <p className="font-mono text-xs text-muted">
-        {ticket.key} · {ticket.projectName} · {ticket.source === 'jira' ? 'from Jira' : 'pasted'}
+        {ticket.key} · {ticket.projectName} · {ticket.source === 'jira' ? 'from Jira' : ticket.source === 'github' ? 'from GitHub' : 'pasted'}
       </p>
       <h1 className="mt-1 text-xl font-semibold">{ticket.title}</h1>
       <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
@@ -69,6 +71,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
             {ticket.holdFromStatus ? ` (was ${humanizeStatus(ticket.holdFromStatus)})` : ''}
           </span>
         )}
+        <GithubIssueChip ticketId={ticket.id} state={ticket.githubIssueState ?? 'none'} error={ticket.githubIssueError ?? null} url={ticket.githubIssueUrl ?? null} />
         <span className="text-muted">Updated <LocalTime iso={ticket.updatedAt} /></span>
       </div>
       {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} prUrl={ticket.prUrl} />}
@@ -82,7 +85,11 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         </div>
       )}
       <TicketKbAttachments ticketId={ticket.id} projectId={ticket.projectId} status={ticket.status} attached={ticket.kbAttachments ?? []} />
-      {ticket.body && <pre className="mt-6 whitespace-pre-wrap panel p-4 font-sans text-sm">{ticket.body}</pre>}
+      {ticket.body && (
+        <div className="mt-6 panel p-4">
+          <Markdown source={ticket.body} />
+        </div>
+      )}
 
       <nav aria-label="Ticket sections" className="mt-8 flex gap-1 border-b border-border">
         {TABS.map((t) => (

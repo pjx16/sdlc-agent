@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 
 const PREFIX = /^\(\d+\) /;
 
-/** Puts the number of open inbox items in the browser tab title, "(3) Overview", so a background tab shows that something waits. */
+/** Puts the number of open inbox items in the browser tab title, "(3) Dashboard", so a background tab shows that something waits. */
 export function AttentionTitle({ count }: { count: number }) {
   useEffect(() => {
     const apply = () => {

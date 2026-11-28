@@ -11,7 +11,7 @@ describe('Sidebar', () => {
   it('shows the labelled links with the current one marked, and the pipeline state', () => {
     render(<Sidebar pipeline={{ text: 'Running plan', tone: 'green' }} />);
     expect(screen.getByRole('link', { name: 'Tickets' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current');
     expect(screen.getByText('Running plan')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toHaveAttribute('aria-expanded', 'true');
   });
@@ -20,7 +20,7 @@ describe('Sidebar', () => {
     const { unmount } = render(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} />);
     await userEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toHaveAttribute('aria-expanded', 'false');
-    for (const name of ['Overview', 'Tickets', 'Inbox', 'Projects', 'Guidelines', 'Usage', 'Settings']) {
+    for (const name of ['Dashboard', 'Tickets', 'Inbox', 'Projects', 'Guidelines', 'Usage', 'Settings']) {
       expect(screen.getByRole('link', { name })).toHaveAttribute('title', name);
     }
     expect(screen.queryByText('Control deck')).not.toBeInTheDocument();
