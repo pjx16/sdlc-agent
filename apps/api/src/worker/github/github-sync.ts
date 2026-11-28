@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ProjectSettingsSchema, githubBoard, type TicketStatus } from '@sdlc/shared';
+import { GITHUB_DEFAULT_BOARD, ProjectSettingsSchema, githubBoard, type TicketStatus } from '@sdlc/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Housekeeper } from '../loop/worker-loop';
 import { GITHUB_CLIENT, type GitHubClient } from './github-client';
@@ -68,7 +68,11 @@ export class GithubSync implements Housekeeper {
       const { statusMap } = githubBoard(gh);
       const column = ticket.status in statusMap ? statusMap[ticket.status] ?? null : defaultColumn(ticket.status);
       if (column) {
-        const moved = await this.github.setProjectItemStatus(gh.project.owner, gh.project.number, ref, gh.statusField, column);
+        let moved = await this.github.setProjectItemStatus(gh.project.owner, gh.project.number, ref, gh.statusField, column);
+        // sdlc-agent's own columns are made on the board the first time one is missing (only the missing ones, nothing else is touched).
+        if (!moved && gh.useDefaultColumns && (await this.github.ensureStatusOptions(gh.project.owner, gh.project.number, gh.statusField, [...Object.values(GITHUB_DEFAULT_BOARD)]))) {
+          moved = await this.github.setProjectItemStatus(gh.project.owner, gh.project.number, ref, gh.statusField, column);
+        }
         if (!moved) await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'github', level: 'warn', message: `The card of ${ref.repo}#${ref.number} could not be moved to "${column}": the board has no such column, or the card is not on it` } });
       }
     }

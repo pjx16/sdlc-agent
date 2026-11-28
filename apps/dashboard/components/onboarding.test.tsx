@@ -188,9 +188,57 @@ describe('OnboardingPanel', () => {
   it('a project without Jira needs no accepting and says it takes pasted tickets only', () => {
     const p = proposal({ facts: { github: { defaultBranch: 'main', languages: [] }, jira: null } });
     render(<OnboardingPanel projectId="p1" initial={view({ proposal: p })} />);
-    expect(screen.getByText(/pasted tickets only/)).toBeInTheDocument();
+    expect(screen.getByText(/pasted tickets and GitHub issues only/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm the project' })).toBeEnabled();
     expect(screen.queryByRole('region', { name: 'Jira statuses' })).not.toBeInTheDocument();
+  });
+});
+
+describe('the GitHub board mapping', () => {
+  const boardProposal = (board: Partial<NonNullable<OnboardingProposal['board']>> = {}, accepted: OnboardingProposal['accepted'] = {}) =>
+    proposal({
+      facts: { github: { defaultBranch: 'main', languages: [], board: { columns: ['Todo', 'Doing', 'Approved', 'Done'] } }, jira: null },
+      board: { statusMap: { PLANNING: 'Doing', DONE: 'Done' }, approval: { plan: 'Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false, ...board },
+      accepted,
+    });
+
+  it('shows the mapping, the approval columns and the intake column, and holds Confirm until it is accepted', () => {
+    render(<OnboardingPanel projectId="p1" initial={view({ proposal: boardProposal() })} />);
+    const card = screen.getByRole('region', { name: 'GitHub board columns' });
+    expect(within(card).getByText('Doing')).toBeInTheDocument();
+    expect(within(card).getAllByText('Approved').length).toBeGreaterThan(0);
+    expect(within(card).getByText('must be accepted')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm the project' })).toBeDisabled();
+    expect(screen.queryByText(/pasted tickets/)).not.toBeInTheDocument();
+  });
+
+  it('Confirm is on once the board card is accepted', () => {
+    render(<OnboardingPanel projectId="p1" initial={view({ proposal: boardProposal({}, { board: true }) })} />);
+    expect(screen.getByRole('button', { name: 'Confirm the project' })).toBeEnabled();
+  });
+
+  it('the default-columns switch is sent at once, and says the columns are added when needed', async () => {
+    fetchMock.mockResolvedValue(reply(view({ proposal: boardProposal({ useDefaultColumns: true }) })));
+    render(<OnboardingPanel projectId="p1" initial={view({ proposal: boardProposal() })} />);
+    const card = screen.getByRole('region', { name: 'GitHub board columns' });
+    const toggle = within(card).getByRole('switch', { name: /default columns/ });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await userEvent.click(toggle);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/sections/board');
+    expect(sentBody()).toEqual({ action: 'edit', value: { useDefaultColumns: true } });
+    expect(await within(card).findByText(/added to the board when they are first needed/)).toBeInTheDocument();
+  });
+
+  it('edits the columns as lines and sends them as a map', async () => {
+    fetchMock.mockResolvedValue(reply(view({ proposal: boardProposal() })));
+    render(<OnboardingPanel projectId="p1" initial={view({ proposal: boardProposal() })} />);
+    const card = screen.getByRole('region', { name: 'GitHub board columns' });
+    await userEvent.click(within(card).getByRole('button', { name: 'Edit' }));
+    const plan = within(card).getByLabelText('Plan approved column (empty for none)');
+    await userEvent.clear(plan);
+    await userEvent.type(plan, 'Done');
+    await userEvent.click(within(card).getByRole('button', { name: 'Save and accept' }));
+    expect(sentBody()).toEqual({ action: 'edit', value: { statusMap: { PLANNING: 'Doing', DONE: 'Done' }, approval: { plan: 'Done', breakdown: null }, intakeStatus: 'Todo' } });
   });
 });
 

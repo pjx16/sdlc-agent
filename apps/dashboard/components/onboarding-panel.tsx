@@ -118,7 +118,8 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
   const p: OnboardingProposal = view.proposal;
   const jira = p.facts.jira;
   const accepted = (s: OnboardingSection) => Boolean(p.accepted[s]);
-  const needs = jira ? MUST_ACCEPT.filter((s) => !accepted(s)) : [];
+  const board = p.board;
+  const needs = [...(jira ? MUST_ACCEPT.filter((s) => !accepted(s)) : []), ...(board && !accepted('board') ? (['board'] as const) : [])];
   const AcceptEdit = (s: OnboardingSection, onEdit: () => void) => (
     <>
       <button type="button" onClick={() => section(s, 'accept')} disabled={busy !== null || accepted(s)} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-text disabled:opacity-50">
@@ -188,6 +189,50 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
         ], (v) => v)}
       </Card>
 
+      {board && (
+        <Card title="GitHub board columns" required accepted={accepted('board')} actions={AcceptEdit('board', startEdit('board'))}>
+          <p className="text-xs text-muted">Where each pipeline state moves the card on your GitHub Projects board, and which columns approve a plan or a breakdown.</p>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={board.useDefaultColumns}
+            onClick={() => section('board', 'edit', { useDefaultColumns: !board.useDefaultColumns })}
+            disabled={busy !== null}
+            className="mt-2 flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50"
+          >
+            <span aria-hidden className={`inline-block h-3 w-3 rounded-full border ${board.useDefaultColumns ? 'border-accent bg-accent' : 'border-border'}`} />
+            Use sdlc-agent&apos;s default columns
+          </button>
+          {board.useDefaultColumns ? (
+            <p className="mt-2 text-sm">Plan review, Plan approved, Breakdown review and Breakdown approved are added to the board when they are first needed. Nothing already on the board is changed.</p>
+          ) : (
+            <>
+              <ul className="mt-2 grid gap-x-6 sm:grid-cols-2">
+                {TICKET_STATUSES.map((s) => (
+                  <li key={s} className="flex justify-between gap-2">
+                    <span className="font-mono text-xs text-muted">{s}</span>
+                    <span>{board.statusMap[s] ?? 'not mapped'}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-sm">
+                Plan approved when moved to: <strong>{board.approval.plan ?? 'none'}</strong> · Breakdown approved: <strong>{board.approval.breakdown ?? 'none'}</strong> · Cards are picked up from: <strong>{board.intakeStatus ?? 'the current setting'}</strong>
+              </p>
+              {editBox(
+                'board',
+                [
+                  { key: 'statusMap', label: 'One "STATE: column" per line (leave the column empty to not map)', initial: lines(board.statusMap), multiline: true },
+                  { key: 'plan', label: 'Plan approved column (empty for none)', initial: board.approval.plan ?? '' },
+                  { key: 'breakdown', label: 'Breakdown approved column (empty for none)', initial: board.approval.breakdown ?? '' },
+                  { key: 'intakeStatus', label: 'Intake column (empty for none)', initial: board.intakeStatus ?? '' },
+                ],
+                (v) => ({ statusMap: parseLines(v.statusMap ?? ''), approval: { plan: v.plan || null, breakdown: v.breakdown || null }, intakeStatus: v.intakeStatus || null }),
+              )}
+            </>
+          )}
+        </Card>
+      )}
+
       {jira ? (
         <>
           <Card title="Jira statuses" required accepted={accepted('statusMap')} actions={AcceptEdit('statusMap', startEdit('statusMap'))}>
@@ -231,7 +276,7 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
           </Card>
         </>
       ) : (
-        <p className="text-sm text-muted">No Jira project: this project takes pasted tickets only.</p>
+        !board && <p className="text-sm text-muted">No Jira project and no GitHub board: this project takes pasted tickets and GitHub issues only.</p>
       )}
 
       {jira && (
@@ -279,7 +324,7 @@ export function OnboardingPanel({ projectId, initial }: { projectId: string; ini
         >
           {busy === 'confirm' ? 'Confirming…' : 'Confirm the project'}
         </button>
-        {needs.length > 0 && <span className="text-xs text-muted">Accept the Jira statuses and the label first.</span>}
+        {needs.length > 0 && <span className="text-xs text-muted">Accept the required cards first (Jira statuses, label, GitHub board columns).</span>}
         <button type="button" onClick={() => run('rerun', () => call<OnboardingView>(`${base}/rerun`, 'POST'), setView)} disabled={busy !== null} className="rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50">
           Propose again
         </button>

@@ -45,6 +45,12 @@ export class FakeGitHub implements GitHubClient {
     this.statusMoves.push({ owner, project, number: issue.number, field, option });
     return true;
   }
+  failColumns: Error | null = null;
+  async statusColumns(): Promise<string[] | null> {
+    this.calls.push('statusColumns');
+    if (this.failColumns) throw this.failColumns;
+    return [...this.columns];
+  }
   /** Who owns what: `ownerTypes` answers `ownerType`, and an owner that is not listed is an organization. */
   ownerTypes: Record<string, 'User' | 'Organization'> = {};
   async ownerType(owner: string): Promise<'User' | 'Organization' | null> {

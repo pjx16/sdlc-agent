@@ -174,6 +174,44 @@ describe('Project onboarding API', () => {
     });
   });
 
+  describe('the GitHub Projects board mapping', () => {
+    const withBoard = (over: Record<string, unknown> = {}) =>
+      proposed(
+        {
+          facts: { github: { defaultBranch: 'main', languages: [], board: { columns: ['Todo', 'Doing', 'Plan Approved', 'Done'] } }, jira: null },
+          board: { statusMap: { PLANNING: 'Doing', DONE: 'Done' }, approval: { plan: 'Plan Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false },
+        },
+        { jiraMode: 'off', jiraProjectKey: null, ...over },
+      );
+
+    it('has to be accepted before the project is confirmed', async () => {
+      const p = await withBoard();
+      const res = await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(409);
+      expect(res.body.fields).toEqual({ board: 'must be accepted' });
+    });
+
+    it('is written to the project\'s GitHub settings on confirm', async () => {
+      const p = await withBoard({ settings: { github: { mode: 'projects', project: { owner: 'acme', number: 3 } } } });
+      await patch(p.id, 'board', { action: 'accept' }).expect(200);
+      const settings = (await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200)).body.project.settings;
+      expect(settings.github).toMatchObject({ mode: 'projects', project: { owner: 'acme', number: 3 }, intakeStatus: 'Todo', useDefaultColumns: false, statusMap: { PLANNING: 'Doing', DONE: 'Done' }, approval: { plan: 'Plan Approved', breakdown: null, label: 'sdlc:approved' } });
+    });
+
+    it('can be edited, in the board\'s own spelling, and refuses a column the board does not have', async () => {
+      const p = await withBoard();
+      await patch(p.id, 'board', { action: 'edit', value: { approval: { breakdown: 'done' }, useDefaultColumns: true } }).expect(200);
+      const board = ((await reload(p.id)).onboardingProposal as unknown as OnboardingProposal).board;
+      expect(board).toMatchObject({ approval: { plan: 'Plan Approved', breakdown: 'Done' }, useDefaultColumns: true });
+      const res = await patch(p.id, 'board', { action: 'edit', value: { statusMap: { KB: 'Shipped' } } }).expect(400);
+      expect(JSON.stringify(res.body.fields)).toContain('is not a column of this board');
+    });
+
+    it('is refused for a project with no board', async () => {
+      const p = await proposed();
+      await patch(p.id, 'board', { action: 'accept' }).expect(400);
+    });
+  });
+
   describe('confirming', () => {
     it('refuses until the status map and the label are accepted explicitly', async () => {
       const p = await proposed();

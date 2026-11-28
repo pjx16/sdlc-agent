@@ -89,6 +89,8 @@ export interface GitHubClient {
   listProjectItems(owner: string, number: number, statusField: string): Promise<ProjectItem[]>;
   /** Moves an issue's card to the column called `optionName` (compared without regard to case). False when the board has no such column. */
   setProjectItemStatus(owner: string, number: number, issue: { repo: string; number: number }, statusField: string, optionName: string): Promise<boolean>;
+  /** The names of a board's Status columns, or null when the board or the field cannot be found. */
+  statusColumns(owner: string, number: number, statusField: string): Promise<string[] | null>;
   /** Whether `owner` is a user or an organization (a GitHub App's token cannot read a user's Projects boards). Null when GitHub does not know it. */
   ownerType(owner: string): Promise<'User' | 'Organization' | null>;
   /**
@@ -317,6 +319,11 @@ export class GhCliClient implements GitHubClient {
     if ((item.status ?? '').toLowerCase() === option.name.toLowerCase()) return true;
     await this.graphql(`mutation($project:ID!,$item:ID!,$field:ID!,$option:String!){ updateProjectV2ItemFieldValue(input:{ projectId:$project, itemId:$item, fieldId:$field, value:{ singleSelectOptionId:$option } }){ projectV2Item{ id } } }`, { project: board.id, item: item.id, field: board.fieldId, option: option.id });
     return true;
+  }
+
+  async statusColumns(owner: string, number: number, statusField: string): Promise<string[] | null> {
+    const board = await this.board(owner, number, statusField);
+    return board.fieldId ? board.options.map((o) => o.name) : null;
   }
 
   async ownerType(owner: string): Promise<'User' | 'Organization' | null> {

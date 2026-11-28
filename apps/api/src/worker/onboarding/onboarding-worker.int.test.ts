@@ -12,7 +12,7 @@ import { FakeJira, FakeJiraClients } from '../../testing/fake-jira';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import type { StageRequest, StageResult } from '../agent-runner/agent-runner';
 import { WorkerConfig } from '../worker-config';
-import { OnboardingWorker, factsText, sanitizeAdvice } from './onboarding-worker';
+import { OnboardingWorker, factsText, sanitizeAdvice, sanitizeBoardAdvice } from './onboarding-worker';
 
 const profile: RepoProfile = { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '**/*.spec.ts', exampleTestFile: 'src/a.spec.ts' };
 const advice: OnboardAdvice = {
@@ -80,6 +80,8 @@ describe('OnboardingWorker', () => {
     github.facts = { defaultBranch: 'main', languages: ['TypeScript'] };
     github.failFacts = null;
     github.ownerTypes = {};
+    github.failColumns = null;
+    github.columns = ['Todo', 'In Progress', 'Done'];
     jira.failWith = null;
     agent = (req) => done(req.stage === 'repoProfile' ? profile : advice);
     await prisma.supportTicket.deleteMany();
@@ -174,6 +176,42 @@ describe('OnboardingWorker', () => {
     await worker.check();
     expect(((await reload(p.id)).onboardingProposal as unknown as OnboardingProposal).profile.typecheckCheck).toBeNull();
     expect(verifyCalls.map((c) => c.cmd)).toEqual(['npm ci']);
+  });
+
+  describe('a GitHub Projects board', () => {
+    const boardSettings = { github: { mode: 'projects', project: { owner: 'acme', number: 3 } } };
+    const boardAnswer = { board: { statusMap: { PLANNING: 'Doing', KB: 'Nope', DONE: 'done' }, approval: { plan: 'Approved', breakdown: 'Invented' }, intakeStatus: 'todo', useDefaultColumns: false } };
+
+    it('gets a mapping proposal from the board\'s own columns, with names the board does not have taken out', async () => {
+      github.columns = ['Todo', 'Doing', 'Approved', 'Done'];
+      agent = (req) => done(req.stage === 'repoProfile' ? profile : boardAnswer);
+      const p = await project({ jiraMode: 'off', jiraProjectKey: null, settings: boardSettings });
+      await worker.check();
+      const after = await reload(p.id);
+      expect(after.onboardingStatus).toBe('proposed');
+      const proposal = after.onboardingProposal as unknown as OnboardingProposal;
+      expect(proposal.facts.github.board).toEqual({ columns: ['Todo', 'Doing', 'Approved', 'Done'] });
+      expect(proposal.board).toEqual({ statusMap: { PLANNING: 'Doing', KB: null, DONE: 'Done' }, approval: { plan: 'Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false });
+      const asked = requests.find((r) => r.stage === 'onboardAdvise');
+      expect(JSON.stringify(asked?.inputs)).toContain('Status columns of the board: Todo, Doing, Approved, Done');
+    });
+
+    it('an issues-mode project has no board phase, and no advisor run without Jira either', async () => {
+      github.calls = [];
+      const p = await project({ jiraMode: 'off', jiraProjectKey: null, settings: { github: { mode: 'issues' } } });
+      await worker.check();
+      expect((await reload(p.id)).onboardingStatus).toBe('proposed');
+      expect(requests.some((r) => r.stage === 'onboardAdvise')).toBe(false);
+      expect(((await reload(p.id)).onboardingProposal as unknown as OnboardingProposal).board).toBeUndefined();
+      expect(github.calls).not.toContain('statusColumns');
+    });
+
+    it('a board that cannot be read stops onboarding with the reason and a way out', async () => {
+      github.failColumns = new Error('Could not resolve to a ProjectV2');
+      const p = await project({ jiraMode: 'off', jiraProjectKey: null, settings: boardSettings });
+      await worker.check();
+      expect(await reload(p.id)).toMatchObject({ onboardingStatus: 'draft', onboardingError: expect.stringContaining('GitHub board acme/3: Could not resolve to a ProjectV2. Check the board number') });
+    });
   });
 
   describe('failure leaves the project in draft with the reason, never half-configured', () => {
@@ -272,5 +310,30 @@ describe('factsText and sanitizeAdvice (pure)', () => {
   it('with no advice at all, falls back on the default routing and label', () => {
     const jira = { projectName: 'x', issueTypes: [{ name: 'Bug', subtask: false }, { name: 'Epic', subtask: false }], statusesByType: [], labels: [] };
     expect(sanitizeAdvice(null, jira)).toEqual({ statusMap: {}, approvalStatuses: { plan: null, breakdown: null }, issueTypeRouting: { Bug: 'bug', Epic: 'ignore' }, intakeLabel: 'sdlc-agent' });
+  });
+});
+
+describe('sanitizeBoardAdvice and the board facts (pure)', () => {
+  const columns = ['Todo', 'Doing', 'Plan Approved', 'Done'];
+
+  it('keeps names the board has, in the board\'s spelling, and drops the rest', () => {
+    expect(sanitizeBoardAdvice({ statusMap: { PLANNING: 'doing', KB: 'Made up' }, approval: { plan: 'plan approved', breakdown: null }, intakeStatus: 'TODO', useDefaultColumns: false }, columns)).toEqual({
+      statusMap: { PLANNING: 'Doing', KB: null }, approval: { plan: 'Plan Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false,
+    });
+  });
+
+  it('recommends the default columns when there is no answer or the board has no columns', () => {
+    expect(sanitizeBoardAdvice(null, columns)).toMatchObject({ statusMap: {}, intakeStatus: null, useDefaultColumns: true });
+    expect(sanitizeBoardAdvice({ statusMap: {}, approval: { plan: null, breakdown: null }, intakeStatus: null, useDefaultColumns: false }, [])).toMatchObject({ useDefaultColumns: true });
+  });
+
+  it('keeps the advisor\'s own call for the default columns', () => {
+    expect(sanitizeBoardAdvice({ statusMap: {}, approval: { plan: null, breakdown: null }, intakeStatus: null, useDefaultColumns: true }, columns).useDefaultColumns).toBe(true);
+  });
+
+  it('puts the board in the facts only when the task is the board', () => {
+    const facts = { github: { defaultBranch: 'main', languages: [], board: { columns } }, jira: null };
+    expect(factsText('billing', facts, 'board')).toContain('Status columns of the board: Todo, Doing, Plan Approved, Done');
+    expect(factsText('billing', facts)).not.toContain('Status columns');
   });
 });
