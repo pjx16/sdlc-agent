@@ -1,4 +1,4 @@
-import type { OnboardingProgress, OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
+import type { GuidelineItem, OnboardingProgress, OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
 
 /** A project as returned by the API. */
 export type ProjectView = Omit<ProjectInput, 'settings' | 'jiraProjectKey' | 'jiraJql' | 'githubAuth'> & {
@@ -271,6 +271,9 @@ export interface TicketDetail extends TicketListItem {
 export interface TicketWithPlan extends TicketDetail {
   planMarkdown: string | null;
 }
+
+/** One item of the guidelines page, as GET /guidelines/catalogue sends it. */
+export type GuidelineEntry = GuidelineItem & { customised: boolean; updatedAt: string | null };
 
 export interface GuidelineNode {
   name: string;

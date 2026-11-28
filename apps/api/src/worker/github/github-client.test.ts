@@ -237,7 +237,7 @@ describe('GhCliClient: GitHub issues and Projects', () => {
 
   it('says what is wrong when the board cannot be read', async () => {
     reply({ 'api graphql': { stdout: JSON.stringify({ data: { repositoryOwner: { projectV2: null } } }) } });
-    await expect(client.listProjectItems('acme', 99, 'Status')).rejects.toThrow(/project acme\/99 was not found.*"project" scope/);
+    await expect(client.listProjectItems('acme', 99, 'Status')).rejects.toThrow(/GitHub Projects board acme\/99 was not found.*"project" scope/);
     reply({ 'api graphql': { stdout: JSON.stringify({ errors: [{ message: 'Resource not accessible' }] }) } });
     await expect(client.listProjectItems('acme', 3, 'Status')).rejects.toThrow('Resource not accessible');
   });

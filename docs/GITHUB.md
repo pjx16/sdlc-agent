@@ -4,14 +4,14 @@ Tickets can come from GitHub as well as from Jira and from the dashboard. Each s
 
 ## Set up a project
 
-Open the project (Projects → the project → Edit) and choose a source under **GitHub issues and projects**:
+Open the project (Projects → the project → Edit) and choose a source under **GitHub issues and Projects boards**:
 
 | Source | Takes | Shows progress by |
 | --- | --- | --- |
 | **GitHub Projects board** (recommended) | The open issues of this repository that stand on the board in the intake column (default `Todo`) | Moving the card: `In Progress` while the pipeline works on it, `Done` at the end |
 | **Issues with a label** | The open issues of the repository that carry the label (default `sdlc-agent`) | A label `sdlc:<state>` that changes as the ticket moves |
 
-For a board give the **owner** (a user or an organization), the board's **number** (the number in its URL) and, if yours are named differently, the **status field** and the **intake column**. Per state, `settings.github.statusMap` can name another column, or `null` to leave the card where it is (set it in the project's settings JSON; the dashboard keeps the defaults).
+For a board give the **board owner** (a user or an organization), the **board number** (the number in its URL) and, if yours are named differently, the **status field** and the **intake column**. Per state, `settings.github.statusMap` can name another column, or `null` to leave the card where it is (set it in the project's settings JSON; the dashboard keeps the defaults).
 
 ## What the pipeline does with an issue
 
