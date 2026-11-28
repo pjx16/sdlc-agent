@@ -35,7 +35,7 @@ export class VerifyService {
   ) {}
 
   /** Runs one command (install, typecheck or tests) through `run-cmd` in a container without the Anthropic API key. */
-  async runCmd(args: { name: string; workspace: string; cmd: string; timeoutSec: number; files?: readonly string[] }): Promise<CmdResult> {
+  async runCmd(args: { name: string; workspace: string; cmd: string; timeoutSec: number; files?: readonly string[]; signal?: AbortSignal }): Promise<CmdResult> {
     const command = args.files ? buildTestCommand(args.cmd, args.files) : args.cmd;
     const lines: string[] = [];
     let bytes = 0;
@@ -66,11 +66,13 @@ export class VerifyService {
           bytes += line.length + 1;
           if (bytes <= MAX_OUTPUT_BYTES) lines.push(line);
         },
+        signal: args.signal,
       },
     );
+    if (result.killed && args.signal?.aborted) lines.push('Aborted');
     const timedOut = result.timedOut || result.exitCode === 124;
     return {
-      ok: result.exitCode === 0 && !result.timedOut,
+      ok: result.exitCode === 0 && !result.timedOut && !result.killed,
       exitCode: result.exitCode,
       timedOut,
       tail: stripAnsi(lines.slice(-TAIL_LINES).join('\n')),

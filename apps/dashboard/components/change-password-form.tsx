@@ -34,7 +34,7 @@ export function ChangePasswordForm() {
 
   const input = 'mt-1 w-full rounded-md border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent';
   return (
-    <form onSubmit={submit} className="mb-8 panel max-w-md p-6">
+    <form onSubmit={submit} className="panel max-w-md p-6">
       <h2 className="text-lg font-semibold">Change password</h2>
       <label htmlFor="current-password" className="mt-4 block text-sm">
         Current password

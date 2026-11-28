@@ -3,6 +3,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StateMachine } from '../../state/state-machine.service';
 import { AGENT_LABEL } from '../agent-runner/container-options';
 import { CONTAINER_ENGINE, type ContainerEngine } from '../agent-runner/container-engine';
+import { SILENT_AT_BOOT_MS } from '../../projects/onboarding-liveness';
+import { sweepSilentProfiling } from '../onboarding/onboarding-watchdog';
 
 export interface RecoveryResult {
   /** StageRuns that were `running` when the previous worker died. */
@@ -34,6 +36,9 @@ export class RestartRecovery {
       this.logger.warn(`Could not remove leftover agent containers: ${String(err)}`);
       return 0;
     });
+
+    // Profiling whose last sign of life is older than the heartbeat allows was running in the worker that just died.
+    await sweepSilentProfiling(this.prisma, SILENT_AT_BOOT_MS, this.logger).catch((err: unknown) => this.logger.warn(`Could not check profiling after the restart: ${String(err)}`));
 
     const running = await this.prisma.stageRun.findMany({ where: { status: 'running' } });
     let held = 0;
