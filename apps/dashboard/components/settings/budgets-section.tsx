@@ -16,9 +16,16 @@ const accepted = (zone: string): boolean => {
   }
 };
 
+/** The zones this browser lists, or null when it has no such list. */
+function browserZones(): string[] | null {
+  const intl = typeof Intl === 'undefined' ? null : (Intl as unknown as { supportedValuesOf?: (key: string) => string[] });
+  return intl?.supportedValuesOf ? intl.supportedValuesOf('timeZone') : null;
+}
+
 /** Every time zone the browser knows, for the picker. Older browsers without the list get the modern names alone, and a plain text box otherwise. */
-export function timeZoneChoices(known: readonly string[] | null = typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl ? (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf('timeZone') : null): string[] {
-  const list = new Set(known ?? []);
+/** `known` is the list to use (null: none); left out, it is what the browser lists. */
+export function timeZoneChoices(known?: readonly string[] | null): string[] {
+  const list = new Set((known === undefined ? browserZones() : known) ?? []);
   for (const zone of MODERN_NAMES) if (accepted(zone)) list.add(zone);
   return [...list].sort();
 }
