@@ -92,7 +92,9 @@ function templateOrder(template: string): SectionId[] {
   const byHeading = new Map<string, SectionId>(Object.entries(SECTION_HEADINGS).map(([id, heading]) => [heading.toLowerCase(), id as SectionId]));
   const order: SectionId[] = [];
   for (const line of template.split('\n')) {
-    const heading = /^##\s+(.+?)\s*$/.exec(line)?.[1];
+    // Plain string steps, not a regular expression: a template is text a person wrote, and `\s+(.+?)\s*` can backtrack a lot on long runs of spaces.
+    const text = line.trimEnd();
+    const heading = text.startsWith('##') && /\s/.test(text.charAt(2)) ? text.slice(2).trim() : undefined;
     const id = heading ? byHeading.get(heading.toLowerCase()) : undefined;
     if (id && !order.includes(id)) order.push(id);
   }
