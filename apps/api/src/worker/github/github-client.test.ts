@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { GhCliClient, GitHubError, parseRepo } from './github-client';
+import { GhCliClient, GitHubError, parseRepo, statusOptionsMutation } from './github-client';
 
 /**
  * A stand-in for the `gh` executable. It records its arguments (and the body file it was given), answers from FAKE_GH_REPLIES
@@ -12,10 +12,16 @@ const STUB = `#!/usr/bin/env node
 const fs = require('node:fs');
 const args = process.argv.slice(2);
 const bodyIdx = args.indexOf('--body-file');
-const record = { args, token: process.env.GH_TOKEN, body: bodyIdx >= 0 ? fs.readFileSync(args[bodyIdx + 1], 'utf8') : null };
+const fieldFile = args.find((a) => a.startsWith('body=@'));
+const body = bodyIdx >= 0 ? fs.readFileSync(args[bodyIdx + 1], 'utf8') : fieldFile ? fs.readFileSync(fieldFile.slice(6), 'utf8') : null;
+const key = args.slice(0, 2).join(' ');
+const earlier = fs.existsSync(process.env.FAKE_GH_LOG) ? fs.readFileSync(process.env.FAKE_GH_LOG, 'utf8').split('\\n').filter(Boolean).filter((l) => JSON.parse(l).args.slice(0, 2).join(' ') === key).length : 0;
+const record = { args, token: process.env.GH_TOKEN, body };
 fs.appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(record) + '\\n');
 const replies = JSON.parse(process.env.FAKE_GH_REPLIES || '{}');
-const r = replies[args.slice(0, 2).join(' ')] || { stdout: '' };
+// A list answers the first call with its first entry, the second with the next, and the last one keeps answering.
+const answer = replies[key];
+const r = (Array.isArray(answer) ? answer[Math.min(earlier, answer.length - 1)] : answer) || { stdout: '' };
 if (r.stderr) process.stderr.write(r.stderr);
 if (r.stdout) process.stdout.write(r.stdout);
 process.exit(r.exit || 0);
@@ -24,7 +30,8 @@ process.exit(r.exit || 0);
 let tmp: string;
 let log: string;
 let client: GhCliClient;
-const reply = (replies: Record<string, { stdout?: string; stderr?: string; exit?: number }>) => {
+type Reply = { stdout?: string; stderr?: string; exit?: number };
+const reply = (replies: Record<string, Reply | Reply[]>) => {
   process.env.FAKE_GH_REPLIES = JSON.stringify(replies);
 };
 const calls = () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { args: string[]; token: string; body: string | null });
@@ -242,6 +249,33 @@ describe('GhCliClient: GitHub issues and Projects', () => {
     await expect(client.listProjectItems('acme', 3, 'Status')).rejects.toThrow('Resource not accessible');
   });
 
+  describe('ensureStatusOptions', () => {
+    const fieldReply = (options: object[]) => ({ stdout: JSON.stringify({ data: { repositoryOwner: { projectV2: { fields: { nodes: [{ id: 'F_status', name: 'Status', options }] } } } } }) });
+    const existing = [{ id: 'a1', name: 'Todo', color: 'GRAY', description: '' }, { id: 'b2', name: 'In Progress', color: 'YELLOW', description: 'working "now"' }];
+
+    it('sends the existing options back with their ids, colours and descriptions, then the new ones', () => {
+      expect(statusOptionsMutation('F_status', existing, ['Plan review'])).toBe(
+        'mutation{ updateProjectV2Field(input:{fieldId:"F_status",singleSelectOptions:[{id:"a1",name:"Todo",color:GRAY,description:""},{id:"b2",name:"In Progress",color:YELLOW,description:"working \\"now\\""},{name:"Plan review",color:GRAY,description:""}]}){ projectV2Field{ ... on ProjectV2SingleSelectField{ id } } } }',
+      );
+    });
+
+    it('adds only the missing columns, comparing without regard to case', async () => {
+      reply({ 'api graphql': [fieldReply(existing), { stdout: '{"data":{}}' }] });
+      expect(await client.ensureStatusOptions('acme', 3, 'Status', ['todo', 'Plan review', 'Plan review', ' '])).toEqual(['Plan review']);
+      const mutation = calls().at(-1)!.args.find((a) => a.includes('updateProjectV2Field'))!;
+      expect(mutation).toContain('{id:"a1",name:"Todo"');
+      expect(mutation).toContain('{name:"Plan review"');
+      expect(mutation.match(/Plan review/g)).toHaveLength(1);
+    });
+
+    it('writes nothing when every column is there, and says false when there is no such field', async () => {
+      reply({ 'api graphql': fieldReply(existing) });
+      expect(await client.ensureStatusOptions('acme', 3, 'Status', ['Todo', 'in progress'])).toEqual([]);
+      expect(calls().filter((c) => c.args.some((a) => a.includes('updateProjectV2Field')))).toHaveLength(0);
+      expect(await client.ensureStatusOptions('acme', 3, 'Stage', ['X'])).toBe(false);
+    });
+  });
+
   it('moves a card to a column, comparing names without regard to case, and does nothing when it is there already', async () => {
     reply({ 'api graphql': board([card('I1', 'Todo', issue(7)), card('I2', 'In Progress', issue(8))]) });
     expect(await client.setProjectItemStatus('acme', 3, { repo: 'acme/billing', number: 7 }, 'Status', 'in progress')).toBe(true);
@@ -275,5 +309,121 @@ describe('GhCliClient: GitHub issues and Projects', () => {
     expect(c.body).toBe('Done: $(not run)');
     await client.closeIssue('acme/billing', 7);
     expect(calls().at(-1)!.args).toEqual(['issue', 'close', '7', '-R', 'acme/billing']);
+  });
+
+  describe('making, finding and boarding an issue', () => {
+    it('creates an issue through the REST API with the body in a file, never on the command line', async () => {
+      reply({ 'api repos/acme/billing/issues': { stdout: JSON.stringify({ number: 42, node_id: 'I_kw42', html_url: 'https://github.com/acme/billing/issues/42' }) } });
+      const body = '## Problem\nFinance $(rm -rf /) cannot export.\n- [ ] one';
+      const made = await client.createIssue('acme/billing', 'Add CSV export', body, ['sdlc:new', 'feature']);
+      expect(made).toEqual({ number: 42, nodeId: 'I_kw42', url: 'https://github.com/acme/billing/issues/42' });
+      const c = calls().at(-1)!;
+      expect(c.args.slice(0, 4)).toEqual(['api', 'repos/acme/billing/issues', '-X', 'POST']);
+      expect(c.args).toEqual(expect.arrayContaining(['-f', 'title=Add CSV export', '-f', 'labels[]=sdlc:new', '-f', 'labels[]=feature']));
+      expect(c.body).toBe(body); // read from the file named by body=@
+      expect(c.args.join(' ')).not.toContain('Finance'); // the text is not among the arguments
+    });
+
+    it('fails clearly when GitHub does not return the issue it made', async () => {
+      reply({ 'api repos/acme/billing/issues': { stdout: '{}' } });
+      await expect(client.createIssue('acme/billing', 't', 'b', [])).rejects.toThrow('did not return the issue it made');
+    });
+
+    it('reads an issue as it is now, and refuses a pull request', async () => {
+      reply({ 'api repos/acme/billing/issues/42': { stdout: JSON.stringify({ number: 42, state: 'closed', title: 'Add CSV export', node_id: 'I_kw42', html_url: 'https://github.com/acme/billing/issues/42' }) } });
+      expect(await client.getIssue('acme/billing', 42)).toEqual({ number: 42, state: 'closed', title: 'Add CSV export', nodeId: 'I_kw42', url: 'https://github.com/acme/billing/issues/42' });
+      reply({ 'api repos/acme/billing/issues/43': { stdout: JSON.stringify({ number: 43, state: 'open', title: 'A PR', node_id: 'PR_1', html_url: 'x', pull_request: {} }) } });
+      await expect(client.getIssue('acme/billing', 43)).rejects.toThrow('is a pull request');
+    });
+
+    it('finds open issues by title: exact match only, without regard to case or spaces', async () => {
+      reply({ 'api search/issues': { stdout: JSON.stringify({ items: [
+        { number: 1, title: 'Add CSV export', html_url: 'u1' },
+        { number: 2, title: '  add csv EXPORT ', html_url: 'u2' },
+        { number: 3, title: 'Add CSV export to the admin panel', html_url: 'u3' },
+      ] }) } });
+      const found = await client.searchOpenIssuesByTitle('acme/billing', 'Add CSV export');
+      expect(found).toEqual([{ number: 1, title: 'Add CSV export', url: 'u1' }, { number: 2, title: '  add csv EXPORT ', url: 'u2' }]);
+      const q = calls().at(-1)!.args.find((a) => a.startsWith('q='))!;
+      expect(q).toBe('q=repo:acme/billing is:issue is:open in:title "Add CSV export"');
+    });
+
+    it('keeps quotes in a title from ending the search phrase early, and searches for nothing when the title is empty', async () => {
+      reply({ 'api search/issues': { stdout: '{}' } });
+      expect(await client.searchOpenIssuesByTitle('acme/billing', 'Fix "quoted" thing')).toEqual([]);
+      expect(calls().at(-1)!.args.find((a) => a.startsWith('q='))).toBe('q=repo:acme/billing is:issue is:open in:title "Fix  quoted  thing"');
+      const before = calls().length;
+      expect(await client.searchOpenIssuesByTitle('acme/billing', '   ')).toEqual([]);
+      expect(calls()).toHaveLength(before);
+    });
+
+    it('puts an issue on a board: first the board id, then the card', async () => {
+      reply({ 'api graphql': [{ stdout: JSON.stringify({ data: { repositoryOwner: { projectV2: { id: 'PVT_board' } } } }) }, { stdout: JSON.stringify({ data: { addProjectV2ItemById: { item: { id: 'PVTI_card' } } } }) }] });
+      expect(await client.addIssueToProject('acme', 3, 'I_kw42')).toBe('PVTI_card');
+      const [find, add] = calls().slice(-2);
+      expect(find!.args.join(' ')).toContain('projectV2(number:$number)');
+      expect(find!.args).toEqual(expect.arrayContaining(['owner=acme', 'number=3']));
+      expect(add!.args.join(' ')).toContain('addProjectV2ItemById');
+      expect(add!.args).toEqual(expect.arrayContaining(['project=PVT_board', 'content=I_kw42']));
+    });
+
+    it('says what is wrong when the board cannot be found', async () => {
+      reply({ 'api graphql': { stdout: JSON.stringify({ data: { repositoryOwner: { projectV2: null } } }) } });
+      await expect(client.addIssueToProject('acme', 9, 'I_kw42')).rejects.toThrow(/GitHub Projects board acme\/9 was not found.*"project" scope/);
+    });
+  });
+
+  describe('comments that can be written again', () => {
+    const LIST = 'api repos/acme/billing/issues/7/comments?per_page=100';
+    const lines = (...comments: { id: number; body: string }[]) => ({ stdout: comments.map((c) => JSON.stringify(c)).join('\n') });
+    const MARK = '<!-- sdlc-agent:T-1:plan -->';
+
+    it('lists the comments of an issue, one JSON object per line, whatever the number of pages', async () => {
+      reply({ [LIST]: lines({ id: 1, body: 'first' }, { id: 2, body: 'multi\nline' }) });
+      expect(await client.listIssueComments('acme/billing', 7)).toEqual([{ id: 1, body: 'first' }, { id: 2, body: 'multi\nline' }]);
+      const c = calls().at(-1)!;
+      expect(c.args).toEqual(expect.arrayContaining(['--paginate', '--jq']));
+    });
+
+    it('an issue with no comments is an empty list, and at most 300 are read', async () => {
+      reply({ [LIST]: { stdout: '' } });
+      expect(await client.listIssueComments('acme/billing', 7)).toEqual([]);
+      reply({ [LIST]: lines(...Array.from({ length: 350 }, (_, i) => ({ id: i, body: 'c' }))) });
+      expect(await client.listIssueComments('acme/billing', 7)).toHaveLength(300);
+    });
+
+    it('makes the comment when there is none: the text, a hidden marker line, and the text in a file', async () => {
+      reply({ [LIST]: lines({ id: 1, body: 'someone else' }) });
+      expect(await client.upsertIssueComment('acme/billing', 7, 'The plan: $(not run)', 'sdlc-agent:T-1:plan')).toBe('created');
+      const c = calls().at(-1)!;
+      expect(c.args.slice(0, 4)).toEqual(['api', 'repos/acme/billing/issues/7/comments', '-X', 'POST']);
+      expect(c.body).toBe(`The plan: $(not run)\n\n${MARK}`);
+      expect(c.args.join(' ')).not.toContain('The plan');
+    });
+
+    it('does nothing when the comment is already there with the same text', async () => {
+      reply({ [LIST]: lines({ id: 5, body: `The plan\n\n${MARK}` }) });
+      const before = calls().length;
+      expect(await client.upsertIssueComment('acme/billing', 7, 'The plan', 'sdlc-agent:T-1:plan')).toBe('unchanged');
+      expect(calls().length).toBe(before + 1); // only the list was asked for
+    });
+
+    it('rewrites the comment in place when the text changed', async () => {
+      reply({ [LIST]: lines({ id: 1, body: 'other' }, { id: 5, body: `Old plan\n\n${MARK}` }) });
+      expect(await client.upsertIssueComment('acme/billing', 7, 'New plan', 'sdlc-agent:T-1:plan')).toBe('updated');
+      const c = calls().at(-1)!;
+      expect(c.args.slice(0, 4)).toEqual(['api', 'repos/acme/billing/issues/comments/5', '-X', 'PATCH']);
+      expect(c.body).toBe(`New plan\n\n${MARK}`);
+    });
+
+    it('tells one kind of comment from another, and one ticket from another', async () => {
+      reply({ [LIST]: lines({ id: 5, body: `A breakdown\n\n<!-- sdlc-agent:T-1:breakdown -->` }, { id: 6, body: `A plan\n\n<!-- sdlc-agent:T-2:plan -->` }) });
+      expect(await client.upsertIssueComment('acme/billing', 7, 'The plan', 'sdlc-agent:T-1:plan')).toBe('created');
+    });
+
+    it('a marker that is only part of another one is not taken for it', async () => {
+      reply({ [LIST]: lines({ id: 5, body: `x\n\n<!-- sdlc-agent:T-10:plan -->` }) });
+      expect(await client.upsertIssueComment('acme/billing', 7, 'The plan', 'sdlc-agent:T-1:plan')).toBe('created');
+    });
   });
 });

@@ -5,7 +5,9 @@ import path from 'node:path';
 import type { StageEnvelope } from '@sdlc/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../../prisma/prisma.service';
+import { FakeGitHub } from '../../testing/fake-github';
 import { FakeJira, FakeJiraClients } from '../../testing/fake-jira';
+import { TicketComments } from '../github/ticket-comments';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import type { StageRequest, StageResult } from '../agent-runner/agent-runner';
 import { WorkerConfig } from '../worker-config';
@@ -21,6 +23,8 @@ describe('plan stage (F7)', () => {
   let tmp: string;
   let jira: FakeJira;
   let handler: PlanHandler;
+  let onGithub: PlanHandler;
+  let github: FakeGitHub;
   let projectId: string;
   let n = 0;
   let requests: StageRequest[] = [];
@@ -46,7 +50,10 @@ describe('plan stage (F7)', () => {
     };
     const clients = new FakeJiraClients();
     jira = clients.jira;
-    handler = new PlanHandler(prisma, new StageLauncher(prisma, config, runner as never), new StageOutcomes(prisma), clients);
+    const launcher = new StageLauncher(prisma, config, runner as never);
+    handler = new PlanHandler(prisma, launcher, new StageOutcomes(prisma), clients);
+    github = new FakeGitHub();
+    onGithub = new PlanHandler(prisma, launcher, new StageOutcomes(prisma), clients, undefined, undefined, undefined, new TicketComments(prisma, github));
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -59,6 +66,7 @@ describe('plan stage (F7)', () => {
     answer = planAnswer();
     jira.calls = [];
     jira.failWith = null;
+    github.reset();
     await prisma.event.deleteMany();
     await prisma.stateTransition.deleteMany();
     await setProject({ jiraMode: 'off', settings: {} });
@@ -177,6 +185,54 @@ describe('plan stage (F7)', () => {
       const t = await jiraTicket();
       expect(await handler.run(t)).toMatchObject({ kind: 'transition', to: 'AWAITING_PLAN_APPROVAL' });
       expect((await prisma.event.findMany({ where: { ticketId: t.id, type: 'jira' } }))[0]?.message).toContain('Could not post the plan to Jira: Jira 403');
+    });
+  });
+
+  describe('the plan on the ticket\'s GitHub issue', () => {
+    let issue = 6;
+    const issueTicket = (over: Record<string, unknown> = {}) => ticket({ source: 'github', externalKey: `acme/billing#${++issue}`, ...over });
+    const thread = () => github.threads.get(`acme/billing#${issue}`) ?? [];
+
+    it('posts the plan, in the team\'s plan format, as one comment', async () => {
+      const t = await issueTicket();
+      await onGithub.run(t);
+      expect(thread()).toHaveLength(1);
+      expect(thread()[0]!.body).toContain(`## Plan for ${t.key}`);
+      expect(thread()[0]!.body).toContain('Export CSV');
+      expect(thread()[0]!.body).toContain(`<!-- sdlc-agent:${t.key}:plan -->`);
+    });
+
+    it('a new plan (a rejection, a rerun) rewrites that comment instead of adding one', async () => {
+      const t = await issueTicket();
+      await onGithub.run(t);
+      const id = thread()[0]!.id;
+      answer = planAnswer({ planMarkdown: '## Goal\nExport CSV, streamed' });
+      await onGithub.run(await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } }));
+      expect(thread()).toHaveLength(1);
+      expect(thread()[0]).toMatchObject({ id, body: expect.stringContaining('streamed') });
+    });
+
+    it('a pasted ticket has no issue: the plan is stored as ever and one note says nothing was posted', async () => {
+      const t = await ticket();
+      expect(await onGithub.run(t)).toMatchObject({ kind: 'transition', to: 'AWAITING_PLAN_APPROVAL' });
+      expect(github.calls).not.toContain('upsertIssueComment');
+      expect((await prisma.event.findMany({ where: { ticketId: t.id, type: 'github' } })).map((e) => e.message)).toEqual(['The plan was not posted: this ticket has no GitHub issue to comment on']);
+    });
+
+    it('a Jira ticket keeps its Jira comment and gets nothing on GitHub', async () => {
+      await setProject({ jiraMode: 'rest', settings: { jiraWriteBack: { comments: true } } });
+      const t = await ticket({ source: 'jira', externalKey: 'SDA-1' });
+      await onGithub.run(t);
+      expect(github.calls).not.toContain('upsertIssueComment');
+      expect(jira.calls.some((c) => c.startsWith('comment'))).toBe(true);
+    });
+
+    it('a GitHub problem never blocks the plan', async () => {
+      const t = await issueTicket();
+      github.failComments = new Error('gh: HTTP 502');
+      expect(await onGithub.run(t)).toMatchObject({ kind: 'transition', to: 'AWAITING_PLAN_APPROVAL' });
+      expect((await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).planMarkdown).toContain('Export CSV');
+      expect((await prisma.event.findMany({ where: { ticketId: t.id, level: 'warn' } })).map((e) => e.message)).toEqual([expect.stringContaining('The plan could not be posted to GitHub: gh: HTTP 502')]);
     });
   });
 

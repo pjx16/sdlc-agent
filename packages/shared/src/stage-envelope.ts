@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { StageName } from './enums';
-import { OnboardAdviseData, RepoProfileData } from './onboarding';
+import { BoardAdviseData, OnboardAdviseData, RepoProfileData } from './onboarding';
 
 /** Every stage returns this envelope. */
 export const ENVELOPE_STATUSES = ['done', 'needs_input', 'blocked'] as const;
@@ -100,7 +100,7 @@ export const STAGE_DATA = {
   orchestrate: OrchestrateData,
   assist: AssistData,
   repoProfile: RepoProfileData,
-  onboardAdvise: OnboardAdviseData,
+  onboardAdvise: z.union([OnboardAdviseData, BoardAdviseData]),
   jiraConnector: JiraConnectorData,
 } as const satisfies Record<StageName, z.ZodType>;
 

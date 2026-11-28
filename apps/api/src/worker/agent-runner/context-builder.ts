@@ -131,7 +131,7 @@ const DATA_SHAPES: Record<StageName, string> = {
   kbUpdate: '{ featureKey, docPath, changed }',
   repoProfile: '{ stack: "ts_node" | "nestjs" | "nextjs", installCmd, typecheckCmd, testCmdTemplate (must contain {files}), kbDir, testFilePattern, exampleTestFile (a path, or null) }',
   jiraConnector: '{ result, error }. `result` has exactly the shape given under "Result shape"; when the operation cannot be done, `result` is null and `error` says why in one sentence.',
-  onboardAdvise: '{ statusMap: { <internal state>: <Jira status name or null> }, approvalStatuses: { plan, breakdown }, issueTypeRouting: { <issue type>: "feature" | "bug" | "chore" | "ignore" }, intakeLabel }',
+  onboardAdvise: '{ statusMap: { <internal state>: <Jira status name or null> }, approvalStatuses: { plan, breakdown }, issueTypeRouting: { <issue type>: "feature" | "bug" | "chore" | "ignore" }, intakeLabel }, or for a GitHub Projects board: { board: { statusMap: { <internal state>: <column name or null> }, approval: { plan, breakdown }, intakeStatus, useDefaultColumns } }',
   assist: '{ reply, draft }. `reply` is your answer to the person, in plain words. `draft` is null, or { kind: "answer" | "plan_edit" | "rerun_note", text } when you have something they can apply with one click: the answer to the question, the whole edited plan, or the note for a rerun.',
 };
 

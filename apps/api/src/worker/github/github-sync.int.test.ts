@@ -105,6 +105,25 @@ describe('GitHub write-back', () => {
       expect((await reload(t.id)).externalStatus).toBe('BREAKDOWN');
     });
 
+    it('with the default columns on, the missing ones are made on the board and the card then moves', async () => {
+      const p = await project({ ...board, useDefaultColumns: true });
+      onBoard();
+      const t = await ticket(p.id, { status: 'AWAITING_PLAN_APPROVAL' });
+      await sync.check();
+      expect(github.calls).toContain('ensureStatusOptions');
+      expect(github.columns).toEqual(expect.arrayContaining(['Plan review', 'Plan approved', 'Breakdown review', 'Breakdown approved']));
+      expect(github.statusMoves.at(-1)?.option).toBe('Plan review');
+      expect((await reload(t.id)).externalStatus).toBe('AWAITING_PLAN_APPROVAL');
+    });
+
+    it('without the default columns, a missing column is not created', async () => {
+      const p = await project({ ...board, statusMap: { PLANNING: 'Shipped' } });
+      onBoard();
+      await ticket(p.id);
+      await sync.check();
+      expect(github.calls).not.toContain('ensureStatusOptions');
+    });
+
     it('a column the board does not have is a warning on the ticket, not a failure', async () => {
       const p = await project({ ...board, statusMap: { PLANNING: 'Shipped' } });
       onBoard();

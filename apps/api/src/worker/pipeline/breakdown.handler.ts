@@ -1,14 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ProjectSettingsSchema, describeIssues, singleSubtask, validateBreakdown, type StageEnvelope, type SubtaskDraft } from '@sdlc/shared';
 import { SubtasksService } from '../../subtasks/subtasks.service';
 import type { Ticket } from '../../generated/prisma/client';
 import type { Prisma } from '../../generated/prisma/client';
 import { writeArtifact } from '../../common/artifacts';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TicketComments } from '../github/ticket-comments';
 import { featureKeyOf, lookup } from '../kb/kb-index';
 import { StageLauncher } from './stage-launcher';
 import { StageOutcomes } from './stage-outcomes';
 import type { StepHandler, StepOutcome } from './step-handler';
+
+/** The breakdown as a task list on the ticket's issue: each subtask a checkbox, with what makes it done under it. */
+export function breakdownComment(ticketKey: string, subtasks: readonly SubtaskDraft[]): string {
+  const items = subtasks.map((s, i) => [`- [ ] **S${i + 1}. ${s.title}**`, ...s.acceptanceCriteria.map((c) => `  - ${c}`)].join('\n'));
+  return [`## Breakdown for ${ticketKey}`, `${subtasks.length} subtask${subtasks.length === 1 ? '' : 's'}. Approve it in the dashboard.`, '', ...items].join('\n');
+}
 
 /**
  * BREAKDOWN (rows 7 and 8): run the `breakdown` stage (read-only workspace), validate the list with the orchestrator's rules
@@ -23,6 +30,7 @@ export class BreakdownHandler implements StepHandler {
     private readonly launcher: StageLauncher,
     private readonly outcomes: StageOutcomes,
     private readonly subtasks: SubtasksService,
+    @Optional() private readonly comments?: TicketComments,
   ) {}
 
   async run(ticket: Ticket): Promise<StepOutcome> {
@@ -65,6 +73,8 @@ export class BreakdownHandler implements StepHandler {
     if (!verdict.ok) return { kind: 'hold', reason: 'needs_help', note: describeIssues(verdict.issues).slice(0, 500), stageRunId: result.stageRunId };
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { breakdownDraft: verdict.subtasks as unknown as Prisma.InputJsonValue } });
     await writeArtifact(this.prisma, ticket.id, 'breakdown', { subtasks: verdict.subtasks, filesByOrder: (result.envelope.data as { filesByOrder?: string[] } | undefined)?.filesByOrder ?? [] }, result.stageRunId).catch(() => undefined);
+
+    if (this.comments && ticket.source !== 'jira') await this.comments.post(ticket, 'breakdown', breakdownComment(ticket.key, verdict.subtasks));
 
     // With the gate off the subtasks are created at once (row 8); otherwise the ticket waits for approval (row 7).
     if (!settings.gates.breakdown) return this.approve(ticket, verdict.subtasks, 'Breakdown stored; the breakdown gate is off', result.stageRunId);

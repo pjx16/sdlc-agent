@@ -3,7 +3,7 @@ import path from 'node:path';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   DEFAULT_GLOBAL_SETTINGS, GlobalSettingsSchema, ProjectSettingsSchema, defaultRouting, describeError, events,
-  type CommandCheck, type OnboardingPhaseId, type OnboardingProgress, type JiraFacts, type ModelAlias, type OnboardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus, jiraOn } from '@sdlc/shared';
+  type CommandCheck, type OnboardingPhaseId, type OnboardingProgress, type JiraFacts, type ModelAlias, type BoardAdvice, type OnboardAdvice, type OnboardingFacts, type OnboardingProposal, type RepoProfile, type StageEnvelope, type TicketStatus, jiraOn } from '@sdlc/shared';
 import { logEvent } from '../../common/event-log';
 import { Prisma, type Project } from '../../generated/prisma/client';
 import { JiraClients, JiraNotConfiguredError } from '../../jira/jira-clients';
@@ -68,9 +68,11 @@ export class ProgressTracker {
 }
 
 /** The facts as plain text for the agents. */
-export function factsText(projectName: string, facts: OnboardingFacts): string {
+export function factsText(projectName: string, facts: OnboardingFacts, about: 'jira' | 'board' = 'jira'): string {
   const out = [`Project: ${projectName}`, `Default branch: ${facts.github.defaultBranch}`, `Languages (most used first): ${facts.github.languages.join(', ') || 'unknown'}`];
-  if (facts.jira) {
+  if (about === 'board' && facts.github.board) {
+    out.push('', 'Task: propose the GitHub Projects board mapping (answer with the `board` shape).', `Status columns of the board: ${facts.github.board.columns.join(', ') || 'none'}`);
+  } else if (facts.jira) {
     out.push('', `Jira project: ${facts.jira.projectName}`, 'Issue types:', ...facts.jira.issueTypes.map((t) => `- ${t.name}${t.subtask ? ' (the sub-task type)' : ''}`));
     out.push('', 'Statuses per issue type (name [category]):', ...facts.jira.statusesByType.map((t) => `- ${t.type}: ${t.statuses.map((s) => `${s.name} [${s.category}]`).join(', ')}`));
     out.push('', `Labels already in use: ${facts.jira.labels.join(', ') || 'none'}`);
@@ -95,6 +97,20 @@ export function sanitizeAdvice(advice: OnboardAdvice | null, jira: JiraFacts | n
   for (const [state, name] of Object.entries(advice?.statusMap ?? {})) statusMap[state as TicketStatus] = known(name as string | null);
   const label = advice?.intakeLabel && /^\S+$/.test(advice.intakeLabel) ? advice.intakeLabel : 'sdlc-agent';
   return { statusMap, approvalStatuses: { plan: known(advice?.approvalStatuses.plan), breakdown: known(advice?.approvalStatuses.breakdown) }, issueTypeRouting: routing, intakeLabel: label };
+}
+
+/**
+ * The advisor only proposes: every column it named must be a column of the board, in the board's own spelling. With no usable
+ * answer, or a board that has no columns, the default columns are recommended.
+ */
+export function sanitizeBoardAdvice(advice: BoardAdvice | null, columns: string[]): BoardAdvice {
+  const byLower = new Map(columns.map((c) => [c.toLowerCase(), c]));
+  const known = (name: string | null | undefined) => (name ? byLower.get(name.toLowerCase()) ?? null : null);
+  const statusMap: BoardAdvice['statusMap'] = {};
+  for (const [state, name] of Object.entries(advice?.statusMap ?? {})) statusMap[state as TicketStatus] = known(name as string | null);
+  const approval = { plan: known(advice?.approval.plan), breakdown: known(advice?.approval.breakdown) };
+  const usable = Boolean(advice) && columns.length > 0;
+  return { statusMap, approval, intakeStatus: known(advice?.intakeStatus), useDefaultColumns: !usable || Boolean(advice?.useDefaultColumns) };
 }
 
 /** Why an agent run did not return data, in the words of the error policy. */
@@ -160,7 +176,9 @@ export class OnboardingWorker implements Housekeeper {
     const checkout = path.join(this.config.dataDir, 'onboarding', project.id);
     try {
       const hasJira = jiraOn(project.jiraMode) && Boolean(project.jiraProjectKey);
-      const planned: OnboardingPhaseId[] = [...(this.access ? (['access'] as const) : []), 'facts', 'mirror', 'checkout', 'profile', 'install', 'typecheck', ...(hasJira ? (['advise'] as const) : [])];
+      const boardSettings = ProjectSettingsSchema.parse(project.settings).github;
+      const hasBoard = boardSettings.mode === 'projects' && Boolean(boardSettings.project);
+      const planned: OnboardingPhaseId[] = [...(this.access ? (['access'] as const) : []), 'facts', 'mirror', 'checkout', 'profile', 'install', 'typecheck', ...(hasJira || hasBoard ? (['advise'] as const) : [])];
       const t = new ProgressTracker(this.prisma, project.id, planned);
 
       // First of all: a project that works as the bot must have the sdlc-agent GitHub App installed on its repository.
@@ -175,9 +193,12 @@ export class OnboardingWorker implements Housekeeper {
       const settings = ProjectSettingsSchema.parse(project.settings);
 
       // The Jira advice needs only the facts, so it runs while the repository is cloned, profiled and checked.
-      const advicePromise: Promise<OnboardAdvice | null> = facts.jira
-        ? t.track('advise', () => this.stage<OnboardAdvice>(project, 'onboardAdvise', { onboard: { facts: text } }, undefined, settings, global))
-        : Promise.resolve(null);
+      const advicePromise: Promise<{ jira: OnboardAdvice | null; board: { board: BoardAdvice } | null }> = facts.jira || facts.github.board
+        ? t.track('advise', async () => ({
+            jira: facts.jira ? await this.stage<OnboardAdvice>(project, 'onboardAdvise', { onboard: { facts: text } }, undefined, settings, global) : null,
+            board: facts.github.board ? await this.stage<{ board: BoardAdvice }>(project, 'onboardAdvise', { onboard: { facts: factsText(project.name, facts, 'board') } }, undefined, settings, global) : null,
+          }))
+        : Promise.resolve({ jira: null, board: null });
 
       const codeChain = async () => {
         await this.prisma.project.update({ where: { id: project.id }, data: { baseBranch, mirrorStatus: 'pending', mirrorError: null } });
@@ -202,13 +223,14 @@ export class OnboardingWorker implements Housekeeper {
       if (code.status === 'rejected') throw code.reason;
       if (adviceResult.status === 'rejected') throw adviceResult.reason;
       const { profile, installCheck, typecheckCheck } = code.value;
-      const advice = adviceResult.value;
+      const advice = adviceResult.value.jira;
       await t.flush();
 
       const proposal: OnboardingProposal = {
         facts,
         profile: { ...profile, baseBranch, installCheck, typecheckCheck },
         advice: sanitizeAdvice(advice, facts.jira),
+        ...(facts.github.board ? { board: sanitizeBoardAdvice(adviceResult.value.board?.board ?? null, facts.github.board.columns) } : {}),
         accepted: {},
         createdAt: new Date().toISOString(),
         timings: t.timings(),
@@ -230,6 +252,30 @@ export class OnboardingWorker implements Housekeeper {
     }
   }
 
+  /** The columns of the project's GitHub Projects board, when it uses one. A board that cannot be read stops onboarding with the reason. */
+  private async boardFacts(project: Project): Promise<{ columns: string[] } | null> {
+    const gh = ProjectSettingsSchema.parse(project.settings).github;
+    if (gh.mode !== 'projects' || !gh.project) return null;
+    try {
+      const columns = await this.github.statusColumns(gh.project.owner, gh.project.number, gh.statusField);
+      if (columns === null) throw new Error(`the board has no "${gh.statusField}" field`);
+      return { columns };
+    } catch (err) {
+      throw new Error(`GitHub board ${gh.project.owner}/${gh.project.number}: ${err instanceof Error ? err.message : String(err)}. Check the board number and that the GitHub token has the Projects permission.`, { cause: err });
+    }
+  }
+
+  /**
+   * A GitHub App's installation token cannot read a user's Projects boards (only an organization's). A project that works through the bot
+   * and names a user-owned board is stopped here with a way out, instead of failing later on every poll.
+   */
+  private async checkBoardOwner(project: Project): Promise<void> {
+    const gh = ProjectSettingsSchema.parse(project.settings).github;
+    if (project.githubAuth !== 'bot' || gh.mode !== 'projects' || !gh.project) return;
+    if ((await this.github.ownerType(gh.project.owner).catch(() => null)) !== 'User') return;
+    throw new Error(`The board belongs to the user "${gh.project.owner}", and the GitHub App cannot read a user's Projects boards. Use a personal access token with the Projects permission for this project, or move the board to an organization.`);
+  }
+
   /** Step 1: code only, no AI. */
   async collectFacts(project: Project): Promise<OnboardingFacts> {
     let github;
@@ -238,6 +284,9 @@ export class OnboardingWorker implements Housekeeper {
     } catch (err) {
       throw new Error(`GitHub: ${err instanceof Error ? err.message : String(err)}. Check the GitHub token in Settings → Connections and the repository URL.`, { cause: err });
     }
+    await this.checkBoardOwner(project);
+    const board = await this.boardFacts(project);
+    if (board) github = { ...github, board };
     let jira: JiraFacts | null = null;
     if (jiraOn(project.jiraMode) && project.jiraProjectKey) {
       try {

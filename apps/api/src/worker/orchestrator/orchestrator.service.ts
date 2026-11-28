@@ -3,6 +3,7 @@ import { DECISION_POINTS, ProjectSettingsSchema, automaticMoves, decisionPointOf
 import type { Ticket } from '../../generated/prisma/client';
 import { JiraClients } from '../../jira/jira-clients';
 import { jiraMarker } from '../../jira/jira-client';
+import { TicketComments } from '../github/ticket-comments';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StageLauncher } from '../pipeline/stage-launcher';
 import type { StepOutcome } from '../pipeline/step-handler';
@@ -26,6 +27,7 @@ export class OrchestratorService {
     private readonly prisma: PrismaService,
     private readonly launcher: StageLauncher,
     @Optional() private readonly jira?: JiraClients,
+    @Optional() private readonly comments?: TicketComments,
   ) {}
 
   /** Looks at a step's outcome and, at a decision point with several legal moves, lets the orchestrator replace the default move. */
@@ -121,7 +123,10 @@ export class OrchestratorService {
         message: (fallbackUsed ? `The orchestrator's answer was not used (${why}); the default move to ${move.to} was taken` : `The orchestrator chose ${move.kind} ${move.to}: ${reason}`).slice(0, 500),
       },
     });
-    if (!fallbackUsed) await this.tellJira(ticket, point, move, reason, note);
+    if (!fallbackUsed) {
+      await this.tellJira(ticket, point, move, reason, note);
+      await this.tellIssue(ticket, point, move, reason, note);
+    }
     return { option: move, reason: fallbackUsed ? '' : reason, fallbackUsed, ...(note && !fallbackUsed ? { note } : {}) };
   }
 
@@ -137,6 +142,13 @@ export class OrchestratorService {
     } catch (err) {
       this.logger.warn(`Could not write the decision to Jira for ${ticket.key}: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  /** The same decision on the ticket's GitHub issue (a Jira ticket has it on Jira). Each decision is its own comment. Never blocks. */
+  private async tellIssue(ticket: Ticket, point: DecisionPoint, move: DecisionOption, reason: string, note: string | undefined): Promise<void> {
+    if (!this.comments || ticket.source === 'jira') return;
+    const text = [`sdlc-agent decided (${point.replace(/_/g, ' ')}): ${move.label || `${move.kind} ${move.to}`}.`, reason ? `Why: ${reason}` : null, note ? `Instruction given to the agent: ${note}` : null].filter(Boolean).join('\n');
+    await this.comments.post(ticket, `decision-${point}-${Date.now()}`, text);
   }
 
   /** A short summary: never code or diffs. */

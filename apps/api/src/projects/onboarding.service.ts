@@ -119,6 +119,7 @@ export class OnboardingService {
     const { action, value } = parseBody(SectionBody, body);
     const proposal = this.proposalOf(p);
     if (p.onboardingStatus !== 'proposed' || !proposal) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'There is no proposal to review yet');
+    if (section === 'board' && !proposal.board) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { board: 'this project has no GitHub Projects board to map' });
     if (action === 'edit') this.apply(proposal, section as OnboardingSection, parseBody(z.record(z.string(), z.unknown()), value ?? {}));
     proposal.accepted = { ...proposal.accepted, [section]: true };
     await this.prisma.project.update({ where: { id }, data: { onboardingProposal: proposal as unknown as Prisma.InputJsonValue } });
@@ -150,6 +151,25 @@ export class OnboardingService {
         const unknown = Object.keys(parsed.issueTypeRouting).filter((k) => !types.has(k));
         if (unknown.length > 0) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { issueTypeRouting: `${unknown.join(', ')} is not an issue type of this Jira project` });
         proposal.advice = { ...proposal.advice, issueTypeRouting: { ...proposal.advice.issueTypeRouting, ...parsed.issueTypeRouting } };
+        return;
+      }
+      case 'board': {
+        const board = proposal.board;
+        if (!board || !proposal.facts.github.board) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { board: 'this project has no GitHub Projects board to map' });
+        const names = new Map(proposal.facts.github.board.columns.map((c) => [c.toLowerCase(), c]));
+        const column = z.string().nullable().transform((v, ctx) => {
+          if (v === null) return null;
+          const hit = names.get(v.toLowerCase());
+          if (!hit) ctx.addIssue({ code: 'custom', message: 'is not a column of this board' });
+          return hit ?? null;
+        });
+        const parsed = parseBody(z.object({ statusMap: z.partialRecord(z.enum(TICKET_STATUSES), column).optional(), approval: z.object({ plan: column, breakdown: column }).partial().optional(), intakeStatus: column.optional(), useDefaultColumns: z.boolean().optional() }), value);
+        proposal.board = {
+          statusMap: { ...board.statusMap, ...(parsed.statusMap as Partial<Record<TicketStatus, string | null>> | undefined) },
+          approval: { ...board.approval, ...parsed.approval },
+          intakeStatus: parsed.intakeStatus === undefined ? board.intakeStatus : parsed.intakeStatus,
+          useDefaultColumns: parsed.useDefaultColumns ?? board.useDefaultColumns,
+        };
         return;
       }
       case 'label': {
@@ -186,7 +206,7 @@ export class OnboardingService {
     const p = await this.project(id);
     const proposal = this.proposalOf(p);
     if (p.onboardingStatus !== 'proposed' || !proposal) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'There is no proposal to confirm');
-    const missing = MUST_ACCEPT.filter((s) => !proposal.accepted[s] && (s === 'label' ? Boolean(p.jiraProjectKey) : Boolean(proposal.facts.jira)));
+    const missing = [...MUST_ACCEPT.filter((s) => !proposal.accepted[s] && (s === 'label' ? Boolean(p.jiraProjectKey) : Boolean(proposal.facts.jira))), ...(proposal.board && !proposal.accepted.board ? (['board'] as const) : [])];
     if (missing.length > 0) {
       throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `Accept these first: ${missing.join(', ')}`, Object.fromEntries(missing.map((s) => [s, 'must be accepted'])));
     }
@@ -205,6 +225,18 @@ export class OnboardingService {
       jiraStatusMap: { ...settings.jiraStatusMap, ...Object.fromEntries(TICKET_STATUSES.map((s) => [s, advice.statusMap[s] ?? null])) },
       jiraApprovalStatuses: { plan: advice.approvalStatuses.plan ?? undefined, breakdown: advice.approvalStatuses.breakdown ?? undefined },
       jiraIssueTypeRouting: advice.issueTypeRouting,
+      // The board mapping, once accepted: what the pipeline writes to the board and which columns approve.
+      ...(proposal.board
+        ? {
+            github: {
+              ...settings.github,
+              statusMap: Object.fromEntries(Object.entries(proposal.board.statusMap).filter(([, v]) => v !== undefined)),
+              approval: { ...settings.github.approval, plan: proposal.board.approval.plan, breakdown: proposal.board.approval.breakdown },
+              useDefaultColumns: proposal.board.useDefaultColumns,
+              ...(proposal.board.intakeStatus ? { intakeStatus: proposal.board.intakeStatus } : {}),
+            },
+          }
+        : {}),
       ...(subtaskType ? { jiraSubtaskTypeName: subtaskType } : {}),
     };
     const updated = await this.prisma.project.update({

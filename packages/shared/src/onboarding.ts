@@ -15,7 +15,7 @@ export const ONBOARDING_PHASES = [
   { id: 'profile', label: 'Profiling the code (stack, commands, tests)' },
   { id: 'install', label: 'Checking the install command' },
   { id: 'typecheck', label: 'Checking the type-check command' },
-  { id: 'advise', label: 'Proposing the Jira setup' },
+  { id: 'advise', label: 'Proposing the Jira and GitHub board setup' },
 ] as const;
 export type OnboardingPhaseId = (typeof ONBOARDING_PHASES)[number]['id'];
 
@@ -62,6 +62,20 @@ export const OnboardAdviseData = z.object({
 });
 export type OnboardAdvice = z.infer<typeof OnboardAdviseData>;
 
+/** `onboarding-advisor` for a GitHub Projects board: which column each pipeline state moves the card to, and which columns approve. */
+export const BoardAdviseData = z.object({
+  board: z.object({
+    /** Each internal state to one column of the board, or none. Several states may share a column. */
+    statusMap: z.object(statusMapShape).partial().transform((m) => m as Partial<Record<TicketStatus, string | null>>),
+    approval: z.object({ plan: z.string().min(1).nullable(), breakdown: z.string().min(1).nullable() }),
+    /** The column that holds the cards the pipeline should pick up. */
+    intakeStatus: z.string().min(1).nullable(),
+    /** True when the board has nothing that fits: sdlc-agent's own columns are used (and created) instead. */
+    useDefaultColumns: z.boolean(),
+  }),
+});
+export type BoardAdvice = z.infer<typeof BoardAdviseData>['board'];
+
 // ------------------------------------------------------------------------------------------------ facts
 
 export interface JiraFacts {
@@ -75,6 +89,8 @@ export interface JiraFacts {
 export interface GithubFacts {
   defaultBranch: string;
   languages: string[];
+  /** The Status columns of the project's GitHub Projects board, when it uses one. */
+  board?: { columns: string[] };
 }
 export interface OnboardingFacts {
   github: GithubFacts;
@@ -90,7 +106,7 @@ export interface CommandCheck {
 
 // ------------------------------------------------------------------------------------------------ the proposal
 
-export const ONBOARDING_SECTIONS = ['commands', 'statusMap', 'routing', 'label'] as const;
+export const ONBOARDING_SECTIONS = ['commands', 'statusMap', 'routing', 'label', 'board'] as const;
 export type OnboardingSection = (typeof ONBOARDING_SECTIONS)[number];
 /** These two change what the pipeline does to Jira, so they must be accepted explicitly. */
 export const MUST_ACCEPT: readonly OnboardingSection[] = ['statusMap', 'label'];
@@ -99,6 +115,8 @@ export interface OnboardingProposal {
   facts: OnboardingFacts;
   profile: RepoProfile & { baseBranch: string; installCheck: CommandCheck | null; typecheckCheck: CommandCheck | null };
   advice: OnboardAdvice;
+  /** The board mapping, for a project that works from a GitHub Projects board. */
+  board?: BoardAdvice;
   /** Which sections the person accepted (or edited, which counts as accepting). */
   accepted: Partial<Record<OnboardingSection, boolean>>;
   createdAt: string;
@@ -134,6 +152,6 @@ export function kindForIssueType(routing: Record<string, IssueKind> | undefined,
 }
 
 /** Whether a section needs a person's decision before the project can be confirmed. */
-export function missingAcceptance(accepted: OnboardingProposal['accepted']): OnboardingSection[] {
-  return MUST_ACCEPT.filter((s) => !accepted[s]);
+export function missingAcceptance(accepted: OnboardingProposal['accepted'], hasBoard = false): OnboardingSection[] {
+  return [...MUST_ACCEPT, ...(hasBoard ? (['board'] as const) : [])].filter((s) => !accepted[s]);
 }

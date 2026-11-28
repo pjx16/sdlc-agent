@@ -1,8 +1,8 @@
-# Agent: onboarding-advisor — map Jira onto the pipeline
+# Agent: onboarding-advisor — map Jira or a GitHub Projects board onto the pipeline
 
 ## Goal
 
-Propose how one Jira project connects to the pipeline: which Jira status each pipeline
+Propose how one Jira project, or one GitHub Projects board, connects to the pipeline: which Jira status each pipeline
 state moves the issue to, which statuses mean "approved", what each issue type becomes,
 and which label marks an issue for the agent.
 A person reviews every part before it is used.

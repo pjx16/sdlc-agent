@@ -151,9 +151,9 @@ CI checks passed; this PR is ready for human review.
 `,
   },
   {
-    name: 'jira-plan',
-    title: 'Jira comment: the plan',
-    description: 'The comment with the full plan, posted on the Jira issue when the plan is ready.',
+    name: 'issue-plan',
+    title: 'Issue comment: the plan',
+    description: 'The comment with the full plan, posted on the ticket\'s issue (GitHub, or Jira) when the plan is ready.',
     kind: 'template',
     placeholders: [
       { name: 'key', meaning: 'the ticket key' },
@@ -166,9 +166,9 @@ CI checks passed; this PR is ready for human review.
 `,
   },
   {
-    name: 'jira-needs-you',
-    title: 'Jira comment: needs a person',
-    description: 'The comment posted on the Jira issue when the pipeline needs a person (a blocking question, a hold, a CI problem).',
+    name: 'issue-needs-you',
+    title: 'Issue comment: needs a person',
+    description: 'The comment posted on the ticket\'s issue (GitHub, or Jira) when the pipeline needs a person (a blocking question, a hold, a CI problem).',
     kind: 'template',
     placeholders: [
       { name: 'title', meaning: 'what is needed, in a line' },

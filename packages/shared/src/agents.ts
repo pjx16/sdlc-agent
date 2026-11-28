@@ -28,7 +28,7 @@ export interface AgentSpec {
 export const AGENTS: readonly AgentSpec[] = [
   { name: 'assistant', stages: ['assist'], job: 'Answer the developer’s questions about one support ticket and draft a response.', workspace: 'read-only', model: 'sonnet', plugin: false },
   { name: 'repo-profiler', stages: ['repoProfile'], job: 'Propose the stack, the install, typecheck and test commands, the KB folder and the test-file pattern of a repository.', workspace: 'read-only', model: 'sonnet', plugin: false },
-  { name: 'onboarding-advisor', stages: ['onboardAdvise'], job: 'Propose the Jira status mapping, approval statuses, issue-type routing, intake label for a project.', workspace: 'none', model: 'haiku', plugin: false },
+  { name: 'onboarding-advisor', stages: ['onboardAdvise'], job: 'Propose how a project connects to its tracker: the Jira status mapping, approval statuses, issue-type routing and intake label, or the GitHub Projects board columns, approval columns and intake column (or recommend sdlc-agent\'s default columns).', workspace: 'none', model: 'haiku', plugin: false },
   { name: 'feature-mapper', stages: ['featureMap'], job: 'Match a ticket to an existing knowledge-base feature key, or say it is new.', workspace: 'read-only', model: 'haiku', plugin: false },
   { name: 'documentor', stages: ['kbBuild', 'kbUpdate'], job: 'Create or refresh one feature doc in the knowledge base.', workspace: 'writes', model: 'sonnet', plugin: true },
   { name: 'solution-architect', stages: ['solutionDesign'], job: 'Design a feature: goal, approach, acceptance criteria and what is out of scope.', workspace: 'read-only', model: 'opus', plugin: true },
