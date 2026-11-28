@@ -32,7 +32,7 @@ A project can reach GitHub in one of two ways. You choose per project when you o
 2. Onboard the project and pick **sdlc-agent-bot**. If the App is not on that repository the onboarding stops and gives you the install link; run it again afterwards.
 3. Projects that pick **My own token** keep using the GitHub token from Settings. The GitHub token is only required while at least one project needs it: a system connected to the broker is not blocked without it.
 
-By default a system talks to `https://broker.sdlc-agent.dev`. To use another broker set `BROKER_URL` in `.env` (or the broker URL in Settings).
+By default a system talks to `https://broker.sdlc-agent.dev`. To use another broker set the broker URL in Settings → Connections.
 
 ## Running the broker (for the owner of the App)
 
@@ -57,7 +57,7 @@ docker run -d --name sdlc-broker -p 8080:8080 -v sdlc-broker-data:/data \
   -e BROKER_PUBLIC_URL=https://<broker> \
   sdlc-agent-broker
 ```
-Put it behind HTTPS (the setup URL and the dashboard's `BROKER_URL` must be https). `GET /health` answers `{ "ok": true }`.
+Put it behind HTTPS (the setup URL and the broker URL saved in the dashboard must be https). `GET /health` answers `{ "ok": true }`.
 
 | Variable | Meaning |
 | --- | --- |

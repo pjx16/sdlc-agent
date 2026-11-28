@@ -133,6 +133,7 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     pollIntervalSec: row.pollIntervalSec,
     stageTimeoutMin: row.stageTimeoutMin,
     verifyTimeoutSec: row.verifyTimeoutSec,
+    githubDefaultAuth: row.githubDefaultAuth,
     workspaceRetentionDays: row.workspaceRetentionDays,
     logRetentionDays: row.logRetentionDays,
     assistantTokenCap: row.assistantTokenCap,

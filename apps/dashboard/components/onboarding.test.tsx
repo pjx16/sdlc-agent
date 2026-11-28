@@ -47,6 +47,17 @@ describe('OnboardForm: two fields', () => {
     expect(sentBody()).toMatchObject({ githubAuth: 'bot' });
   });
 
+  it('starts from the install\'s default way to reach GitHub, and the person can still change it', async () => {
+    fetchMock.mockResolvedValue(reply({ id: 'p9' }));
+    render(<OnboardForm defaultGithubAuth="bot" />);
+    expect(screen.getByRole('radio', { name: /sdlc-agent-bot/ })).toBeChecked();
+    await userEvent.type(screen.getByLabelText('Repository URL'), 'https://github.com/acme/billing');
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    expect(sentBody()).toMatchObject({ githubAuth: 'bot' });
+    await userEvent.click(screen.getByRole('radio', { name: /My own token/ }));
+    expect(screen.getByRole('radio', { name: /My own token/ })).toBeChecked();
+  });
+
   it('shows the field errors from the server', async () => {
     fetchMock.mockResolvedValue(reply({ fields: { repoUrl: 'must be an HTTPS github.com repository URL' } }, 400));
     render(<OnboardForm />);

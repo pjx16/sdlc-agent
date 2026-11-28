@@ -35,6 +35,8 @@ export const GlobalSettingsSchema = z.object({
   pollIntervalSec: int(120, 5, 3600),
   stageTimeoutMin: int(20, 1, 240),
   verifyTimeoutSec: int(600, 10, 7200),
+  /** How a new project reaches GitHub unless told otherwise: with a personal token, or as sdlc-agent-bot. A project can differ. */
+  githubDefaultAuth: z.enum(['token', 'bot'], { error: 'must be token or bot' }).default('token'),
   workspaceRetentionDays: int(7, 1, 365),
   logRetentionDays: int(30, 1, 3650),
   /** Tokens (input and output) one assistant conversation may use before it stops. */

@@ -1,21 +1,24 @@
 import { z } from 'zod';
 
-/** Credentials that can be entered in the dashboard (SETUP_WIZARD_PLAN). An env var, when set, always wins over the stored value. */
+/**
+ * Credentials entered in the dashboard and stored encrypted in the database. There is no environment variable for them: this is an app that is
+ * installed and used, not configured by files. (An install made before this was true has its values moved into the dashboard once, at start-up.)
+ */
 export const CREDENTIAL_KEYS = [
-  { key: 'anthropic_api_key', env: 'ANTHROPIC_API_KEY', secret: true, required: true, label: 'Anthropic API key' },
-  { key: 'github_token', env: 'GITHUB_TOKEN', secret: true, required: true, label: 'GitHub token' },
-  { key: 'broker_url', env: 'BROKER_URL', secret: false, required: false, label: 'sdlc-agent-bot broker URL' },
-  { key: 'broker_key', env: 'BROKER_KEY', secret: true, required: false, label: 'sdlc-agent-bot broker key' },
-  { key: 'git_author_name', env: 'GIT_AUTHOR_NAME', secret: false, required: true, label: 'Git author name' },
-  { key: 'git_author_email', env: 'GIT_AUTHOR_EMAIL', secret: false, required: true, label: 'Git author email' },
-  { key: 'jira_base_url', env: 'JIRA_BASE_URL', secret: false, required: false, label: 'Jira base URL' },
-  { key: 'jira_email', env: 'JIRA_EMAIL', secret: false, required: false, label: 'Jira email' },
-  { key: 'jira_api_token', env: 'JIRA_API_TOKEN', secret: true, required: false, label: 'Jira API token' },
+  { key: 'anthropic_api_key', secret: true, required: true, label: 'Anthropic API key' },
+  { key: 'github_token', secret: true, required: true, label: 'GitHub token' },
+  { key: 'broker_url', secret: false, required: false, label: 'sdlc-agent-bot broker URL' },
+  { key: 'broker_key', secret: true, required: false, label: 'sdlc-agent-bot broker key' },
+  { key: 'git_author_name', secret: false, required: true, label: 'Git author name' },
+  { key: 'git_author_email', secret: false, required: true, label: 'Git author email' },
+  { key: 'jira_base_url', secret: false, required: false, label: 'Jira base URL' },
+  { key: 'jira_email', secret: false, required: false, label: 'Jira email' },
+  { key: 'jira_api_token', secret: true, required: false, label: 'Jira API token' },
   // Rovo MCP mode: the server URL, and either an OAuth sign-in (stored by the dashboard's "Connect" flow) or a scoped API token used with the Jira email.
-  { key: 'jira_mcp_url', env: 'JIRA_MCP_URL', secret: false, required: false, label: 'Rovo MCP server URL' },
-  { key: 'jira_mcp_token', env: 'JIRA_MCP_TOKEN', secret: true, required: false, label: 'Rovo MCP scoped API token' },
-  { key: 'jira_mcp_oauth', env: 'JIRA_MCP_OAUTH', secret: true, required: false, label: 'Rovo MCP OAuth sign-in' },
-  { key: 'jira_cloud_id', env: 'JIRA_CLOUD_ID', secret: false, required: false, label: 'Atlassian cloud ID' },
+  { key: 'jira_mcp_url', secret: false, required: false, label: 'Rovo MCP server URL' },
+  { key: 'jira_mcp_token', secret: true, required: false, label: 'Rovo MCP scoped API token' },
+  { key: 'jira_mcp_oauth', secret: true, required: false, label: 'Rovo MCP OAuth sign-in' },
+  { key: 'jira_cloud_id', secret: false, required: false, label: 'Atlassian cloud ID' },
 ] as const;
 
 /** The Rovo MCP server used when no URL is set. */
@@ -69,7 +72,7 @@ export const CredentialValueBodySchema = z.object({ value: z.string() }).strict(
 
 export interface CredentialView {
   key: CredentialKey;
-  source: 'env' | 'db' | 'unset';
+  source: 'db' | 'unset';
   /** Last 4 characters for secrets, the full value for non-secrets. */
   hint: string | null;
   verifiedAt: string | null;

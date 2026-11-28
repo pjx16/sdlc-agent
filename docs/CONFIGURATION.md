@@ -6,6 +6,8 @@ Settings come from three places: environment variables (`.env`), the dashboard (
 
 A variable set here overrides the dashboard value and makes the field read-only there.
 
+**Credentials are not environment variables.** The Anthropic API key, the GitHub token (or sdlc-agent-bot), the Git identity and the Jira credentials are entered in the dashboard (the setup screen, then Settings → Connections) and stored encrypted in the database. An install that was made when they were variables, and still has `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `BROKER_URL`, `BROKER_KEY` or `JIRA_*` in its `.env`, has them moved into the dashboard once, when it starts (a value already in the dashboard is never replaced). They are not read after that, so remove them from `.env`.
+
 | Name | Required | Purpose |
 | --- | --- | --- |
 | `ENCRYPTION_KEY` | yes | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts the tokens saved in the dashboard. Back it up separately from the database |
@@ -13,21 +15,12 @@ A variable set here overrides the dashboard value and makes the field read-only 
 | `DATA_DIR` | development only | Absolute host path for mirrors, workspaces and logs when the api and worker run on your machine (`npm run up:dev`). Installs keep all of it in the `sdlc_data` Docker volume instead, and agents mount sub-paths of that volume |
 | `SDLC_UID`, `SDLC_GID` | no | The user the daily backup is written as (`sdlc-agent init` and `npm run up:prod` set them to yours), so `backups/` stays readable without root |
 | `BACKUP_KEEP` | no | How many daily encrypted database backups to keep (default 7) |
-| `ANTHROPIC_API_KEY` | no | Anthropic API key (`sk-ant-api…`) from the Anthropic Console. Every stage is billed to it |
-| `GITHUB_TOKEN` | no | Fine-grained token for git and `gh` (not needed when every project works as the bot) |
-| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL` | no | Identity of every commit made with a personal token |
-| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira | One Atlassian credential for Jira (REST mode, recommended) |
-| `JIRA_MCP_TOKEN` | Rovo MCP mode, if not using OAuth | A scoped Atlassian API token with the Jira `agent-interface` scopes, used with `JIRA_EMAIL`. OAuth (Connect in Settings → Connections) is the usual way |
-| `JIRA_MCP_URL` | no | Rovo MCP server (default `https://mcp.atlassian.com/v2/mcp`) |
-| `JIRA_CLOUD_ID` | no | The Atlassian site for Rovo MCP mode, when the sign-in sees several sites and `JIRA_BASE_URL` is not set |
-| `JIRA_MCP_OAUTH` | no | The stored Rovo OAuth grant; normally written by the dashboard's Connect flow. Set in `.env`, its refreshed tokens cannot be saved |
 | `DASHBOARD_PASSWORD` | no | Admin password (at least 12 characters). Overrides the setup wizard and disables password change |
 | `SETUP_CODE` | no | One-time code for the setup wizard; otherwise the API logs one at start-up |
 | `COOKIE_SECURE` | no | `true` when the dashboard is served over HTTPS |
 | `DASHBOARD_BIND` | no | Address the dashboard port is published on (default `127.0.0.1`) |
 | `ALLOWED_HOSTS` | no | Extra host names the dashboard answers to (comma-separated), for use behind a TLS reverse proxy. Other `Host` headers get 421 |
 | `TRUST_PROXY_HOPS` | no | Proxies in front of the API that add `X-Forwarded-For`: 1 by default (the dashboard's `/api` rewrite), 2 behind a TLS reverse proxy as well |
-| `BROKER_URL` | no | Token broker for sdlc-agent-bot (default `https://broker.sdlc-agent.dev`); see [`BOT.md`](./BOT.md) |
 | `BROKER_REGISTRATION_SECRET` | no | Set on both the broker and the API to close broker registration to systems that know it |
 | `AGENT_IMAGE` | no | Agent image; a source build uses `sdlc-agent/agent:latest`, a release install the published image for `SDLC_VERSION` |
 | `AGENT_MEMORY`, `AGENT_CPUS` | no | Limits per agent container (defaults `4g`, `2`) |

@@ -226,6 +226,8 @@ model GlobalSettings {
   pollIntervalSec         Int       @default(120)
   stageTimeoutMin         Int       @default(20)
   verifyTimeoutSec        Int       @default(600)
+  /// How a new project reaches GitHub unless told otherwise: token (a personal access token) or bot (sdlc-agent-bot).
+  githubDefaultAuth       String    @default("token")
   workspaceRetentionDays  Int       @default(7)
   logRetentionDays        Int       @default(30)
   assistantTokenCap       Int       @default(200000)

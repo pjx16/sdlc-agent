@@ -65,6 +65,7 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      # The credentials are entered in the dashboard. These lines are only read once, to move an older install's values there: leave them out of a new .env.
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
@@ -107,6 +108,7 @@ services:
     environment:
       DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
+      # The credentials are entered in the dashboard. These lines are only read once, to move an older install's values there: leave them out of a new .env.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       LLM_GATEWAY_UPSTREAM: ${LLM_GATEWAY_UPSTREAM:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}

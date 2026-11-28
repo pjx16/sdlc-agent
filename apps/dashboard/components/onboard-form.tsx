@@ -5,11 +5,11 @@ import { useState, type FormEvent } from 'react';
 import { JIRA_MODE_INFO } from '@sdlc/shared';
 
 /** The two-field start of a project: a repo URL and, optionally, a Jira project key. Everything else is proposed. */
-export function OnboardForm() {
+export function OnboardForm({ defaultGithubAuth = 'token' }: { /** What "How should sdlc-agent reach GitHub?" starts as: the install's default. */ defaultGithubAuth?: 'token' | 'bot' } = {}) {
   const router = useRouter();
   const [repoUrl, setRepoUrl] = useState('');
   const [jiraProjectKey, setKey] = useState('');
-  const [githubAuth, setGithubAuth] = useState<'token' | 'bot'>('token');
+  const [githubAuth, setGithubAuth] = useState<'token' | 'bot'>(defaultGithubAuth);
   const [jiraMode, setJiraMode] = useState<'rest' | 'mcp' | 'connector'>('rest');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);

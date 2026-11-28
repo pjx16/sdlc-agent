@@ -7,7 +7,7 @@ import { JiraRestClient } from './jira-rest-client';
 import { OAuthGrantAuth, basicAuth } from './mcp-auth';
 import { McpSession, type McpAuth } from './mcp-session';
 
-const REST_MISSING = 'Jira is not configured: add the Jira base URL, email and API token in the dashboard (Settings → Connections) or set JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN';
+const REST_MISSING = 'Jira is not configured: add the Jira base URL, email and API token in the dashboard (Settings → Connections)';
 const MCP_MISSING = 'The Rovo MCP connection is not configured: use Connect in Settings → Connections (OAuth), or set the Jira email and a scoped Rovo MCP API token';
 
 /** The credentials a project's Jira mode needs are missing. */

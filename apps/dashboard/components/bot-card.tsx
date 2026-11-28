@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-interface BotStatus {
+export interface BotStatus {
   connected: boolean;
   installations: { id: number; account: string }[];
   error: string | null;
@@ -15,8 +15,10 @@ const POLL_FOR_MS = 5 * 60_000;
  * Connect this system to sdlc-agent-bot (the sdlc-agent GitHub App, through the token broker): the person installs the App on GitHub and
  * chooses which repositories it may use. No token is typed or stored; projects that work as the bot get short-lived tokens.
  */
-export function BotCard() {
+export function BotCard({ onStatus }: { /** Told each time the status is read, so a page can follow it (the setup steps). */ onStatus?: (status: BotStatus) => void } = {}) {
   const [status, setStatus] = useState<BotStatus | null>(null);
+  const onStatusRef = useRef(onStatus);
+  onStatusRef.current = onStatus;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -26,7 +28,11 @@ export function BotCard() {
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/bot');
-      if (res.ok) setStatus((await res.json()) as BotStatus);
+      if (res.ok) {
+        const next = (await res.json()) as BotStatus;
+        setStatus(next);
+        onStatusRef.current?.(next);
+      }
     } catch {
       /* the next poll tries again */
     }

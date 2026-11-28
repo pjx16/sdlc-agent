@@ -18,7 +18,7 @@ export class BrokerError extends Error {
   }
 }
 
-/** The default broker. A deployment can point to its own with BROKER_URL or the setting. */
+/** The default broker. A deployment can point to its own with the broker URL setting. */
 export const DEFAULT_BROKER_URL = 'https://broker.sdlc-agent.dev';
 
 /**
@@ -33,7 +33,7 @@ export class BrokerClient {
   constructor(private readonly creds: CredentialsService) {}
 
   private async base(): Promise<string> {
-    return ((await this.creds.resolve()).broker_url || process.env.BROKER_URL || DEFAULT_BROKER_URL).replace(/\/+$/, '');
+    return ((await this.creds.resolve()).broker_url || DEFAULT_BROKER_URL).replace(/\/+$/, '');
   }
 
   /** True when this system has been registered with the broker. */

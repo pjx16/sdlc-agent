@@ -54,11 +54,12 @@ describe('CredentialsForm', () => {
     expect(container.innerHTML).not.toContain('ghp_');
   });
 
-  it('pre-fills plain values so they can be edited, and shows a value set in .env as read-only', () => {
-    render(<CredentialsForm initial={views({ git_author_name: { source: 'db', hint: 'Dev Bot' }, anthropic_api_key: { source: 'env', hint: 'abcd' } })} />);
+  it('pre-fills plain values so they can be edited, and every field can always be edited', () => {
+    render(<CredentialsForm initial={views({ git_author_name: { source: 'db', hint: 'Dev Bot' }, anthropic_api_key: { source: 'db', hint: 'abcd' } })} />);
     expect((screen.getByLabelText('Git author name') as HTMLInputElement).value).toBe('Dev Bot');
-    expect(screen.getByLabelText('Anthropic API key')).toBeDisabled();
-    expect(card('claude').queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(screen.getByLabelText('Anthropic API key')).toBeEnabled();
+    expect(card('claude').getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(screen.queryByText(/\.env/)).toBeNull();
   });
 
   it('saves every changed field of a card with one Save, then refreshes', async () => {
