@@ -3,6 +3,7 @@ import { TICKET_STATUSES, ACTIONABLE_STATUSES, budgetPeriod } from '@sdlc/shared
 import { PrismaService } from '../prisma/prisma.service';
 import { BILLED_RUNS, spentSince } from '../usage/spend';
 import { bucketSpend } from '../usage/spend-analytics';
+import { finishedTicketCosts } from '../usage/ticket-costs';
 import { firstPassRate, mean, median, mergedPerDay, parseRange, round2, tokensPerDay } from './aggregate';
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const;
@@ -28,11 +29,12 @@ export class MetricsService {
     const now = this.now();
     const { range, since } = parseRange(rangeInput, now);
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-    const [done, finished, today, queue] = await Promise.all([
+    const [done, finished, today, queue, costs] = await Promise.all([
       this.prisma.stateTransition.count({ where: { toStatus: 'DONE', at: { gte: since } } }),
       this.finishedSubtasks(since),
       spentSince(this.prisma, budgetPeriod('daily', now, settings?.timezone ?? 'UTC').start),
       this.prisma.ticket.count({ where: { OR: [{ status: { in: [...ACTIONABLE_STATUSES] } }, { status: 'AWAITING_CI', ciFixPending: true }] } }),
+      finishedTicketCosts(this.prisma, since),
     ]);
     return {
       range,
@@ -40,6 +42,9 @@ export class MetricsService {
       firstPassRate: firstPassRate(finished),
       creditsToday: round2(today),
       queueLength: queue,
+      /** Mean credits (1 credit = 1 USD) of the tickets that reached DONE in range, over their whole life. Null when none did. */
+      avgCostPerTicket: costs.length ? round2(mean(costs.map((c) => c.credits)) as number) : null,
+      ticketsCosted: costs.length,
     };
   }
 

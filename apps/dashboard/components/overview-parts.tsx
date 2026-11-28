@@ -22,21 +22,38 @@ export function RangeSwitch({ range, hrefFor }: { range: MetricsRange; hrefFor: 
 const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);
 
 export function NumberCards({ summary }: { summary: MetricsSummary }) {
-  const cards = [
+  const cards: { label: string; value: string; hint?: string; href?: string }[] = [
     { label: `Tickets done (${summary.range})`, value: String(summary.ticketsDone) },
     { label: 'First-pass rate', value: pct(summary.firstPassRate), hint: 'Subtasks done without a tests fix round' },
     { label: 'Credits today', value: summary.creditsToday.toFixed(2), hint: '1 credit = 1 USD of Anthropic credit balance' },
+    {
+      label: 'Avg. cost per ticket',
+      value: summary.avgCostPerTicket === null ? '—' : `$${summary.avgCostPerTicket.toFixed(2)}`,
+      hint: summary.ticketsCosted > 0 ? `Across ${summary.ticketsCosted} ticket${summary.ticketsCosted === 1 ? '' : 's'} finished (${summary.range})` : `No ticket finished (${summary.range})`,
+      href: '/usage#ticket-costs',
+    },
     { label: 'Queue length', value: String(summary.queueLength), hint: 'Tickets waiting for a stage' },
   ];
   return (
-    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {cards.map((c) => (
-        <div key={c.label} className="panel p-4">
-          <dt className="eyebrow">{c.label}</dt>
-          <dd className="mt-2 font-mono text-3xl font-medium tracking-tight">{c.value}</dd>
-          {c.hint && <p className="mt-1 text-xs text-muted">{c.hint}</p>}
-        </div>
-      ))}
+    <dl className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+      {cards.map((c) => {
+        const content = (
+          <>
+            <dt className="eyebrow">{c.label}</dt>
+            <dd className="mt-2 font-mono text-3xl font-medium tracking-tight">{c.value}</dd>
+            {c.hint && <p className="mt-1 text-xs text-muted">{c.hint}</p>}
+          </>
+        );
+        return c.href ? (
+          <Link key={c.label} href={c.href} className="panel block p-4 hover:border-border-strong">
+            {content}
+          </Link>
+        ) : (
+          <div key={c.label} className="panel p-4">
+            {content}
+          </div>
+        );
+      })}
     </dl>
   );
 }

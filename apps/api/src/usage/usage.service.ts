@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SystemSettingsService, type SpendView } from '../system/system-settings.service';
 import { BILLED_RUNS, budgetsOf, spentSince } from './spend';
 import { monthProjection, periodBurn, ticketCosts, type MonthProjection, type PeriodBurn, type TicketCosts } from './spend-analytics';
+import { finishedTicketCosts } from './ticket-costs';
 import { usageByModel, type ModelUsage } from './usage-analytics';
 
 export interface SpendOverviewDto extends Omit<SpendView, 'suggested'> {
@@ -50,14 +51,7 @@ export class UsageService {
 
   /** GET /usage/tickets: credits per ticket that reached DONE in the last 30 days, overall and per kind, and the most expensive. */
   async tickets(now = new Date()): Promise<TicketCosts & { days: number }> {
-    const done = await this.prisma.stateTransition.findMany({ where: { toStatus: 'DONE', at: { gte: new Date(now.getTime() - TICKET_DAYS * DAY_MS) } }, select: { ticketId: true }, distinct: ['ticketId'] });
-    const ids = done.map((d) => d.ticketId);
-    const [tickets, costs] = await Promise.all([
-      this.prisma.ticket.findMany({ where: { id: { in: ids } }, select: { id: true, key: true, title: true, kind: true } }),
-      this.prisma.stageRun.groupBy({ by: ['ticketId'], where: { ...BILLED_RUNS, ticketId: { in: ids } }, _sum: { costUsd: true } }),
-    ]);
-    const byTicket = new Map(costs.map((c) => [c.ticketId, Number(c._sum.costUsd ?? 0)]));
-    return { days: TICKET_DAYS, ...ticketCosts(tickets.map((t) => ({ ...t, credits: byTicket.get(t.id) ?? 0 }))) };
+    return { days: TICKET_DAYS, ...ticketCosts(await finishedTicketCosts(this.prisma, new Date(now.getTime() - TICKET_DAYS * DAY_MS))) };
   }
 
   /** GET /usage/models: tokens by kind, credits, runs and share per model, with the split by stage and day. */

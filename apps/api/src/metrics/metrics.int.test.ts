@@ -53,7 +53,7 @@ describe('Metrics API', () => {
 
   describe('with no data every endpoint answers with empty values, not errors', () => {
     it('summary, usage, tokens, quality, durations, tickets-by-state', async () => {
-      expect((await t.agent.get('/metrics/summary').expect(200)).body).toEqual({ range: '7d', ticketsDone: 0, firstPassRate: null, creditsToday: 0, queueLength: 0 });
+      expect((await t.agent.get('/metrics/summary').expect(200)).body).toEqual({ range: '7d', ticketsDone: 0, firstPassRate: null, creditsToday: 0, queueLength: 0, avgCostPerTicket: null, ticketsCosted: 0 });
       expect((await t.agent.get('/metrics/usage').expect(200)).body).toMatchObject({ unit: 'day', timezone: 'UTC', pauses: [] });
       const tokens = (await t.agent.get('/metrics/tokens').expect(200)).body;
       expect(tokens).toMatchObject({ groupBy: 'stage', keys: [] });
@@ -83,6 +83,21 @@ describe('Metrics API', () => {
     expect(week).toMatchObject({ range: '7d', ticketsDone: 2, creditsToday: 0.5, queueLength: 3 });
     expect((await t.agent.get('/metrics/summary?range=24h').expect(200)).body).toMatchObject({ range: '24h', ticketsDone: 1 });
     expect((await t.agent.get('/metrics/summary?range=bogus').expect(200)).body.range).toBe('7d');
+  });
+
+  it('summary: average cost per ticket finished in range, over the ticket\'s whole life', async () => {
+    const a = await ticket({ status: 'DONE' });
+    const b = await ticket({ status: 'DONE' });
+    const old = await ticket({ status: 'DONE' });
+    for (const [tk, hoursAgo] of [[a, 2], [a, 1], [b, 3], [old, 24 * 20]] as const) await t.prisma.stateTransition.create({ data: { ticketId: tk.id, fromStatus: 'IN_HUMAN_REVIEW', toStatus: 'DONE', actor: 'system', at: ago(hoursAgo) } });
+    await run({ ticketId: a.id, costUsd: 1, startedAt: ago(24 * 15) }); // before the range, still part of the ticket's cost
+    await run({ ticketId: a.id, costUsd: 2 });
+    await run({ ticketId: b.id, costUsd: 3 });
+    await run({ ticketId: b.id, costUsd: 9, stage: 'jiraConnector' }); // billed to claude.ai: not counted
+    await run({ ticketId: old.id, costUsd: 50 });
+    expect((await t.agent.get('/metrics/summary?range=7d').expect(200)).body).toMatchObject({ avgCostPerTicket: 3, ticketsCosted: 2 }); // a twice in range counts once: (3 + 3) / 2
+    expect((await t.agent.get('/metrics/summary?range=30d').expect(200)).body).toMatchObject({ avgCostPerTicket: 18.67, ticketsCosted: 3 });
+    expect((await t.agent.get('/metrics/summary?range=24h').expect(200)).body).toMatchObject({ avgCostPerTicket: 3, ticketsCosted: 2 });
   });
 
   it('first-pass rate: subtasks that became DONE in range without a tests fix run', async () => {

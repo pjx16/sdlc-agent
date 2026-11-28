@@ -134,16 +134,26 @@ describe('QualityPanel', () => {
 });
 
 describe('Overview parts', () => {
-  it('number cards show the four numbers', () => {
-    render(<NumberCards summary={{ range: '7d', ticketsDone: 3, firstPassRate: 0.5, creditsToday: 12.5, queueLength: 2 }} />);
+  it('number cards show the five numbers', () => {
+    render(<NumberCards summary={{ range: '7d', ticketsDone: 3, firstPassRate: 0.5, creditsToday: 12.5, queueLength: 2, avgCostPerTicket: 1.234, ticketsCosted: 3 }} />);
     expect(screen.getByText('Tickets done (7d)')).toBeInTheDocument();
     expect(screen.getByText('50%')).toBeInTheDocument();
     expect(screen.getByText('12.50')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('$1.23')).toBeInTheDocument();
+    expect(screen.getByText('Across 3 tickets finished (7d)')).toBeInTheDocument();
   });
   it('a missing first-pass rate is a dash', () => {
-    render(<NumberCards summary={{ range: '24h', ticketsDone: 0, firstPassRate: null, creditsToday: 0, queueLength: 0 }} />);
+    render(<NumberCards summary={{ range: '24h', ticketsDone: 0, firstPassRate: null, creditsToday: 0, queueLength: 0, avgCostPerTicket: 2, ticketsCosted: 1 }} />);
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+  it('the average cost card is a dash when no ticket finished, says "1 ticket", and links to the cost breakdown', () => {
+    const { rerender } = render(<NumberCards summary={{ range: '24h', ticketsDone: 0, firstPassRate: 1, creditsToday: 0, queueLength: 0, avgCostPerTicket: null, ticketsCosted: 0 }} />);
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('No ticket finished (24h)')).toBeInTheDocument();
+    rerender(<NumberCards summary={{ range: '30d', ticketsDone: 1, firstPassRate: 1, creditsToday: 0, queueLength: 0, avgCostPerTicket: 4, ticketsCosted: 1 }} />);
+    expect(screen.getByText('Across 1 ticket finished (30d)')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Avg\. cost per ticket/ })).toHaveAttribute('href', '/usage#ticket-costs');
   });
   it('the range switch marks the current range', () => {
     render(<RangeSwitch range="30d" hrefFor={(r) => `/?range=${r}`} />);

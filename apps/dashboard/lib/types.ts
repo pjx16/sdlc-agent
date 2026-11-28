@@ -412,6 +412,10 @@ export interface MetricsSummary {
   /** Credits spent today, in the timezone from Settings. */
   creditsToday: number;
   queueLength: number;
+  /** Mean credits (1 credit = 1 USD) of the tickets that reached DONE in range. Null when none did. */
+  avgCostPerTicket: number | null;
+  /** How many tickets the average is over. */
+  ticketsCosted: number;
 }
 
 /** GET /metrics/usage: credits per local hour (24h) or day (7d, 30d), and the pauses in range. */
