@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { getIn, type FormValues } from '@/lib/form';
 
 interface FormContextValue {
@@ -140,7 +140,37 @@ export function Check(props: BaseProps) {
   );
 }
 
-export function Section({ title, children, description }: { title: string; description?: string; children: ReactNode }) {
+interface SectionsContextValue {
+  /** Sections fold away (a long form in a small window). Only `defaultOpen` ones start open. */
+  collapsible: boolean;
+  /** Every section is open, so an error in a folded one cannot be missed. */
+  openAll: boolean;
+}
+const SectionsContext = createContext<SectionsContextValue>({ collapsible: false, openAll: false });
+
+export function SectionsProvider({ collapsible, openAll = false, children }: { collapsible: boolean; openAll?: boolean; children: ReactNode }) {
+  return <SectionsContext.Provider value={{ collapsible, openAll }}>{children}</SectionsContext.Provider>;
+}
+
+export function Section({ title, children, description, defaultOpen = false }: { title: string; description?: string; children: ReactNode; defaultOpen?: boolean }) {
+  const { collapsible, openAll } = useContext(SectionsContext);
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    if (openAll) setOpen(true);
+  }, [openAll]);
+  if (collapsible) {
+    return (
+      <section aria-labelledby={`section-${title}`} className="panel px-5 py-3">
+        <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+          <summary id={`section-${title}`} className="cursor-pointer text-base font-semibold">
+            {title}
+          </summary>
+          {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+          <div className="mt-4 grid gap-4 pb-2 sm:grid-cols-2">{children}</div>
+        </details>
+      </section>
+    );
+  }
   return (
     <section aria-labelledby={`section-${title}`} className="panel p-6">
       <h2 id={`section-${title}`} className="text-base font-semibold">
