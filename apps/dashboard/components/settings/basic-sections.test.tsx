@@ -131,4 +131,13 @@ describe('SourcesSection', () => {
     await userEvent.selectOptions(choice, 'always');
     expect(calls).toEqual([['githubIssueOnCreate', 'always']]);
   });
+
+  it('chooses how a new project reaches GitHub: the personal token or sdlc-agent-bot', async () => {
+    const calls = inForm(<SourcesSection intakePaused={false} />);
+    const choice = screen.getByLabelText('GitHub access for new projects');
+    expect(within(choice).getAllByRole('option').map((o) => o.textContent)).toEqual(['My personal token', 'sdlc-agent-bot (GitHub App, no token)']);
+    expect(choice).toHaveValue('token');
+    await userEvent.selectOptions(choice, 'bot');
+    expect(calls).toEqual([['githubDefaultAuth', 'bot']]);
+  });
 });

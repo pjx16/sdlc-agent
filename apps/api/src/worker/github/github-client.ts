@@ -257,7 +257,7 @@ export class GhCliClient implements GitHubClient {
     for (let page = 0; page < 5; page++) {
       const data: Page = await this.graphql<Page>(query, { owner, number, field: statusField, ...(after ? { after } : {}) });
       const project = data.repositoryOwner?.projectV2;
-      if (!project) throw new GitHubError(`project ${owner}/${number} was not found, or the token cannot read projects (it needs the "project" scope)`, ['api', 'graphql']);
+      if (!project) throw new GitHubError(`GitHub Projects board ${owner}/${number} was not found, or the token cannot read Projects boards (it needs the "project" scope)`, ['api', 'graphql']);
       id = project.id;
       const field = project.fields.nodes.find((f) => f?.name?.toLowerCase() === statusField.toLowerCase() && f.options);
       if (field) {

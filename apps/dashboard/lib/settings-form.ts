@@ -9,12 +9,12 @@ const NUMERIC_PATHS = [
 ] as const;
 
 /** Where tickets come from, and what to do about a GitHub issue: choices about how the install is used, which a reset to defaults leaves alone. */
-export const KEPT_BY_RESET = ['intakeGithubEnabled', 'intakeJiraEnabled', 'intakePasteEnabled', 'githubIssueOnCreate'] as const;
+export const KEPT_BY_RESET = ['intakeGithubEnabled', 'intakeJiraEnabled', 'intakePasteEnabled', 'githubIssueOnCreate', 'githubDefaultAuth'] as const;
 
 /** The part of the settings that the form edits (so the defaults, which have no pause state, can fill it as well). */
 export type SettingsFields = Pick<
   GlobalSettingsView,
-  'budgetDailyCredits' | 'budgetWeeklyCredits' | 'budgetMonthlyCredits' | 'budgetWarnPct' | 'timezone' | 'pollIntervalSec' | 'stageTimeoutMin' | 'verifyTimeoutSec' | 'onboardingTimeoutMin' | 'workspaceRetentionDays' | 'logRetentionDays' | 'assistantTokenCap' | 'stageDefaults' | 'modelAliases' | 'githubIssueOnCreate'
+  'budgetDailyCredits' | 'budgetWeeklyCredits' | 'budgetMonthlyCredits' | 'budgetWarnPct' | 'timezone' | 'pollIntervalSec' | 'stageTimeoutMin' | 'verifyTimeoutSec' | 'onboardingTimeoutMin' | 'workspaceRetentionDays' | 'logRetentionDays' | 'assistantTokenCap' | 'stageDefaults' | 'modelAliases' | 'githubIssueOnCreate' | 'githubDefaultAuth'
 > &
   Partial<Pick<GlobalSettingsView, 'intakeJiraEnabled' | 'intakeGithubEnabled' | 'intakePasteEnabled'>>;
 
@@ -36,6 +36,7 @@ export function initialSettingsValues(s: SettingsFields): FormValues {
     intakeJiraEnabled: s.intakeJiraEnabled ?? true,
     intakePasteEnabled: s.intakePasteEnabled ?? true,
     githubIssueOnCreate: s.githubIssueOnCreate ?? 'ask',
+    githubDefaultAuth: s.githubDefaultAuth ?? 'token',
     modelAliases: { ...s.modelAliases },
     stageDefaults: Object.fromEntries(STAGE_NAMES.map((st) => [st, { model: s.stageDefaults?.[st]?.model ?? 'sonnet', maxTurns: String(s.stageDefaults?.[st]?.maxTurns ?? '') }])),
   };

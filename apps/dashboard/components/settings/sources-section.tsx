@@ -2,7 +2,7 @@
 
 import { Check, Section, Select } from '@/components/form';
 
-/** Where new tickets come from, and what to do about a GitHub issue for a ticket written in the dashboard. Saved with the rest, by Save. */
+/** Where new tickets come from, what to do about a GitHub issue for a ticket written in the dashboard, and how a new project reaches GitHub. Saved with the rest, by Save. */
 export function SourcesSection({ intakePaused }: { intakePaused: boolean }) {
   return (
     <Section
@@ -21,6 +21,15 @@ export function SourcesSection({ intakePaused }: { intakePaused: boolean }) {
           { value: 'never', label: 'Never' },
         ]}
         hint="For a ticket written in the dashboard, in a project that uses GitHub. The same for every project."
+      />
+      <Select
+        path="githubDefaultAuth"
+        label="GitHub access for new projects"
+        options={[
+          { value: 'token', label: 'My personal token' },
+          { value: 'bot', label: 'sdlc-agent-bot (GitHub App, no token)' },
+        ]}
+        hint="What a new project starts with. Each project can still choose its own."
       />
     </Section>
   );
