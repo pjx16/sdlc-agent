@@ -43,6 +43,35 @@ export interface GithubIssue {
   repo: string;
 }
 
+/** A comment on an issue. */
+export interface IssueComment {
+  id: number;
+  body: string;
+}
+
+/** What `upsertIssueComment` did. */
+export type CommentOutcome = 'created' | 'updated' | 'unchanged';
+
+/** An issue that was just made. `nodeId` is what GitHub's GraphQL API calls the issue (to add it to a board). */
+export interface CreatedIssue {
+  number: number;
+  nodeId: string;
+  url: string;
+}
+
+/** An issue as it is on GitHub now. */
+export interface IssueInfo extends CreatedIssue {
+  state: 'open' | 'closed';
+  title: string;
+}
+
+/** An open issue found by its title. */
+export interface FoundIssue {
+  number: number;
+  title: string;
+  url: string;
+}
+
 /** One issue on a GitHub Project (v2) board, with the value of its status column. */
 export interface ProjectItem {
   id: string;
@@ -64,6 +93,21 @@ export interface GitHubClient {
   setIssueLabels(repo: string, number: number, add: string[], remove: string[]): Promise<void>;
   commentIssue(repo: string, number: number, body: string): Promise<void>;
   closeIssue(repo: string, number: number): Promise<void>;
+  /** The comments of an issue, oldest first, at most 300. */
+  listIssueComments(repo: string, number: number): Promise<IssueComment[]>;
+  /**
+   * Writes a comment that can be written again: the comment carrying `marker` (a hidden line at its end) is changed when the text is
+   * different and left alone when it is the same; with none, a new one is made.
+   */
+  upsertIssueComment(repo: string, number: number, body: string, marker: string): Promise<CommentOutcome>;
+  /** Makes an issue. Labels that do not exist yet are made with it. */
+  createIssue(repo: string, title: string, body: string, labels: string[]): Promise<CreatedIssue>;
+  /** An issue as it is now. Throws when the number is a pull request, or does not exist. */
+  getIssue(repo: string, number: number): Promise<IssueInfo>;
+  /** The open issues of the repository whose title is exactly this one (compared without regard to case or surrounding spaces). */
+  searchOpenIssuesByTitle(repo: string, title: string): Promise<FoundIssue[]>;
+  /** Puts an issue on a Project (v2) board and returns the card's id. `owner` is a user or an organization. */
+  addIssueToProject(owner: string, number: number, issueNodeId: string): Promise<string>;
   openDraftPr(args: { repo: string; base: string; head: string; title: string; body: string }): Promise<OpenedPr>;
   markReady(repo: string, number: number): Promise<void>;
   comment(repo: string, number: number, body: string): Promise<void>;
@@ -102,6 +146,23 @@ export function parseRepo(repoUrl: string): string {
   if (!m) throw new GitHubError(`"${repoUrl}" is not a github.com repository URL`, []);
   return `${m[1]}/${m[2]}`;
 }
+
+/** The search for open issues with this title. The search is by words, so the exact match is checked afterwards; quotes would end the phrase early. */
+export function issueSearchQuery(repo: string, title: string): string {
+  return `repo:${repo} is:issue is:open in:title "${title.replace(/["\\]/g, ' ').trim()}"`;
+}
+
+/** Of what a search found, the issues whose title is this one: compared without regard to case or surrounding spaces. */
+export function exactTitleMatches(items: { number: number; title: string; html_url: string }[], title: string): FoundIssue[] {
+  const wanted = title.trim().toLowerCase();
+  return items.filter((i) => wanted !== '' && i.title.trim().toLowerCase() === wanted).map((i) => ({ number: i.number, title: i.title, url: i.html_url }));
+}
+
+const MAX_COMMENTS = 300;
+
+/** The hidden line that tells a comment of ours from any other: an HTML comment, which GitHub does not show. */
+export const markerLine = (marker: string): string => `<!-- ${marker} -->`;
+export const withMarker = (body: string, marker: string): string => `${body.trimEnd()}\n\n${markerLine(marker)}`;
 
 const FAILED_LOG_LINES = 60;
 
@@ -269,6 +330,51 @@ export class GhCliClient implements GitHubClient {
 
   async closeIssue(repo: string, number: number): Promise<void> {
     await this.gh(['issue', 'close', String(number), '-R', repo]);
+  }
+
+  async listIssueComments(repo: string, number: number): Promise<IssueComment[]> {
+    // One JSON object per line, whatever the number of pages.
+    const out = await this.gh(['api', `repos/${repo}/issues/${number}/comments?per_page=100`, '--paginate', '--jq', '.[] | {id: .id, body: .body}']);
+    return out.split('\n').filter((l) => l.trim()).slice(0, MAX_COMMENTS).map((l) => JSON.parse(l) as IssueComment);
+  }
+
+  async upsertIssueComment(repo: string, number: number, body: string, marker: string): Promise<CommentOutcome> {
+    const full = withMarker(body, marker);
+    const existing = (await this.listIssueComments(repo, number)).find((c) => c.body.includes(markerLine(marker)));
+    if (existing && existing.body.trim() === full.trim()) return 'unchanged';
+    // The text goes in through a file, never on the command line.
+    await this.withBodyFile(full, (file) =>
+      existing ? this.gh(['api', `repos/${repo}/issues/comments/${existing.id}`, '-X', 'PATCH', '-F', `body=@${file}`]) : this.gh(['api', `repos/${repo}/issues/${number}/comments`, '-X', 'POST', '-F', `body=@${file}`]),
+    );
+    return existing ? 'updated' : 'created';
+  }
+
+  async createIssue(repo: string, title: string, body: string, labels: string[]): Promise<CreatedIssue> {
+    // The body goes in through a file, never on the command line (`-F body=@file` reads the value from it).
+    const out = await this.withBodyFile(body, (file) => this.gh(['api', `repos/${repo}/issues`, '-X', 'POST', '-f', `title=${title}`, '-F', `body=@${file}`, ...labels.flatMap((l) => ['-f', `labels[]=${l}`])]));
+    const made = JSON.parse(out) as { number?: number; node_id?: string; html_url?: string };
+    if (!Number.isInteger(made.number) || !made.node_id || !made.html_url) throw new GitHubError('GitHub did not return the issue it made', ['api', `repos/${repo}/issues`]);
+    return { number: made.number as number, nodeId: made.node_id, url: made.html_url };
+  }
+
+  async getIssue(repo: string, number: number): Promise<IssueInfo> {
+    const issue = JSON.parse(await this.gh(['api', `repos/${repo}/issues/${number}`])) as { number: number; state: string; title: string; node_id: string; html_url: string; pull_request?: unknown };
+    if (issue.pull_request) throw new GitHubError(`${repo}#${number} is a pull request, not an issue`, ['api', `repos/${repo}/issues/${number}`]);
+    return { number: issue.number, state: issue.state === 'closed' ? 'closed' : 'open', title: issue.title, nodeId: issue.node_id, url: issue.html_url };
+  }
+
+  async searchOpenIssuesByTitle(repo: string, title: string): Promise<FoundIssue[]> {
+    if (!title.trim()) return [];
+    const found = JSON.parse(await this.gh(['api', 'search/issues', '-X', 'GET', '-f', `q=${issueSearchQuery(repo, title)}`, '-f', 'per_page=30'])) as { items?: { number: number; title: string; html_url: string }[] };
+    return exactTitleMatches(found.items ?? [], title);
+  }
+
+  async addIssueToProject(owner: string, number: number, issueNodeId: string): Promise<string> {
+    const found = await this.graphql<{ repositoryOwner: { projectV2: { id: string } | null } | null }>(`query($owner:String!,$number:Int!){ repositoryOwner(login:$owner){ ... on ProjectV2Owner { projectV2(number:$number){ id } } } }`, { owner, number });
+    const projectId = found.repositoryOwner?.projectV2?.id;
+    if (!projectId) throw new GitHubError(`GitHub Projects board ${owner}/${number} was not found, or the token cannot read Projects boards (it needs the "project" scope)`, ['api', 'graphql']);
+    const added = await this.graphql<{ addProjectV2ItemById: { item: { id: string } } }>(`mutation($project:ID!,$content:ID!){ addProjectV2ItemById(input:{ projectId:$project, contentId:$content }){ item{ id } } }`, { project: projectId, content: issueNodeId });
+    return added.addProjectV2ItemById.item.id;
   }
 
   async checks(repo: string, number: number): Promise<PrCheck[]> {

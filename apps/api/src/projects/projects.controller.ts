@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
 import type { ProjectDto } from './project.dto';
+import { GithubReadService } from './github-read.service';
 import { OnboardingService } from './onboarding.service';
 import { ProjectsService } from './projects.service';
 
@@ -8,6 +9,7 @@ export class ProjectsController {
   constructor(
     private readonly projects: ProjectsService,
     private readonly onboarding: OnboardingService,
+    private readonly githubRead: GithubReadService,
   ) {}
 
   @Get()
@@ -19,6 +21,12 @@ export class ProjectsController {
   @Post('onboard')
   start(@Body() body: unknown): Promise<ProjectDto> {
     return this.onboarding.start(body);
+  }
+
+  /** Open issues of the project's repository with exactly this title: so the create-ticket form can offer to link one instead of making a duplicate. */
+  @Get(':id/github/issues/search')
+  searchIssues(@Param('id') id: string, @Query('title') title?: string) {
+    return this.githubRead.searchOpenIssuesByTitle(id, title ?? '');
   }
 
   @Get(':id/onboarding')
