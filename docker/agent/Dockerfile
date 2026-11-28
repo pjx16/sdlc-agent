@@ -10,6 +10,7 @@ ARG CLAUDE_CODE_VERSION=2.1.322
 ARG NPM_VERSION=11.21.3
 
 RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends git ca-certificates curl bash jq \
  && rm -rf /var/lib/apt/lists/* \
  && npm install -g npm@${NPM_VERSION} \
