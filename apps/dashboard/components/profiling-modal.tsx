@@ -1,8 +1,9 @@
 'use client';
 
 import { ONBOARDING_PHASES, type OnboardingProgress } from '@sdlc/shared';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { OnboardingView } from '@/lib/types';
+import { Modal } from './modal';
 
 export function seconds(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -69,50 +70,43 @@ export function ProfilingModal({
   cancelling?: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
-  const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  useEffect(() => {
-    closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const started = progress ? new Date(progress.startedAt).getTime() : now;
   const limit = limitLine(progress, now);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="profiling-title" className="panel w-full max-w-lg p-5 shadow-lg">
-        <h2 id="profiling-title" className="text-base font-medium">Profiling your repository</h2>
-        {waiting && !progress ? (
-          <p role="status" className="mt-1 text-sm text-amber">{waiting.message}</p>
-        ) : (
-          <p className="mt-1 text-sm text-muted">
-            Elapsed {seconds(now - started)}
-            {limit && <> · <span data-testid="time-limit" className={limit.soon ? 'text-amber' : ''}>{limit.text}</span></>}. You can close this: the proposal waits for you in the inbox.
-          </p>
-        )}
-        {stale && (
-          <p role="alert" className="mt-2 text-sm text-red">
-            The worker stopped responding. Cancel to stop this run, then try again.
-          </p>
-        )}
-        <div className="mt-4">
-          <PhaseList progress={progress} />
-        </div>
-        <div className="mt-5 flex justify-end gap-2">
-          {onCancel && (
-            <button type="button" onClick={onCancel} disabled={cancelling} className="rounded-md border border-border px-3 py-1.5 text-sm text-red disabled:opacity-50">
-              {cancelling ? 'Cancelling…' : 'Cancel profiling'}
-            </button>
-          )}
-          <button ref={closeRef} type="button" onClick={onClose} className="rounded-md border border-border px-3 py-1.5 text-sm">Continue in background</button>
-        </div>
-      </div>
+  const footer = (
+    <div className="flex justify-end gap-2">
+      {onCancel && (
+        <button type="button" onClick={onCancel} disabled={cancelling} className="rounded-md border border-border px-3 py-1.5 text-sm text-red disabled:opacity-50">
+          {cancelling ? 'Cancelling…' : 'Cancel profiling'}
+        </button>
+      )}
+      <button type="button" onClick={onClose} className="rounded-md border border-border px-3 py-1.5 text-sm">Continue in background</button>
     </div>
+  );
+
+  return (
+    <Modal open onClose={onClose} title="Profiling your repository" size="md" footer={footer}>
+      {waiting && !progress ? (
+        <p role="status" className="text-sm text-amber">{waiting.message}</p>
+      ) : (
+        <p className="text-sm text-muted">
+          Elapsed {seconds(now - started)}
+          {limit && <> · <span data-testid="time-limit" className={limit.soon ? 'text-amber' : ''}>{limit.text}</span></>}. You can close this: the proposal waits for you in the inbox.
+        </p>
+      )}
+      {stale && (
+        <p role="alert" className="mt-2 text-sm text-red">
+          The worker stopped responding. Cancel to stop this run, then try again.
+        </p>
+      )}
+      <div className="mt-4">
+        <PhaseList progress={progress} />
+      </div>
+    </Modal>
   );
 }
