@@ -13,6 +13,8 @@ export interface RunHooks {
   killPollMs?: number;
   /** Called with the container id as soon as it exists. */
   onStarted?: (containerId: string) => void | Promise<void>;
+  /** Aborting kills the container, like `shouldKill`. Used by onboarding (deadline, cancel). */
+  signal?: AbortSignal;
 }
 
 export interface ContainerResult {
@@ -45,6 +47,7 @@ export class ContainerRunner {
     let killed = false;
     let timeoutTimer: NodeJS.Timeout | undefined;
     let pollTimer: NodeJS.Timeout | undefined;
+    let onAbort: (() => void) | undefined;
     try {
       await container.attach((line, stream) => hooks.onLine?.(line, stream));
       await container.start();
@@ -56,6 +59,13 @@ export class ContainerRunner {
         container.kill().catch((err: unknown) => this.logger.warn(`kill failed for ${container.id}: ${String(err)}`));
       };
       timeoutTimer = setTimeout(() => stop('timeout'), spec.timeoutMs);
+      if (hooks.signal) {
+        if (hooks.signal.aborted) stop('kill');
+        else {
+          onAbort = () => stop('kill');
+          hooks.signal.addEventListener('abort', onAbort, { once: true });
+        }
+      }
       if (hooks.shouldKill) {
         const shouldKill = hooks.shouldKill;
         let polling = false;
@@ -76,6 +86,7 @@ export class ContainerRunner {
     } finally {
       if (timeoutTimer) clearTimeout(timeoutTimer);
       if (pollTimer) clearInterval(pollTimer);
+      if (onAbort) hooks.signal?.removeEventListener('abort', onAbort);
       await container.remove().catch((err: unknown) => this.logger.warn(`remove failed for ${container.id}: ${String(err)}`));
     }
   }

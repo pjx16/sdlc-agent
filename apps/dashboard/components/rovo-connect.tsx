@@ -59,11 +59,11 @@ export function RovoConnect({ view, onChanged }: { view?: CredentialView; onChan
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm">OAuth sign-in</span>
         <span className={`rounded border px-1.5 py-0.5 text-xs ${connected ? 'border-green text-green' : 'border-amber text-amber'}`}>
-          {view?.source === 'env' ? 'Set in .env' : connected ? 'Connected' : 'Not connected'}
+          {connected ? 'Connected' : 'Not connected'}
         </span>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" onClick={connect} disabled={busy || view?.source === 'env'} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-50">
+        <button type="button" onClick={connect} disabled={busy} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-text disabled:opacity-50">
           {busy ? 'Opening Atlassian…' : connected ? 'Connect again' : 'Connect with Atlassian'}
         </button>
         {connected && view?.source === 'db' && (

@@ -1,12 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   CLAUDE_MD_MODES, DEFAULT_INTAKE_LABEL, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
   ProjectSettingsSchema, defaultJiraJql, commandWarnings, stageWarnings, type ProjectStack,
 } from '@sdlc/shared';
-import { Check, FormProvider, Num, Section, Select, Text, TextArea, Warnings } from './form';
+import { Check, FormProvider, Num, Section, SectionsProvider, Select, Text, TextArea, Warnings } from './form';
 import { JiraModeNote } from './jira-mode-note';
 import { MirrorStatus } from './mirror-status';
 import { StatusMapping } from './status-mapping';
@@ -31,10 +31,23 @@ function stagesFrom(values: FormValues) {
   return Object.fromEntries(STAGE_NAMES.map((s) => [s, { enabled: Boolean(getIn(values, `settings.stages.${s}.enabled`)) }]));
 }
 
-export function ProjectForm({ project }: { project?: ProjectView }) {
+export function ProjectForm({ project, defaultGithubAuth, onCreated, onDirtyChange, collapsible = false }: {
+  project?: ProjectView;
+  /** What "GitHub access" starts as for a new project: the install's default. */
+  defaultGithubAuth?: 'token' | 'bot';
+  /** Called with the new project's id instead of opening its page (the form is in a modal). */
+  onCreated?: (id: string) => void;
+  /** Tells the modal whether there is anything to lose. */
+  onDirtyChange?: (dirty: boolean) => void;
+  /** Sections fold away, with only the first open: for a small window. */
+  collapsible?: boolean;
+}) {
   const router = useRouter();
   const editing = Boolean(project);
-  const [values, setValues] = useState<FormValues>(() => initialValues(project));
+  const [values, setValues] = useState<FormValues>(() => initialValues(project, defaultGithubAuth));
+  const pristine = useRef(JSON.stringify(values));
+  const [openAll, setOpenAll] = useState(false);
+  useEffect(() => onDirtyChange?.(JSON.stringify(values) !== pristine.current), [values, onDirtyChange]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,12 +81,15 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
         if (editing) {
           setMessage({ kind: 'ok', text: 'Saved. Changes apply from the next stage run.' });
           router.refresh();
+        } else if (onCreated) {
+          onCreated(body.id);
         } else {
           router.push(`/projects/${body.id}`);
         }
         return;
       }
       if (res.status === 400 && body.fields) {
+        setOpenAll(true);
         setErrors(collapseListErrors(body.fields, ['settings.verify.redInvalidPatterns']));
         setMessage({ kind: 'error', text: 'Some fields need attention.' });
       } else {
@@ -92,10 +108,11 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
 
   return (
     <FormProvider value={{ values, errors, set }}>
-      <form onSubmit={submit} className="max-w-4xl space-y-6" noValidate>
+      <SectionsProvider collapsible={collapsible} openAll={openAll}>
+      <form onSubmit={submit} className={collapsible ? 'space-y-3' : 'max-w-4xl space-y-6'} noValidate>
         {project && <MirrorStatus project={project} />}
 
-        <Section title="Repository">
+        <Section title="Repository" defaultOpen>
           <Text path="name" label="Name" />
           <Text path="repoUrl" label="Repository URL" placeholder="https://github.com/owner/repo" hint="HTTPS github.com repositories only." />
           <Select path="githubAuth" label="GitHub access" options={[{ value: 'token', label: 'My personal token (Settings)' }, { value: 'bot', label: 'sdlc-agent-bot (GitHub App, no token)' }]} hint="Who pushes, opens pull requests and comments. sdlc-agent-bot needs the GitHub App installed on this repository (Settings → Connections)." />
@@ -120,13 +137,13 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
           <Select path="claudeMdMode" label="CLAUDE.md mode" options={options(CLAUDE_MD_MODES)} hint="ours: only our guidelines; theirs: the repository's; both: both." />
         </Section>
 
-        <Section title="GitHub issues and projects" description="Take tickets from GitHub. A Projects board is recommended: its cards show where each ticket is.">
+        <Section title="GitHub issues and Projects boards" description="Take tickets from GitHub. A Projects board is recommended: its cards show where each ticket is.">
           <Select path="settings.github.mode" label="Source" options={[{ value: 'off', label: 'Off' }, { value: 'projects', label: 'GitHub Projects board (recommended)' }, { value: 'issues', label: 'Issues with a label' }]} />
           {githubMode === 'issues' && <Text path="settings.github.label" label="Issue label" hint="Open issues with this label are picked up. The label sdlc:<state> shows progress." />}
           {githubMode === 'projects' && (
             <>
-              <Text path="settings.github.projectOwner" label="Project owner" placeholder="acme" hint="The user or organization that owns the board." />
-              <Text path="settings.github.projectNumber" label="Project number" placeholder="3" hint="The number in the board's URL. The GitHub token needs the “project” scope." />
+              <Text path="settings.github.projectOwner" label="Board owner" placeholder="acme" hint="The user or organization that owns the GitHub Projects board." />
+              <Text path="settings.github.projectNumber" label="Board number" placeholder="3" hint="The number in the GitHub Projects board's URL. The GitHub token needs the “project” scope." />
               <Text path="settings.github.statusField" label="Status field" />
               <Text path="settings.github.intakeStatus" label="Pick up cards in column" hint="Cards of this repository in this column become tickets." />
             </>
@@ -223,6 +240,7 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
           )}
         </div>
       </form>
+      </SectionsProvider>
     </FormProvider>
   );
 }

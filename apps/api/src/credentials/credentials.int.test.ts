@@ -54,14 +54,15 @@ describe('CredentialsService', () => {
     expect(svc.secretsSnapshot()).toContain(GH);
   });
 
-  it('lets an env var beat the database, shows it as env, and refuses to overwrite it', async () => {
+  it('does not read the environment: a variable changes nothing, and what is saved can always be changed', async () => {
     process.env.ENCRYPTION_KEY = randomBytes(32).toString('base64');
-    delete process.env.GITHUB_TOKEN;
-    await svc.set('github_token', GH);
     process.env.GITHUB_TOKEN = 'ghp_fromenvfromenvfromenv1234';
-    expect((await svc.resolve()).github_token).toBe('ghp_fromenvfromenvfromenv1234');
-    expect((await svc.views()).find((v) => v.key === 'github_token')).toMatchObject({ source: 'env', hint: '1234' });
-    await expect(svc.set('github_token', GH)).rejects.toMatchObject({ status: 409 });
+    expect((await svc.resolve()).github_token).toBe('');
+    expect((await svc.views()).find((v) => v.key === 'github_token')).toMatchObject({ source: 'unset', hint: null });
+    await svc.set('github_token', GH);
+    expect((await svc.resolve()).github_token).toBe(GH);
+    expect((await svc.views()).find((v) => v.key === 'github_token')).toMatchObject({ source: 'db' });
+    await expect(svc.set('github_token', 'ghp_anotheranotheranother12345')).resolves.toBeUndefined();
   });
 
   it('refreshes the cache on set, never exposes a secret in views, and needs ENCRYPTION_KEY for secrets', async () => {
@@ -92,5 +93,66 @@ describe('CredentialsService', () => {
     for (const k of ['ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
     const status = await svc.status();
     expect(status).toMatchObject({ adminCreated: false, ready: false, missing: ['anthropic_api_key', 'github_token', 'git_author_name', 'git_author_email'] });
+  });
+});
+
+describe('moving an older install\'s environment variables into the dashboard (once, at start)', () => {
+  const encrypted = () => {
+    process.env.ENCRYPTION_KEY = randomBytes(32).toString('base64');
+  };
+  const rows = async () => Object.fromEntries((await prisma.credential.findMany()).map((r) => [r.key, r]));
+
+  it('saves each variable that is set, checked like anything typed, with secrets encrypted', async () => {
+    encrypted();
+    const env = { GITHUB_TOKEN: GH, GIT_AUTHOR_NAME: ' Dev Bot ', GIT_AUTHOR_EMAIL: 'dev@example.com', ANTHROPIC_API_KEY: '' } as NodeJS.ProcessEnv;
+    expect(await svc.importFromEnv(env)).toBe(3);
+    const saved_ = await rows();
+    expect(Object.keys(saved_).sort()).toEqual(['git_author_email', 'git_author_name', 'github_token']);
+    expect(saved_.github_token?.value).toMatch(/^v1\./);
+    expect(saved_.github_token?.value).not.toContain(GH);
+    expect(saved_.git_author_name?.value).toBe('Dev Bot');
+    expect((await svc.resolve()).github_token).toBe(GH);
+    expect((await svc.views()).find((v) => v.key === 'github_token')).toMatchObject({ source: 'db', hint: 'uvwx' });
+  });
+
+  it('is done once: a second start moves nothing, and a value changed in the dashboard since is not put back', async () => {
+    encrypted();
+    const env = { GIT_AUTHOR_NAME: 'Old Name' } as NodeJS.ProcessEnv;
+    expect(await svc.importFromEnv(env)).toBe(1);
+    await svc.set('git_author_name', 'New Name');
+    expect(await svc.importFromEnv(env)).toBe(0);
+    expect((await svc.resolve()).git_author_name).toBe('New Name');
+  });
+
+  it('never replaces a value that is already in the dashboard', async () => {
+    encrypted();
+    await svc.set('github_token', GH);
+    expect(await svc.importFromEnv({ GITHUB_TOKEN: 'ghp_fromenvfromenvfromenv1234' } as NodeJS.ProcessEnv)).toBe(0);
+    expect((await svc.resolve()).github_token).toBe(GH);
+  });
+
+  it('skips a value that does not pass the checks, and still moves the others', async () => {
+    encrypted();
+    expect(await svc.importFromEnv({ GITHUB_TOKEN: 'not-a-token', GIT_AUTHOR_EMAIL: 'dev@example.com' } as NodeJS.ProcessEnv)).toBe(1);
+    expect(Object.keys(await rows())).toEqual(['git_author_email']);
+  });
+
+  it('without ENCRYPTION_KEY a secret cannot be moved, and a plain value still can', async () => {
+    delete process.env.ENCRYPTION_KEY;
+    expect(await svc.importFromEnv({ GITHUB_TOKEN: GH, GIT_AUTHOR_NAME: 'Dev Bot' } as NodeJS.ProcessEnv)).toBe(1);
+    expect(Object.keys(await rows())).toEqual(['git_author_name']);
+  });
+
+  it('with no variables set it does nothing', async () => {
+    encrypted();
+    expect(await svc.importFromEnv({} as NodeJS.ProcessEnv)).toBe(0);
+    expect(await prisma.credential.count()).toBe(0);
+  });
+
+  it('runs when the service starts, with the real environment', async () => {
+    encrypted();
+    process.env.GIT_AUTHOR_NAME = 'From Start';
+    await svc.onModuleInit();
+    expect((await svc.resolve()).git_author_name).toBe('From Start');
   });
 });

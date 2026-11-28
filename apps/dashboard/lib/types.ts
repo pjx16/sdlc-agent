@@ -29,6 +29,12 @@ export interface GlobalSettingsView {
   pollIntervalSec: number;
   stageTimeoutMin: number;
   verifyTimeoutSec: number;
+  /** How a new project reaches GitHub unless told otherwise. */
+  githubDefaultAuth: 'token' | 'bot';
+  /** Whether a ticket made in the dashboard also gets a GitHub issue: ask each time, always, or never. */
+  githubIssueOnCreate: 'ask' | 'always' | 'never';
+  /** Profiling a repository is stopped after this many minutes. */
+  onboardingTimeoutMin: number;
   workspaceRetentionDays: number;
   logRetentionDays: number;
   assistantTokenCap: number;
@@ -359,6 +365,10 @@ export interface OnboardingView {
   error: string | null;
   proposal: OnboardingProposal | null;
   progress?: OnboardingProgress | null;
+  /** Profiling has not started: why it waits (paused, offline, or another project first). */
+  waiting?: { reason: 'paused_budget' | 'paused_limits' | 'offline' | 'queued'; message: string } | null;
+  /** Profiling started but the worker stopped giving signs of life. */
+  stale?: boolean;
 }
 
 export interface DryRunView {

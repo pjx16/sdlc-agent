@@ -1,12 +1,14 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { getIn, type FormValues } from '@/lib/form';
 
 interface FormContextValue {
   values: FormValues;
   errors: Record<string, string>;
   set: (path: string, value: unknown) => void;
+  /** The paths that differ from what is saved: their controls get an accent edge, so it is clear what Save will send. */
+  dirty?: readonly string[];
 }
 
 const FormContext = createContext<FormContextValue | null>(null);
@@ -38,7 +40,12 @@ interface BaseProps {
   label: string;
   hint?: string;
   disabled?: boolean;
+  /** A unit shown after the input (`seconds`, `days`, `$`). */
+  suffix?: string;
 }
+
+/** The border of a control: red for an error, accent for a changed value, plain otherwise. A changed value is also marked with a thicker left edge. */
+const borderOf = (error: string | undefined, changed: boolean): string => (error ? 'border-red' : changed ? 'border-accent border-l-4' : 'border-border');
 
 function Wrapper({ path, label, hint, children, error }: BaseProps & { children: ReactNode; error?: string }) {
   return (
@@ -54,10 +61,9 @@ function Wrapper({ path, label, hint, children, error }: BaseProps & { children:
 }
 
 export function Text(props: BaseProps & { placeholder?: string; type?: string }) {
-  const { values, errors, set } = useForm();
+  const { values, errors, set, dirty } = useForm();
   const error = errors[props.path];
-  return (
-    <Wrapper {...props} error={error}>
+  const input = (
       <input
         id={props.path}
         type={props.type ?? 'text'}
@@ -67,8 +73,19 @@ export function Text(props: BaseProps & { placeholder?: string; type?: string })
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${props.path}-error` : undefined}
         onChange={(e) => set(props.path, e.target.value)}
-        className={`${inputClass} ${error ? 'border-red' : 'border-border'}`}
+        className={`${inputClass} ${borderOf(error, Boolean(dirty?.includes(props.path)))}`}
       />
+  );
+  return (
+    <Wrapper {...props} error={error}>
+      {props.suffix ? (
+        <div className="flex items-center gap-2">
+          {input}
+          <span className="mt-1 shrink-0 text-xs text-muted">{props.suffix}</span>
+        </div>
+      ) : (
+        input
+      )}
     </Wrapper>
   );
 }
@@ -78,7 +95,7 @@ export function Num(props: BaseProps) {
 }
 
 export function TextArea(props: BaseProps & { rows?: number; placeholder?: string }) {
-  const { values, errors, set } = useForm();
+  const { values, errors, set, dirty } = useForm();
   const error = errors[props.path];
   return (
     <Wrapper {...props} error={error}>
@@ -90,14 +107,14 @@ export function TextArea(props: BaseProps & { rows?: number; placeholder?: strin
         disabled={props.disabled}
         aria-invalid={error ? true : undefined}
         onChange={(e) => set(props.path, e.target.value)}
-        className={`${inputClass} font-mono ${error ? 'border-red' : 'border-border'}`}
+        className={`${inputClass} font-mono ${borderOf(error, Boolean(dirty?.includes(props.path)))}`}
       />
     </Wrapper>
   );
 }
 
 export function Select(props: BaseProps & { options: readonly { value: string; label: string }[] }) {
-  const { values, errors, set } = useForm();
+  const { values, errors, set, dirty } = useForm();
   const error = errors[props.path];
   return (
     <Wrapper {...props} error={error}>
@@ -107,7 +124,7 @@ export function Select(props: BaseProps & { options: readonly { value: string; l
         disabled={props.disabled}
         aria-invalid={error ? true : undefined}
         onChange={(e) => set(props.path, e.target.value)}
-        className={`${inputClass} ${error ? 'border-red' : 'border-border'}`}
+        className={`${inputClass} ${borderOf(error, Boolean(dirty?.includes(props.path)))}`}
       >
         {props.options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -140,7 +157,37 @@ export function Check(props: BaseProps) {
   );
 }
 
-export function Section({ title, children, description }: { title: string; description?: string; children: ReactNode }) {
+interface SectionsContextValue {
+  /** Sections fold away (a long form in a small window). Only `defaultOpen` ones start open. */
+  collapsible: boolean;
+  /** Every section is open, so an error in a folded one cannot be missed. */
+  openAll: boolean;
+}
+const SectionsContext = createContext<SectionsContextValue>({ collapsible: false, openAll: false });
+
+export function SectionsProvider({ collapsible, openAll = false, children }: { collapsible: boolean; openAll?: boolean; children: ReactNode }) {
+  return <SectionsContext.Provider value={{ collapsible, openAll }}>{children}</SectionsContext.Provider>;
+}
+
+export function Section({ title, children, description, defaultOpen = false }: { title: string; description?: string; children: ReactNode; defaultOpen?: boolean }) {
+  const { collapsible, openAll } = useContext(SectionsContext);
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    if (openAll) setOpen(true);
+  }, [openAll]);
+  if (collapsible) {
+    return (
+      <section aria-labelledby={`section-${title}`} className="panel px-5 py-3">
+        <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+          <summary id={`section-${title}`} className="cursor-pointer text-base font-semibold">
+            {title}
+          </summary>
+          {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+          <div className="mt-4 grid gap-4 pb-2 sm:grid-cols-2">{children}</div>
+        </details>
+      </section>
+    );
+  }
   return (
     <section aria-labelledby={`section-${title}`} className="panel p-6">
       <h2 id={`section-${title}`} className="text-base font-semibold">

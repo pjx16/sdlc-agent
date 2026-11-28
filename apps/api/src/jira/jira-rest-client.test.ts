@@ -46,7 +46,7 @@ describe('JiraRestClient requests', () => {
   });
 
   it('refuses to be built without credentials', () => {
-    expect(() => new JiraRestClient({ baseUrl: '', email: 'a', apiToken: 'b' })).toThrow(/JIRA_BASE_URL/);
+    expect(() => new JiraRestClient({ baseUrl: '', email: 'a', apiToken: 'b' })).toThrow(/Jira base URL, email and API token/);
     expect(() => JiraRestClient.fromCredentials({ jira_base_url: '', jira_email: '', jira_api_token: '' })).toThrow();
   });
 });

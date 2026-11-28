@@ -147,10 +147,15 @@ describe('GlobalSettings', () => {
   it('has the section 7 defaults', () => {
     expect(DEFAULT_GLOBAL_SETTINGS).toMatchObject({
       budgetDailyCredits: null, budgetWeeklyCredits: null, budgetMonthlyCredits: null, budgetWarnPct: 80, timezone: 'UTC', pollIntervalSec: 120,
-      stageTimeoutMin: 20, verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30,
+      stageTimeoutMin: 20, verifyTimeoutSec: 600, githubDefaultAuth: 'token', githubIssueOnCreate: 'ask', onboardingTimeoutMin: 15, workspaceRetentionDays: 7, logRetentionDays: 30,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
     expect(Object.keys(DEFAULT_GLOBAL_SETTINGS)).not.toContain('jiraMcp');
+  });
+  it('keeps the onboarding timeout between 5 and 120 minutes', () => {
+    expect(GlobalSettingsSchema.safeParse({ onboardingTimeoutMin: 5 }).success).toBe(true);
+    expect(GlobalSettingsSchema.safeParse({ onboardingTimeoutMin: 120 }).success).toBe(true);
+    for (const bad of [3, 4, 121, 1.5, '15']) expect(Object.keys(zodFields(GlobalSettingsSchema.safeParse({ onboardingTimeoutMin: bad }).error!))).toEqual(['onboardingTimeoutMin']);
   });
   it('validates ranges with field-level errors', () => {
     const f = zodFields(GlobalSettingsSchema.safeParse({ budgetDailyCredits: 0, timezone: 'Mars/Base', pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } }).error!);

@@ -40,7 +40,7 @@ export class JiraRestClient implements JiraClient {
   private readonly maxPages: number;
 
   constructor(config: JiraRestConfig, options: JiraRestOptions = {}) {
-    if (!config.baseUrl || !config.email || !config.apiToken) throw new Error('Jira REST needs JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN');
+    if (!config.baseUrl || !config.email || !config.apiToken) throw new Error('Jira REST needs the Jira base URL, email and API token');
     this.base = config.baseUrl.replace(/\/+$/, '');
     this.auth = `Basic ${Buffer.from(`${config.email}:${config.apiToken}`).toString('base64')}`;
     this.fetchImpl = options.fetch ?? fetch;

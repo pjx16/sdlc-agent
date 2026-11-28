@@ -2,6 +2,7 @@ import { HttpStatus, Injectable, Logger, type OnModuleInit } from '@nestjs/commo
 import { CREDENTIAL_KEYS, CredentialValueSchemas, ErrorCodes, credentialDefinition, type CredentialKey, type CredentialView, type SetupStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { PrismaService } from '../prisma/prisma.service';
+import { legacyValues } from './env-import';
 import { CredentialDecryptError, decrypt, encrypt, loadKey } from './crypto';
 
 export type ResolvedCredentials = Record<CredentialKey, string>;
@@ -14,11 +15,9 @@ interface Loaded {
   db: Map<CredentialKey, { value: string; error: string | null }>;
 }
 
-const envValue = (env: string): string => (process.env[env] ?? '').trim();
-
 /**
- * Where every credential comes from: a non-empty env var wins, then the database (secrets are AES-256-GCM encrypted
- * with ENCRYPTION_KEY), then empty. Used by the API and the worker.
+ * Where every credential comes from: the database, where secrets are AES-256-GCM encrypted with ENCRYPTION_KEY, then empty. Used by the API
+ * and the worker. At start-up an install that still has the old environment variables gets them moved into the database, once.
  */
 @Injectable()
 export class CredentialsService implements OnModuleInit {
@@ -29,6 +28,7 @@ export class CredentialsService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit(): Promise<void> {
+    await this.importFromEnv().catch((err) => this.logger.warn(`Could not move the credentials from the environment: ${err instanceof Error ? err.message : String(err)}`));
     await this.resolve().catch((err) => this.logger.warn(`Could not load credentials: ${err instanceof Error ? err.message : String(err)}`));
   }
 
@@ -61,12 +61,12 @@ export class CredentialsService implements OnModuleInit {
   async resolve(): Promise<ResolvedCredentials> {
     const { db } = await this.loadDb();
     const out = {} as ResolvedCredentials;
-    for (const def of CREDENTIAL_KEYS) out[def.key] = envValue(def.env) || db.get(def.key)?.value || '';
+    for (const def of CREDENTIAL_KEYS) out[def.key] = db.get(def.key)?.value || '';
     this.secrets = CREDENTIAL_KEYS.filter((d) => d.secret).map((d) => out[d.key]).filter((v) => v.length > 0);
     return out;
   }
 
-  /** Every current secret value (env and database), synchronously, for redaction. Refreshed by each resolve(). */
+  /** Every current secret value, synchronously, for redaction. Refreshed by each resolve(). */
   secretsSnapshot(): string[] {
     return this.secrets;
   }
@@ -77,8 +77,6 @@ export class CredentialsService implements OnModuleInit {
     const { db } = await this.loadDb();
     return CREDENTIAL_KEYS.map((def): CredentialView => {
       const row = rows.get(def.key);
-      const fromEnv = envValue(def.env);
-      if (fromEnv) return { key: def.key, source: 'env', hint: def.secret ? fromEnv.slice(-4) : fromEnv, verifiedAt: null, verifyError: null, updatedAt: null };
       if (!row) return { key: def.key, source: 'unset', hint: null, verifiedAt: null, verifyError: null, updatedAt: null };
       return {
         key: def.key,
@@ -94,7 +92,6 @@ export class CredentialsService implements OnModuleInit {
   async set(key: CredentialKey, raw: string): Promise<void> {
     const def = credentialDefinition(key);
     if (!def) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Unknown credential');
-    if (envValue(def.env)) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `${def.env} is set in .env and overrides the dashboard`);
     const parsed = CredentialValueSchemas[key].safeParse(raw);
     if (!parsed.success) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Invalid value', { value: parsed.error.issues[0]?.message ?? 'invalid' });
     const value = parsed.data;
@@ -110,6 +107,30 @@ export class CredentialsService implements OnModuleInit {
     this.invalidate();
     await this.resolve();
     if (key === 'anthropic_api_key') await this.resumeAfterAuthPause();
+  }
+
+  /**
+   * An install made when credentials lived in the environment: each variable that is set, and has no value in the dashboard yet, is saved
+   * there (validated like anything typed, secrets encrypted), once, and the person is told to take it out of the environment. A value that
+   * is already in the dashboard is left alone, and a value that does not pass the checks is skipped with a warning.
+   */
+  async importFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<number> {
+    const present = legacyValues(env);
+    if (present.length === 0) return 0;
+    const have = new Set((await this.prisma.credential.findMany({ select: { key: true } })).map((r) => r.key));
+    let imported = 0;
+    for (const { key, envName, value } of present) {
+      if (have.has(key)) continue;
+      try {
+        await this.set(key, value);
+        imported++;
+        this.logger.warn(`${envName} was moved from the environment into the dashboard (Settings → Connections). Remove it from your environment: it is not read any more.`);
+      } catch (err) {
+        const why = err instanceof ApiException ? JSON.stringify(err.getResponse()) : err instanceof Error ? err.message : String(err);
+        this.logger.warn(`${envName} was not moved into the dashboard (${why}). Enter it in Settings → Connections.`);
+      }
+    }
+    return imported;
   }
 
   /** A new Anthropic API key replaces the one Claude rejected: the pause that rejection caused ends. */
