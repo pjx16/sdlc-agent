@@ -44,7 +44,7 @@ describe('System and global settings API', () => {
     expect(res.body.spend.periods.map((s: { spent: number }) => s.spent)).toEqual([0, 0, 0]);
     expect(res.body.settings).toMatchObject({
       budgetDailyCredits: null, budgetWeeklyCredits: null, budgetMonthlyCredits: null, budgetWarnPct: 80, timezone: 'UTC', budgetsApprovedAt: null, pollIntervalSec: 120, stageTimeoutMin: 20,
-      verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
+      verifyTimeoutSec: 600, githubIssueOnCreate: 'ask', workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
     expect(res.body.settings).not.toHaveProperty('jiraMcp');
@@ -95,6 +95,15 @@ describe('System and global settings API', () => {
     const cleared = await t.agent.patch('/system/settings').send({ budgetDailyCredits: null }).expect(200);
     expect(cleared.body.budgetDailyCredits).toBeNull();
     expect(cleared.body.pollIntervalSec).toBe(60);
+  });
+
+  it('githubIssueOnCreate defaults to ask, is saved for every project, and takes only ask, always or never', async () => {
+    expect((await t.agent.get('/system').expect(200)).body.settings.githubIssueOnCreate).toBe('ask');
+    expect((await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'always' }).expect(200)).body.githubIssueOnCreate).toBe('always');
+    expect((await t.agent.get('/system').expect(200)).body.settings.githubIssueOnCreate).toBe('always');
+    const bad = await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'sometimes' }).expect(400);
+    expect(bad.body.fields.githubIssueOnCreate).toBe('must be ask, always or never');
+    expect((await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'ask' }).expect(200)).body.githubIssueOnCreate).toBe('ask');
   });
 
   it('returns field-level errors and saves nothing', async () => {

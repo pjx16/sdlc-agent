@@ -2,6 +2,8 @@ FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00
 LABEL org.opencontainers.image.source="https://github.com/pjx16/sdlc-agent" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.description="SDLC agent filtered Docker socket proxy"
+# The digest pins the base image, which then lags the Debian security updates; take them at build time.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 # npm, npx and corepack are never used at runtime. Removing them drops the npm CLI and its bundled dependencies (and their CVEs).
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 WORKDIR /app
