@@ -21,6 +21,7 @@ import { apiGet } from '@/lib/server-api';
 import { ticketStats } from '@/lib/ticket-stats';
 import {humanizeStatus} from '@/lib/ticket-status';
 import type { ArtifactView, DecisionView, HoldInfo, MoveView, SupportTicketView, TicketEventView, TicketFull, TransitionView } from '@/lib/types';
+import { Markdown } from '@/components/markdown';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,7 +83,11 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         </div>
       )}
       <TicketKbAttachments ticketId={ticket.id} projectId={ticket.projectId} status={ticket.status} attached={ticket.kbAttachments ?? []} />
-      {ticket.body && <pre className="mt-6 whitespace-pre-wrap panel p-4 font-sans text-sm">{ticket.body}</pre>}
+      {ticket.body && (
+        <div className="mt-6 panel p-4">
+          <Markdown source={ticket.body} />
+        </div>
+      )}
 
       <nav aria-label="Ticket sections" className="mt-8 flex gap-1 border-b border-border">
         {TABS.map((t) => (

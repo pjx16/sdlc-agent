@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { validateBreakdown, type SubtaskDraft } from '@sdlc/shared';
 import { addItem, moveItem, removeItem, toDrafts, toEditItems, type EditItem } from '@/lib/breakdown-edit';
 import type { SubtaskRow } from '@/lib/types';
+import { Markdown } from './markdown';
 
 interface Props {
   ticketId: string;
@@ -89,7 +90,7 @@ export function BreakdownPanel({ ticketId, status, draft, subtasks, maxSubtasks 
               </span>
               <span className="text-muted">{s.status}</span>
             </div>
-            {s.description && <p className="mt-2 whitespace-pre-wrap text-muted">{s.description}</p>}
+            {s.description && <Markdown source={s.description} compact toggle={false} className="mt-2 text-muted" />}
             <ul className="mt-2 list-disc pl-5">
               {s.acceptanceCriteria.map((c) => (
                 <li key={c}>{c}</li>

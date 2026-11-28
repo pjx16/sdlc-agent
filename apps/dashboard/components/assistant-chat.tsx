@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AssistantView } from '@/lib/types';
+import { Markdown } from './markdown';
 
 const APPLY_LABEL = { answer: 'Use this answer', plan_edit: 'Approve with this plan' } as const;
 const POLL_MS = 2000;
@@ -129,9 +130,9 @@ export function AssistantChat({ supportTicketId }: { supportTicketId: string }) 
       <ol className="mt-3 space-y-3" aria-label="Messages">
         {state.messages.map((m) => (
           <li key={m.id} data-role={m.role} className={m.role === 'user' ? 'text-right' : ''}>
-            <div className={`inline-block max-w-full whitespace-pre-wrap rounded-md px-3 py-2 text-left text-sm ${m.role === 'user' ? 'bg-accent-soft' : 'bg-surface-2'}`}>
+            <div className={`inline-block max-w-full rounded-md px-3 py-2 text-left text-sm ${m.role === 'user' ? 'whitespace-pre-wrap bg-accent-soft' : 'bg-surface-2'}`}>
               <span className="sr-only">{m.role === 'user' ? 'You: ' : 'Assistant: '}</span>
-              {m.text}
+              {m.role === 'user' ? m.text : <Markdown source={m.text} compact toggle={false} />}
             </div>
             {m.draft && (
               <div className="mt-2 rounded-md border border-border p-3 text-left text-sm">
@@ -145,7 +146,7 @@ export function AssistantChat({ supportTicketId }: { supportTicketId: string }) 
                     ))}
                   </pre>
                 ) : (
-                  <p className="mt-1 whitespace-pre-wrap">{m.draft.text}</p>
+                  <Markdown source={m.draft.text ?? ''} compact toggle={false} className="mt-1" />
                 )}
                 {m.draft.kind === 'rerun_note' ? (
                   // A note is for you to paste into the rerun or reject box, so it is copied, not applied.
