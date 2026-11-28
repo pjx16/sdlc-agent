@@ -37,6 +37,10 @@ export const GlobalSettingsSchema = z.object({
   verifyTimeoutSec: int(600, 10, 7200),
   /** How a new project reaches GitHub unless told otherwise: with a personal token, or as sdlc-agent-bot. A project can differ. */
   githubDefaultAuth: z.enum(['token', 'bot'], { error: 'must be token or bot' }).default('token'),
+  /** Whether a ticket made in the dashboard also gets a GitHub issue: ask each time, always, or never. One choice for every project. */
+  githubIssueOnCreate: z.enum(['ask', 'always', 'never'], { error: 'must be ask, always or never' }).default('ask'),
+  /** Profiling a repository stops after this long, whatever step it is in. */
+  onboardingTimeoutMin: int(15, 5, 120),
   workspaceRetentionDays: int(7, 1, 365),
   logRetentionDays: int(30, 1, 3650),
   /** Tokens (input and output) one assistant conversation may use before it stops. */

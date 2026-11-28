@@ -7,6 +7,8 @@ interface FormContextValue {
   values: FormValues;
   errors: Record<string, string>;
   set: (path: string, value: unknown) => void;
+  /** The paths that differ from what is saved: their controls get an accent edge, so it is clear what Save will send. */
+  dirty?: readonly string[];
 }
 
 const FormContext = createContext<FormContextValue | null>(null);
@@ -38,7 +40,12 @@ interface BaseProps {
   label: string;
   hint?: string;
   disabled?: boolean;
+  /** A unit shown after the input (`seconds`, `days`, `$`). */
+  suffix?: string;
 }
+
+/** The border of a control: red for an error, accent for a changed value, plain otherwise. A changed value is also marked with a thicker left edge. */
+const borderOf = (error: string | undefined, changed: boolean): string => (error ? 'border-red' : changed ? 'border-accent border-l-4' : 'border-border');
 
 function Wrapper({ path, label, hint, children, error }: BaseProps & { children: ReactNode; error?: string }) {
   return (
@@ -54,10 +61,9 @@ function Wrapper({ path, label, hint, children, error }: BaseProps & { children:
 }
 
 export function Text(props: BaseProps & { placeholder?: string; type?: string }) {
-  const { values, errors, set } = useForm();
+  const { values, errors, set, dirty } = useForm();
   const error = errors[props.path];
-  return (
-    <Wrapper {...props} error={error}>
+  const input = (
       <input
         id={props.path}
         type={props.type ?? 'text'}
@@ -67,8 +73,19 @@ export function Text(props: BaseProps & { placeholder?: string; type?: string })
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${props.path}-error` : undefined}
         onChange={(e) => set(props.path, e.target.value)}
-        className={`${inputClass} ${error ? 'border-red' : 'border-border'}`}
+        className={`${inputClass} ${borderOf(error, Boolean(dirty?.includes(props.path)))}`}
       />
+  );
+  return (
+    <Wrapper {...props} error={error}>
+      {props.suffix ? (
+        <div className="flex items-center gap-2">
+          {input}
+          <span className="mt-1 shrink-0 text-xs text-muted">{props.suffix}</span>
+        </div>
+      ) : (
+        input
+      )}
     </Wrapper>
   );
 }
@@ -78,7 +95,7 @@ export function Num(props: BaseProps) {
 }
 
 export function TextArea(props: BaseProps & { rows?: number; placeholder?: string }) {
-  const { values, errors, set } = useForm();
+  const { values, errors, set, dirty } = useForm();
   const error = errors[props.path];
   return (
     <Wrapper {...props} error={error}>
@@ -90,14 +107,14 @@ export function TextArea(props: BaseProps & { rows?: number; placeholder?: strin
         disabled={props.disabled}
         aria-invalid={error ? true : undefined}
         onChange={(e) => set(props.path, e.target.value)}
-        className={`${inputClass} font-mono ${error ? 'border-red' : 'border-border'}`}
+        className={`${inputClass} font-mono ${borderOf(error, Boolean(dirty?.includes(props.path)))}`}
       />
     </Wrapper>
   );
 }
 
 export function Select(props: BaseProps & { options: readonly { value: string; label: string }[] }) {
-  const { values, errors, set } = useForm();
+  const { values, errors, set, dirty } = useForm();
   const error = errors[props.path];
   return (
     <Wrapper {...props} error={error}>
@@ -107,7 +124,7 @@ export function Select(props: BaseProps & { options: readonly { value: string; l
         disabled={props.disabled}
         aria-invalid={error ? true : undefined}
         onChange={(e) => set(props.path, e.target.value)}
-        className={`${inputClass} ${error ? 'border-red' : 'border-border'}`}
+        className={`${inputClass} ${borderOf(error, Boolean(dirty?.includes(props.path)))}`}
       >
         {props.options.map((o) => (
           <option key={o.value} value={o.value}>

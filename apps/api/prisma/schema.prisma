@@ -228,6 +228,10 @@ model GlobalSettings {
   verifyTimeoutSec        Int       @default(600)
   /// How a new project reaches GitHub unless told otherwise: token (a personal access token) or bot (sdlc-agent-bot).
   githubDefaultAuth       String    @default("token")
+  /// Whether a ticket made in the dashboard also gets a GitHub issue: ask | always | never.
+  githubIssueOnCreate     String    @default("ask")
+  /// Profiling a repository (onboarding) is stopped after this many minutes.
+  onboardingTimeoutMin    Int       @default(15)
   workspaceRetentionDays  Int       @default(7)
   logRetentionDays        Int       @default(30)
   assistantTokenCap       Int       @default(200000)
@@ -235,6 +239,13 @@ model GlobalSettings {
   stageDefaults           Json      @default("{}")
   modelAliases            Json      @default("{\"haiku\":\"haiku\",\"sonnet\":\"sonnet\",\"opus\":\"opus\"}")
   updatedAt               DateTime  @updatedAt @db.Timestamptz(6)
+}
+
+enum GithubIssueState {
+  none
+  pending
+  created
+  failed
 }
 
 model Ticket {
@@ -246,6 +257,11 @@ model Ticket {
   externalKey     String?
   /// For a GitHub ticket: the status last written to the issue or the project board (so it is written once per change).
   externalStatus  String?
+  /// Whether the ticket also gets a GitHub issue, made by the worker: none | pending | created | failed.
+  githubIssueState GithubIssueState @default(none)
+  githubIssueError String?
+  /// An existing issue (its number) to link instead of making a new one.
+  githubIssueLink  Int?
   type            TicketType    @default(story)
   title           String
   body            String        @default("")

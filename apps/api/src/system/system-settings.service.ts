@@ -134,6 +134,8 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     stageTimeoutMin: row.stageTimeoutMin,
     verifyTimeoutSec: row.verifyTimeoutSec,
     githubDefaultAuth: row.githubDefaultAuth,
+    githubIssueOnCreate: row.githubIssueOnCreate,
+    onboardingTimeoutMin: row.onboardingTimeoutMin,
     workspaceRetentionDays: row.workspaceRetentionDays,
     logRetentionDays: row.logRetentionDays,
     assistantTokenCap: row.assistantTokenCap,

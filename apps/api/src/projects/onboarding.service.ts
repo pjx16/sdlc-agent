@@ -10,6 +10,7 @@ import { parseBody } from '../common/parse-body';
 import { Prisma, type Project } from '../generated/prisma/client';
 import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
+import { SILENT_AT_BOOT_MS, isSilent, progressOf, silentAfterMs, stopProfiling } from './onboarding-liveness';
 import { SupportRaiser } from '../support/support-raiser';
 import { type ProjectDto, toDto } from './project.dto';
 
@@ -30,8 +31,12 @@ export interface OnboardingDto {
   status: OnboardingStatus;
   error: string | null;
   proposal: OnboardingProposal | null;
-  /** While profiling: which phases are planned, running and done. */
+  /** While profiling or after it failed: which phases are planned, running and done, and which one failed. */
   progress: OnboardingProgress | null;
+  /** Profiling has not started: why it is waiting (the pipeline is paused, offline, or another project goes first). */
+  waiting: { reason: 'paused_budget' | 'paused_limits' | 'offline' | 'queued'; message: string } | null;
+  /** Profiling started but the worker stopped giving signs of life: it can be cancelled or started again. */
+  stale: boolean;
 }
 
 export interface DryRunDto {
@@ -100,15 +105,53 @@ export class OnboardingService {
 
   async get(id: string): Promise<OnboardingDto> {
     const p = await this.project(id);
-    return { status: p.onboardingStatus, error: p.onboardingError, proposal: this.proposalOf(p), progress: p.onboardingStatus === 'profiling' ? ((p.onboardingProgress as unknown as OnboardingProgress | null) ?? null) : null };
+    const profiling = p.onboardingStatus === 'profiling';
+    return {
+      status: p.onboardingStatus,
+      error: p.onboardingError,
+      proposal: this.proposalOf(p),
+      progress: profiling || p.onboardingStatus === 'draft' ? progressOf(p) : null,
+      waiting: profiling && !progressOf(p) ? await this.waitingReason(p) : null,
+      stale: isSilent(p, Date.now(), silentAfterMs(await this.timeoutMin())),
+    };
+  }
+
+  private async timeoutMin(): Promise<number> {
+    return (await this.prisma.globalSettings.findUnique({ where: { id: 'global' }, select: { onboardingTimeoutMin: true } }))?.onboardingTimeoutMin ?? 15;
+  }
+
+  /** Why a project that is profiling has not started: only said when it is true, so a project about to start shows nothing. */
+  private async waitingReason(p: Project): Promise<OnboardingDto['waiting']> {
+    const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
+    if (settings?.networkOffline) return { reason: 'offline', message: 'Waiting: there is no internet connection. Profiling starts when it is back.' };
+    if (settings?.pipelinePaused && settings.pausedReason !== 'manual') {
+      return settings.pausedCode === 'SPEND_BUDGET_REACHED'
+        ? { reason: 'paused_budget', message: 'Waiting: a spend budget is used up. Profiling starts when the pipeline resumes.' }
+        : { reason: 'paused_limits', message: 'Waiting: Claude is out of credit or at its usage limit. Profiling starts when the pipeline resumes.' };
+    }
+    const running = (await this.prisma.project.findMany({ where: { onboardingStatus: 'profiling', id: { not: p.id } }, select: { name: true, onboardingProgress: true } })).find((o) => progressOf(o));
+    return running ? { reason: 'queued', message: `Queued: ${running.name} is being profiled first.` } : null;
+  }
+
+  /**
+   * POST /projects/:id/onboarding/cancel: stops profiling. A run that is alive sees the request at its next heartbeat (within 30 seconds);
+   * one that has not started, or whose worker went silent, is ended at once.
+   */
+  async cancel(id: string): Promise<OnboardingDto> {
+    const p = await this.project(id);
+    if (p.onboardingStatus !== 'profiling') throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The project is not being profiled');
+    if (!progressOf(p) || isSilent(p, Date.now(), SILENT_AT_BOOT_MS)) await stopProfiling(this.prisma, p, 'Cancelled.');
+    else await this.prisma.$executeRaw`UPDATE "Project" SET "onboardingProgress" = COALESCE("onboardingProgress", '{}'::jsonb) || '{"cancelRequested": true}'::jsonb WHERE "id" = ${id} AND "onboardingStatus" = 'profiling'`;
+    return this.get(id);
   }
 
   /** POST /projects/:id/onboarding/rerun: a new proposal. Settings do not change until it is confirmed again, and the worker ignores the project meanwhile. */
   async rerun(id: string): Promise<OnboardingDto> {
     const p = await this.project(id);
-    if (p.onboardingStatus === 'profiling') throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The project is already being profiled');
+    // Profiling that went silent (a dead worker) can be started again; a live one has to be cancelled first.
+    if (p.onboardingStatus === 'profiling' && !isSilent(p, Date.now(), silentAfterMs(await this.timeoutMin()))) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The project is already being profiled. Cancel it first.');
     await this.raiser.close({ projectId: id, kind: 'onboarding' }, 'dismissed', 'user', 'Replaced by a new proposal');
-    await this.prisma.project.update({ where: { id }, data: { onboardingStatus: 'profiling', onboardingError: null } });
+    await this.prisma.project.update({ where: { id }, data: { onboardingStatus: 'profiling', onboardingError: null, onboardingProgress: Prisma.DbNull } });
     return this.get(id);
   }
 

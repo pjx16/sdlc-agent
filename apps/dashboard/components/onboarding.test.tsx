@@ -108,9 +108,73 @@ describe('OnboardingPanel', () => {
     fetchMock.mockResolvedValue(reply(view({ status: 'profiling', proposal: null })));
     render(<OnboardingPanel projectId="p1" initial={view({ status: 'draft', proposal: null, error: 'GitHub: Not Found. Check the GitHub token' })} />);
     expect(screen.getByText(/Check the GitHub token/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Run it again' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/rerun');
     expect(await screen.findByRole('status')).toBeInTheDocument();
+  });
+
+  describe('time limit, failed step and cancel', () => {
+    const progress = (over: Record<string, unknown> = {}) => ({ startedAt: '2026-11-26T10:00:00Z', updatedAt: '2026-11-26T10:03:12Z', deadlineAt: '2026-11-26T10:15:00Z', planned: ['facts', 'profile', 'install'], running: ['profile'], done: [{ id: 'facts', ms: 4000 }], ...over });
+
+    it('counts down to the time limit, and turns amber in the last two minutes', () => {
+      vi.useFakeTimers({ now: new Date('2026-11-26T10:03:12Z') });
+      const { unmount } = render(<OnboardingPanel projectId="p1" initial={view({ status: 'profiling', proposal: null, progress: progress() as never })} />);
+      expect(screen.getByText(/Elapsed 3m 12s/)).toBeInTheDocument();
+      expect(screen.getByTestId('time-limit')).toHaveTextContent('times out in 11m 48s');
+      expect(screen.getByTestId('time-limit')).not.toHaveClass('text-amber');
+      unmount();
+      vi.setSystemTime(new Date('2026-11-26T10:14:00Z'));
+      render(<OnboardingPanel projectId="p1" initial={view({ status: 'profiling', proposal: null, progress: progress() as never })} />);
+      expect(screen.getByTestId('time-limit')).toHaveTextContent('times out in 1m 00s');
+      expect(screen.getByTestId('time-limit')).toHaveClass('text-amber');
+    });
+
+    it('marks the failed step with its message', () => {
+      render(<OnboardingPanel projectId="p1" initial={view({ status: 'profiling', proposal: null, progress: progress({ running: [], failed: { id: 'profile', message: 'The stage exited with code 1' } }) as never })} />);
+      const failed = screen.getByRole('dialog').querySelector('[data-state="failed"]') as HTMLElement;
+      expect(failed).toHaveTextContent('Profiling the code');
+      expect(failed).toHaveTextContent('The stage exited with code 1');
+      expect(screen.getByRole('dialog').querySelector('[data-state="done"]')).toHaveTextContent('Reading the repository');
+    });
+
+    it('a project that is waiting says why, with no countdown', () => {
+      render(<OnboardingPanel projectId="p1" initial={view({ status: 'profiling', proposal: null, progress: null, waiting: { reason: 'paused_budget', message: 'Waiting: a spend budget is used up. Profiling starts when the pipeline resumes.' } })} />);
+      expect(within(screen.getByRole('dialog')).getByText(/spend budget is used up/)).toBeInTheDocument();
+      expect(screen.queryByTestId('time-limit')).not.toBeInTheDocument();
+      expect(screen.getByText('Waiting to profile the repository…')).toBeInTheDocument();
+    });
+
+    it('Cancel asks first, then stops the run and shows the draft', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      fetchMock.mockResolvedValue(reply(view({ status: 'draft', proposal: null, error: 'Cancelled.' })));
+      render(<OnboardingPanel projectId="p1" initial={view({ status: 'profiling', proposal: null, progress: progress() as never })} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel profiling' })); // the one in the progress window
+      expect(fetchMock).not.toHaveBeenCalled(); // not confirmed
+      confirm.mockReturnValue(true);
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel profiling' }));
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/cancel');
+      expect((fetchMock.mock.calls[0] as [string, RequestInit])[1].method).toBe('POST');
+      expect(await screen.findByText('Cancelled.')).toBeInTheDocument();
+      confirm.mockRestore();
+    });
+
+    it('a failed draft shows where it stopped, and Try again starts a new run', async () => {
+      fetchMock.mockResolvedValue(reply(view({ status: 'profiling', proposal: null })));
+      render(<OnboardingPanel projectId="p1" initial={view({ status: 'draft', proposal: null, error: 'Profiling stopped after 15 minutes', progress: progress({ running: [], failed: { id: 'install', message: 'Profiling stopped after 15 minutes' } }) as never })} />);
+      const where = screen.getByLabelText('Where it stopped');
+      expect(where.querySelector('[data-state="failed"]')).toHaveTextContent('Checking the install command');
+      expect(where.querySelector('[data-state="done"]')).toHaveTextContent('Reading the repository');
+      await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/rerun');
+    });
+
+    it('a run whose worker went silent says so, and can be started again', async () => {
+      fetchMock.mockResolvedValue(reply(view({ status: 'profiling', proposal: null })));
+      render(<OnboardingPanel projectId="p1" initial={view({ status: 'profiling', proposal: null, progress: progress() as never, stale: true })} />);
+      expect(screen.getAllByText(/worker stopped responding/).length).toBeGreaterThan(0);
+      await userEvent.click(screen.getByRole('button', { name: 'Start it again' }));
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/rerun');
+    });
   });
 
   it('has one card per section, with the command checks and which cards must be accepted', () => {

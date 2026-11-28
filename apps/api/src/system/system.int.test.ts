@@ -44,7 +44,7 @@ describe('System and global settings API', () => {
     expect(res.body.spend.periods.map((s: { spent: number }) => s.spent)).toEqual([0, 0, 0]);
     expect(res.body.settings).toMatchObject({
       budgetDailyCredits: null, budgetWeeklyCredits: null, budgetMonthlyCredits: null, budgetWarnPct: 80, timezone: 'UTC', budgetsApprovedAt: null, pollIntervalSec: 120, stageTimeoutMin: 20,
-      verifyTimeoutSec: 600, githubDefaultAuth: 'token', workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
+      verifyTimeoutSec: 600, githubDefaultAuth: 'token', githubIssueOnCreate: 'ask', onboardingTimeoutMin: 15, workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
     expect(res.body.settings).not.toHaveProperty('jiraMcp');
@@ -103,6 +103,32 @@ describe('System and global settings API', () => {
     expect((await t.agent.get('/system').expect(200)).body.settings.githubDefaultAuth).toBe('bot');
     expect((await t.agent.patch('/system/settings').send({ githubDefaultAuth: 'ssh' }).expect(400)).body.fields.githubDefaultAuth).toBe('must be token or bot');
     await t.agent.patch('/system/settings').send({ githubDefaultAuth: 'token' }).expect(200);
+  });
+
+  it('githubIssueOnCreate defaults to ask, is saved for every project, and takes only ask, always or never', async () => {
+    expect((await t.agent.get('/system').expect(200)).body.settings.githubIssueOnCreate).toBe('ask');
+    expect((await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'always' }).expect(200)).body.githubIssueOnCreate).toBe('always');
+    expect((await t.agent.get('/system').expect(200)).body.settings.githubIssueOnCreate).toBe('always');
+    const bad = await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'sometimes' }).expect(400);
+    expect(bad.body.fields.githubIssueOnCreate).toBe('must be ask, always or never');
+    expect((await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'ask' }).expect(200)).body.githubIssueOnCreate).toBe('ask');
+  });
+
+  it('onboardingTimeoutMin defaults to 15, is saved, and is bounded to 5-120', async () => {
+    expect((await t.agent.get('/system').expect(200)).body.settings.onboardingTimeoutMin).toBe(15);
+    const bad = await t.agent.patch('/system/settings').send({ onboardingTimeoutMin: 3 }).expect(400);
+    expect(Object.keys(bad.body.fields)).toEqual(['onboardingTimeoutMin']);
+    expect((await t.agent.patch('/system/settings').send({ onboardingTimeoutMin: 20 }).expect(200)).body.onboardingTimeoutMin).toBe(20);
+    expect((await t.agent.get('/system').expect(200)).body.settings.onboardingTimeoutMin).toBe(20);
+  });
+
+  it('a partial patch of the stage defaults merges: the other stages and the other field keep their values', async () => {
+    const before = (await t.agent.get('/system').expect(200)).body.settings.stageDefaults;
+    const res = await t.agent.patch('/system/settings').send({ stageDefaults: { implement: { maxTurns: 33 } } }).expect(200);
+    expect(res.body.stageDefaults.implement).toEqual({ model: before.implement.model, maxTurns: 33 });
+    const others = Object.keys(before).filter((k) => k !== 'implement');
+    expect(others.length).toBeGreaterThan(5);
+    for (const stage of others) expect(res.body.stageDefaults[stage]).toEqual(before[stage]);
   });
 
   it('returns field-level errors and saves nothing', async () => {
