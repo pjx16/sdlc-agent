@@ -434,6 +434,8 @@ button:disabled {
 }
 .hljs-strong {
   font-weight: 700;
+}
+
 /* Modals (components/modal.tsx): a short fade and scale in, unless the person asked for less motion. */
 @media (prefers-reduced-motion: no-preference) {
   dialog.modal[open] {
