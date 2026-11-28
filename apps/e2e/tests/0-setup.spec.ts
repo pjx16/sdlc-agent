@@ -9,17 +9,12 @@ async function login(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: /sign in/i }).click();
-  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+  // Until GitHub and Anthropic are connected every page leads to the setup, so this spec cannot wait for the overview.
+  await expect(page).not.toHaveURL(/\/login/);
 }
 
-const card = (page: Page, id: string) => page.getByTestId(`card-${id}`);
-
-/** Fills the given fields of a card and saves them with the card's single Save button. */
-async function saveCard(page: Page, id: string, values: Record<string, string>) {
-  for (const [label, value] of Object.entries(values)) await card(page, id).getByLabel(label, { exact: true }).fill(value);
-  await card(page, id).getByRole('button', { name: 'Save' }).click();
-  await expect(card(page, id).getByText('Saved', { exact: true }).first()).toBeVisible();
-}
+const github = (page: Page) => page.getByTestId('setup-github');
+const anthropic = (page: Page) => page.getByTestId('setup-anthropic');
 
 test('a first visit goes to the setup wizard; a wrong code is refused; the right one creates the admin', async ({ page }) => {
   await page.goto('/');
@@ -43,27 +38,34 @@ test('save and test the GitHub token; the banner stays until every required cred
   await login(page);
   await page.goto('/setup/connections');
 
-  // One Save and one Test per card (Claude, GitHub, Jira REST, Jira Rovo MCP), not per field.
-  await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(4);
-  await expect(page.getByRole('button', { name: 'Test' })).toHaveCount(4);
+  // Two cards, one step open in each, nothing to skip, and the way out is closed.
+  await expect(github(page)).toBeVisible();
+  await expect(anthropic(page)).toBeVisible();
+  await expect(page.getByText(/skip/i)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Go to dashboard' })).toBeDisabled();
 
-  await saveCard(page, 'github', { 'GitHub token': 'ghp_e2eFakeTokenForTheSetupSpec1234' });
-  await expect(card(page, 'github')).toContainText('••••1234');
+  await github(page).getByLabel('GitHub token').fill('ghp_e2eFakeTokenForTheSetupSpec1234');
+  await github(page).getByRole('button', { name: 'Save & test' }).click();
+  // The step folds to a line with who the token is, and the next one opens.
+  await expect(github(page)).toContainText('Personal token ••••1234');
+  await expect(github(page).getByLabel('Git author name')).toBeVisible();
   await expect(page.locator('body')).not.toContainText('ghp_e2eFakeToken'); // the secret is never rendered back
-  await card(page, 'github').getByRole('button', { name: 'Test' }).click();
-  await expect(card(page, 'github')).toContainText('Connected as octo-e2e');
 
-  // The Anthropic API key (and the git identity) are still missing.
-  await page.goto('/');
+  // The Anthropic API key and the git identity are still missing.
   await expect(page.getByRole('alert').filter({ hasText: 'Setup incomplete' })).toContainText('the Anthropic API key');
 });
 
-test('finishing the setup removes the banner', async ({ page }) => {
+test('finishing the setup removes the banner and opens the way to the dashboard', async ({ page }) => {
   await login(page);
   await page.goto('/setup/connections');
-  await saveCard(page, 'claude', { 'Anthropic API key': 'sk-ant-api03-e2eFakeAnthropicKey' });
-  await saveCard(page, 'github', { 'Git author name': 'E2E Bot', 'Git author email': 'e2e@example.com' });
-  await page.goto('/');
+  await anthropic(page).getByLabel('Anthropic API key').fill('sk-ant-api03-e2eFakeAnthropicKey');
+  await anthropic(page).getByRole('button', { name: 'Save & test' }).click();
+  await expect(anthropic(page)).toContainText('Connected');
+  await github(page).getByLabel('Git author name').fill('E2E Bot');
+  await github(page).getByLabel('Git author email').fill('e2e@example.com');
+  await github(page).getByRole('button', { name: 'Save' }).click();
+  await expect(github(page)).toContainText('E2E Bot');
+  await page.getByRole('link', { name: 'Go to dashboard' }).click();
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
   await expect(page.getByText('Setup incomplete')).toHaveCount(0);
 });
