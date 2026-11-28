@@ -58,7 +58,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       {/* A ticket that is still moving updates itself; a finished one does not need to. */}
       {ticket.status !== 'DONE' && ticket.status !== 'FAILED' && <AutoRefresh />}
       <p className="font-mono text-xs text-muted">
-        {ticket.key} · {ticket.projectName} · {ticket.source === 'jira' ? 'from Jira' : 'pasted'}
+        {ticket.key} · {ticket.projectName} · {ticket.source === 'github' ? 'from GitHub' : ticket.source === 'jira' ? 'from Jira (earlier)' : 'pasted'}
       </p>
       <h1 className="mt-1 text-xl font-semibold">{ticket.title}</h1>
       <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">

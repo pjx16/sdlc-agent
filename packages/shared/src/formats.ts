@@ -1,5 +1,5 @@
 /**
- * The formats of everything the pipeline writes for people: a new ticket, the plan, the PR description, review comments and Jira comments.
+ * The formats of everything the pipeline writes for people: a new ticket, the plan, the PR description, review comments and issue comments.
  * Each format is a markdown file in `guidelines/formats/<name>.md` that can be edited in the dashboard (Guidelines). The defaults below are
  * what a fresh install has and what is used when a file is missing or empty. A template holds `{{placeholder}}`s that code fills in; a
  * placeholder that is not known is left as written, so a typo shows up instead of vanishing.
@@ -85,7 +85,7 @@ What this ticket does NOT do.
     placeholders: [
       { name: 'title', meaning: 'the ticket title' },
       { name: 'key', meaning: 'the ticket key, for example SDA-12' },
-      { name: 'key_link', meaning: 'the key, with a link to the Jira issue when there is one' },
+      { name: 'key_link', meaning: 'the key, with a link to the issue when there is one' },
       { name: 'problem', meaning: 'the ticket description, shortened' },
       { name: 'fix', meaning: 'one line per subtask, with its commit' },
       { name: 'test_plan', meaning: 'the acceptance criteria of each subtask' },
@@ -151,9 +151,9 @@ CI checks passed; this PR is ready for human review.
 `,
   },
   {
-    name: 'jira-plan',
-    title: 'Jira comment: the plan',
-    description: 'The comment with the full plan, posted on the Jira issue when the plan is ready.',
+    name: 'issue-plan',
+    title: 'Issue comment: the plan',
+    description: 'The comment with the full plan, posted on the ticket\'s issue  when the plan is ready.',
     kind: 'template',
     placeholders: [
       { name: 'key', meaning: 'the ticket key' },
@@ -166,9 +166,9 @@ CI checks passed; this PR is ready for human review.
 `,
   },
   {
-    name: 'jira-needs-you',
-    title: 'Jira comment: needs a person',
-    description: 'The comment posted on the Jira issue when the pipeline needs a person (a blocking question, a hold, a CI problem).',
+    name: 'issue-needs-you',
+    title: 'Issue comment: needs a person',
+    description: 'The comment posted on the ticket\'s issue  when the pipeline needs a person (a blocking question, a hold, a CI problem).',
     kind: 'template',
     placeholders: [
       { name: 'title', meaning: 'what is needed, in a line' },

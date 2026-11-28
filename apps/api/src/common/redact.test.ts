@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { REDACTED, createRedactor } from './redact';
 
 const claude = 'sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789';
-const jira = 'ATATT3xFfGF0AbCdEfGhIjKlMnOpQrStUvWxYz0123456789=ABCD1234';
+const atlassianToken = 'ATATT3xFfGF0AbCdEfGhIjKlMnOpQrStUvWxYz0123456789=ABCD1234';
 
 describe('createRedactor', () => {
   it('replaces configured secrets, including inside JSON text', () => {
@@ -14,7 +14,7 @@ describe('createRedactor', () => {
   it('replaces token-shaped strings that were never configured', () => {
     const redact = createRedactor([]);
     expect(redact(`a ${claude} b`)).toBe(`a ${REDACTED} b`);
-    expect(redact(`x ${jira}`)).toBe(`x ${REDACTED}`);
+    expect(redact(`x ${atlassianToken}`)).toBe(`x ${REDACTED}`);
     expect(redact('gho_abcdefghijklmnopqrstuvwxyz0123')).toBe(REDACTED);
     expect(redact('github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz')).toBe(REDACTED);
   });

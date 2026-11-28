@@ -21,9 +21,6 @@ export const MISSING_LABELS: Record<string, string> = {
   broker_key: 'the broker key',
   git_author_name: 'the git author name',
   git_author_email: 'the git author email',
-  jira_base_url: 'the Jira base URL',
-  jira_email: 'the Jira email',
-  jira_api_token: 'the Jira API token',
 };
 
 export type { SetupStatus };

@@ -71,7 +71,7 @@ describe('restart recovery (F4)', () => {
     const t = await ticket();
     const done = await run(t.id, { status: 'succeeded', endedAt: new Date() });
     const queued = await run(t.id, { status: 'queued', startedAt: null });
-    const intake = await run(null, { stage: 'jiraIntake' });
+    const intake = await run(null, { stage: 'repoProfile' });
     const res = await recovery.recover();
     expect(res.interrupted).toBe(1);
     expect((await prisma.stageRun.findUniqueOrThrow({ where: { id: done.id } })).status).toBe('succeeded');

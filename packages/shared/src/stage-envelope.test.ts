@@ -21,8 +21,7 @@ const validData: Record<string, unknown> = {
   kbUpdate: { featureKey: 'auth', docPath: 'docs/kb/auth.md', changed: true },
   assist: { reply: 'Use a comma.', draft: { kind: 'answer', text: 'Comma' } },
   repoProfile: { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '**/*.spec.ts', exampleTestFile: null },
-  jiraConnector: { result: { key: 'ACME-1', status: 'To Do', summary: 's', description: 'd' }, error: null },
-  onboardAdvise: { statusMap: { KB: 'In Progress' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature' }, intakeLabel: 'sdlc-agent' },
+  onboardAdvise: { board: { statusMap: { KB: 'In Progress' }, approval: { plan: 'Plan Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false } },
 };
 
 describe('stage envelopes', () => {

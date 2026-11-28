@@ -45,7 +45,7 @@ export interface ContainerSpec {
   /** Entrypoint script in the image: `run-stage` or `run-cmd`. */
   cmd: string[];
   env: Record<string, string>;
-  /** Absent for Jira stages. */
+  /** Absent for stages that need no workspace. */
   workspace?: {
     path: string;
     readOnly: boolean;

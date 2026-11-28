@@ -5,13 +5,10 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ApprovalPoller } from '../../jira/approval-poller';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SubtasksService } from '../../subtasks/subtasks.service';
 import { StateMachine } from '../../state/state-machine.service';
 import { TicketsModule } from '../../tickets/tickets.module';
 import { docker, leftoverAgentContainers, startEgress, type EgressFixture } from '../../testing/docker-fixture';
-import { FakeJiraClients } from '../../testing/fake-jira';
 import { type TestApp, createTestApp } from '../../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import { AgentRunner } from '../agent-runner/agent-runner';
@@ -22,7 +19,6 @@ import { PrismaStageRunStore } from '../agent-runner/stage-run-store';
 import { GitRunner } from '../git/git-runner';
 import { MirrorService } from '../git/mirror.service';
 import { WorkspaceService } from '../git/workspace.service';
-import { IntakePoller } from '../intake/intake-poller';
 import { WorkerLoop } from '../loop/worker-loop';
 import { VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
@@ -99,11 +95,10 @@ describe('pipeline end to end (real containers, fake-claude)', () => {
     const launcher = new StageLauncher(prisma, config, agent);
     const outcomes = new StageOutcomes(prisma);
     const kbBuild = new KbBuildService(prisma, launcher, outcomes, workspaces, git);
-    const jira = new FakeJiraClients();
     const states = new StateMachine(prisma);
     loop = new WorkerLoop(
-      prisma, mirrors, new IntakePoller(prisma, jira), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states,
-      [new NewTicketHandler(workspaces), new KbHandler(prisma, workspaces, kbBuild), new PlanHandler(prisma, launcher, outcomes, jira)],
+      prisma, mirrors, states,
+      [new NewTicketHandler(workspaces), new KbHandler(prisma, workspaces, kbBuild), new PlanHandler(prisma, launcher, outcomes)],
     );
     app = await createTestApp(db.url, [TicketsModule]);
   }, 300_000);

@@ -55,21 +55,6 @@ export interface WorkerStatusView {
   tickDetail: string | null;
   /** Why the agent image cannot be used (with how to fix it), or null. */
   agentImageError: string | null;
-  /** The last Jira intake poll of each mode that has run. */
-  intake: IntakeStatusView[];
-}
-
-export interface IntakeStatusView {
-  mode: 'rest' | 'mcp' | 'connector';
-  at: string | null;
-  /** Projects polled (Jira mode on, mirror ready). */
-  projects: number;
-  /** Projects in this mode left out because their mirror is not ready. */
-  waiting: number;
-  created: number;
-  seen: number;
-  error: string | null;
-  skipped: string | null;
 }
 
 export interface RecentEvent {
@@ -126,13 +111,13 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     budgetWeeklyCredits: row.budgetWeeklyCredits,
     budgetMonthlyCredits: row.budgetMonthlyCredits,
     budgetWarnPct: row.budgetWarnPct,
-    intakeJiraEnabled: row.intakeJiraEnabled,
     intakeGithubEnabled: row.intakeGithubEnabled,
     intakePasteEnabled: row.intakePasteEnabled,
     timezone: row.timezone,
     pollIntervalSec: row.pollIntervalSec,
     stageTimeoutMin: row.stageTimeoutMin,
     verifyTimeoutSec: row.verifyTimeoutSec,
+    githubIssueOnCreate: row.githubIssueOnCreate,
     workspaceRetentionDays: row.workspaceRetentionDays,
     logRetentionDays: row.logRetentionDays,
     assistantTokenCap: row.assistantTokenCap,
@@ -181,7 +166,6 @@ export class SystemSettingsService {
     const running = await this.prisma.stageRun.findFirst({ where: { status: 'running' }, orderBy: { startedAt: 'desc' } });
     const spend = await this.spend();
     const worker = await this.prisma.workerStatus.findUnique({ where: { id: 'worker' } });
-    const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest', 'intake-mcp', 'intake-connector'] } }, orderBy: { id: 'asc' } });
     const restarts = await this.prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: new Date(Date.now() - 10 * 60_000) } } });
     const events = await this.prisma.event.findMany({ orderBy: { at: 'desc' }, take: 8, include: { ticket: { select: { key: true } } } });
     const inboxFyi = await this.prisma.supportTicket.count({ where: { status: 'open', NOT: { OR: [{ kind: 'approval' }, { priority: 'blocking' }] } } });
@@ -206,16 +190,6 @@ export class SystemSettingsService {
         tickOutcome: worker.tickOutcome,
         tickDetail: worker.tickDetail,
         agentImageError: worker.agentImageError,
-        intake: intakeRows.map((r) => ({
-          mode: (r.intakeMode === 'mcp' || r.intakeMode === 'connector' ? r.intakeMode : 'rest') as 'rest' | 'mcp' | 'connector',
-          at: r.intakeAt?.toISOString() ?? null,
-          projects: r.intakeProjects,
-          waiting: r.intakeWaiting,
-          created: r.intakeCreated,
-          seen: r.intakeSeen,
-          error: r.intakeError,
-          skipped: r.intakeSkipped,
-        })),
       },
       recentEvents: events.map((e) => ({ id: e.id, at: e.at.toISOString(), type: e.type, message: e.message, ticketId: e.ticketId, ticketKey: e.ticket?.key ?? null })),
       runningStage: running && {

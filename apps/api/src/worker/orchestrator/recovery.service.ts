@@ -15,7 +15,7 @@ const SPENT = { point: 'recovery', NOT: { chosen: { startsWith: 'ask_human' } } 
  * Self-recovery. When a step would stop the ticket for a person (`needs_help`), the orchestrator first looks at the failure and tries to
  * get it moving again: run the step again, or redo the stuck subtask's tests, each with a note it writes for the agent. After
  * `recovery.maxAttempts` tries, or when it judges that nothing it can do will help, the ticket goes to a person as before.
- * Every decision is stored, logged as an event and written on the Jira ticket (OrchestratorService.decide).
+ * Every decision is stored, logged as an event and written on the ticket's issue (OrchestratorService.decide).
  */
 @Injectable()
 export class RecoveryService {

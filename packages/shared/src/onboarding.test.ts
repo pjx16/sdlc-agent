@@ -1,38 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { OnboardAdviseData, RepoProfileData, buildIntakeJql, defaultRouting, kindForIssueType, missingAcceptance } from './onboarding';
+import { BoardAdviseData, RepoProfileData, missingAcceptance } from './onboarding';
 import { ProjectSettingsSchema } from './project-settings';
 
-describe('buildIntakeJql', () => {
-  it('uses the label and only the issue types that route to a kind', () => {
-    const jql = buildIntakeJql({ projectKey: 'SDA', label: 'sdlc-agent', routing: { Story: 'feature', Bug: 'bug', Epic: 'ignore', 'Sub-task': 'ignore', Task: 'chore' } });
-    expect(jql).toBe('project = "SDA" AND labels = "sdlc-agent" AND issuetype in ("Bug", "Story", "Task") ORDER BY created ASC');
-  });
-  it('leaves the type filter out when every type is ignored, and strips quotes from names', () => {
-    expect(buildIntakeJql({ projectKey: 'A', label: 'x', routing: { Epic: 'ignore' } })).toBe('project = "A" AND labels = "x" ORDER BY created ASC');
-    expect(buildIntakeJql({ projectKey: 'A', label: 'l"x', routing: { 'My"Type': 'bug' } })).toBe('project = "A" AND labels = "lx" AND issuetype in ("MyType") ORDER BY created ASC');
-  });
-});
-
-describe('routing', () => {
-  it('defaults Sub-task and Epic types to ignore, and sub-task flags win over the name', () => {
-    expect(defaultRouting([{ name: 'Story', subtask: false }, { name: 'Bug', subtask: false }, { name: 'Epic', subtask: false }, { name: 'Sub-task', subtask: true }, { name: 'Subtask of mine', subtask: true }, { name: 'Weird', subtask: false }, { name: 'Technical task', subtask: false }])).toEqual({
-      Story: 'feature', Bug: 'bug', Epic: 'ignore', 'Sub-task': 'ignore', 'Subtask of mine': 'ignore', Weird: 'feature', 'Technical task': 'chore',
-    });
-  });
-  it('finds the kind of an issue type by the project routing, ignoring case, else the fallback', () => {
-    const routing = { Story: 'feature', Bug: 'bug', Epic: 'ignore' } as const;
-    expect(kindForIssueType(routing, 'bug', 'feature')).toBe('bug');
-    expect(kindForIssueType(routing, 'Epic', 'feature')).toBe('ignore');
-    expect(kindForIssueType(routing, 'Mystery', 'chore')).toBe('chore');
-    expect(kindForIssueType({}, 'Story', 'feature')).toBe('feature');
-  });
-});
-
 describe('acceptance', () => {
-  it('the status map and the label must be accepted explicitly', () => {
-    expect(missingAcceptance({})).toEqual(['statusMap', 'label']);
-    expect(missingAcceptance({ statusMap: true })).toEqual(['label']);
-    expect(missingAcceptance({ statusMap: true, label: true })).toEqual([]);
+  it('the board mapping, when there is one, must be accepted explicitly', () => {
+    const board = { statusMap: {}, approval: { plan: null, breakdown: null }, intakeStatus: null, useDefaultColumns: true };
+    expect(missingAcceptance({ accepted: {} })).toEqual([]);
+    expect(missingAcceptance({ accepted: {}, board })).toEqual(['board']);
+    expect(missingAcceptance({ accepted: { board: true }, board })).toEqual([]);
   });
 });
 
@@ -44,18 +19,19 @@ describe('agent output', () => {
     expect(RepoProfileData.safeParse({ ...ok, kbDir: '../x' }).success).toBe(false);
     expect(RepoProfileData.safeParse({ ...ok, stack: 'rails' }).success).toBe(false);
   });
-  it('advice maps states to statuses, several states may share one, and types to kinds', () => {
-    const ok = { statusMap: { KB: 'In Progress', PLANNING: 'In Progress', DONE: 'Done' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature', Epic: 'ignore' }, intakeLabel: 'sdlc-agent' };
-    expect(OnboardAdviseData.safeParse(ok).success).toBe(true);
-    expect(OnboardAdviseData.safeParse({ ...ok, issueTypeRouting: { Story: 'wizard' } }).success).toBe(false);
-    expect(OnboardAdviseData.safeParse({ ...ok, intakeLabel: 'two words' }).success).toBe(false);
+  it('board advice maps states to columns, several states may share one, and needs the default-columns call', () => {
+    const ok = { board: { statusMap: { KB: 'In Progress', PLANNING: 'In Progress', DONE: 'Done' }, approval: { plan: 'Plan Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false } };
+    expect(BoardAdviseData.safeParse(ok).success).toBe(true);
+    expect(BoardAdviseData.safeParse({ board: { ...ok.board, useDefaultColumns: 'yes' } }).success).toBe(false);
+    expect(BoardAdviseData.safeParse({ board: { ...ok.board, statusMap: { NOPE: 'x' } } }).success).toBe(true); // unknown states are dropped, not an error
+    expect(BoardAdviseData.safeParse({ statusMap: {}, approvalStatuses: {} }).success).toBe(false);
   });
 });
 
 describe('project settings keep the new fields', () => {
-  it('defaults to no routing, and an old Confluence setting is ignored', () => {
+  it('defaults to no approval columns, and an old Confluence setting is ignored', () => {
     const s = ProjectSettingsSchema.parse({});
-    expect(s.jiraIssueTypeRouting).toEqual({});
+    expect(s.github.approval).toEqual({ plan: null, breakdown: null, label: 'sdlc:approved' });
     expect('confluence' in s).toBe(false);
     expect(s.stages.repoProfile).toMatchObject({ model: 'sonnet' });
     expect(s.stages.onboardAdvise).toMatchObject({ model: 'haiku' });

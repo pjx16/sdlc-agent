@@ -44,10 +44,9 @@ describe('System and global settings API', () => {
     expect(res.body.spend.periods.map((s: { spent: number }) => s.spent)).toEqual([0, 0, 0]);
     expect(res.body.settings).toMatchObject({
       budgetDailyCredits: null, budgetWeeklyCredits: null, budgetMonthlyCredits: null, budgetWarnPct: 80, timezone: 'UTC', budgetsApprovedAt: null, pollIntervalSec: 120, stageTimeoutMin: 20,
-      verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
+      verifyTimeoutSec: 600, githubIssueOnCreate: 'ask', workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
-    expect(res.body.settings).not.toHaveProperty('jiraMcp');
   });
 
   it('GET /system reports the worker: none before it has run, online with a fresh heartbeat, offline with an old one, plus recent events', async () => {
@@ -55,11 +54,10 @@ describe('System and global settings API', () => {
     expect((await t.agent.get('/system').expect(200)).body.worker).toBeNull();
 
     await t.prisma.workerStatus.create({ data: { heartbeatAt: new Date(), tickOutcome: 'not_configured', tickDetail: 'anthropic_api_key' } });
-    await t.prisma.workerStatus.create({ data: { id: 'intake-rest', heartbeatAt: new Date(), tickOutcome: 'intake', intakeMode: 'rest', intakeAt: new Date(), intakeProjects: 1, intakeError: 'boom' } });
-    await t.prisma.event.create({ data: { type: 'jira', message: 'Jira (MCP) intake: 1 new ticket' } });
+    await t.prisma.event.create({ data: { type: 'git', message: 'Pushed sdlc/x' } });
     const online = (await t.agent.get('/system').expect(200)).body;
-    expect(online.worker).toMatchObject({ online: true, tickOutcome: 'not_configured', tickDetail: 'anthropic_api_key', intake: [{ mode: 'rest', projects: 1, error: 'boom', created: 0 }] });
-    expect(online.recentEvents[0]).toMatchObject({ type: 'jira', message: 'Jira (MCP) intake: 1 new ticket', ticketKey: null });
+    expect(online.worker).toMatchObject({ online: true, tickOutcome: 'not_configured', tickDetail: 'anthropic_api_key' });
+    expect(online.recentEvents[0]).toMatchObject({ type: 'git', message: 'Pushed sdlc/x', ticketKey: null });
 
     await t.prisma.workerStatus.update({ where: { id: 'worker' }, data: { heartbeatAt: new Date(Date.now() - 5 * 60_000) } });
     expect((await t.agent.get('/system').expect(200)).body.worker.online).toBe(false);
@@ -95,6 +93,15 @@ describe('System and global settings API', () => {
     const cleared = await t.agent.patch('/system/settings').send({ budgetDailyCredits: null }).expect(200);
     expect(cleared.body.budgetDailyCredits).toBeNull();
     expect(cleared.body.pollIntervalSec).toBe(60);
+  });
+
+  it('githubIssueOnCreate defaults to ask, is saved for every project, and takes only ask, always or never', async () => {
+    expect((await t.agent.get('/system').expect(200)).body.settings.githubIssueOnCreate).toBe('ask');
+    expect((await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'always' }).expect(200)).body.githubIssueOnCreate).toBe('always');
+    expect((await t.agent.get('/system').expect(200)).body.settings.githubIssueOnCreate).toBe('always');
+    const bad = await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'sometimes' }).expect(400);
+    expect(bad.body.fields.githubIssueOnCreate).toBe('must be ask, always or never');
+    expect((await t.agent.patch('/system/settings').send({ githubIssueOnCreate: 'ask' }).expect(200)).body.githubIssueOnCreate).toBe('ask');
   });
 
   it('returns field-level errors and saves nothing', async () => {
@@ -137,10 +144,10 @@ describe('System and global settings API', () => {
   });
 
   it('each intake source has its own switch, on by default, apart from the intake switch', async () => {
-    expect((await t.agent.get('/system').expect(200)).body.settings).toMatchObject({ intakeJiraEnabled: true, intakeGithubEnabled: true, intakePasteEnabled: true });
+    expect((await t.agent.get('/system').expect(200)).body.settings).toMatchObject({ intakeGithubEnabled: true, intakePasteEnabled: true });
     const res = await t.agent.patch('/system/settings').send({ intakeGithubEnabled: false }).expect(200);
-    expect(res.body).toMatchObject({ intakeGithubEnabled: false, intakeJiraEnabled: true, intakePasteEnabled: true, intakePaused: false });
-    expect((await t.agent.patch('/system/settings').send({ intakeJiraEnabled: 'no' }).expect(400)).body.fields.intakeJiraEnabled).toContain('true or false');
+    expect(res.body).toMatchObject({ intakeGithubEnabled: false, intakePasteEnabled: true, intakePaused: false });
+    expect((await t.agent.patch('/system/settings').send({ intakePasteEnabled: 'no' }).expect(400)).body.fields.intakePasteEnabled).toContain('true or false');
     await t.agent.patch('/system/settings').send({ intakeGithubEnabled: true }).expect(200);
   });
 

@@ -34,7 +34,7 @@ describe('DeleteProject', () => {
     expect(dialog).toHaveTextContent('4 tickets');
     expect(dialog).toHaveTextContent('2 not finished');
     expect(dialog).toHaveTextContent('17 stage runs');
-    expect(dialog).toHaveTextContent('Nothing is changed on GitHub or Jira');
+    expect(dialog).toHaveTextContent('Nothing is changed on GitHub');
     expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/delete-impact');
   });
 

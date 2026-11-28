@@ -5,7 +5,6 @@ Start with the root [`README.md`](../README.md) (what it is, install, security m
 | Document | Read it to |
 | --- | --- |
 | [`CONFIGURATION.md`](./CONFIGURATION.md) | See every environment variable, the token permissions, and what is set per project |
-| [`TRACKER.md`](./TRACKER.md) | Connect Jira: which tickets are picked up, approvals, write-back, failures |
 | [`GITHUB.md`](./GITHUB.md) | GitHub issues and Projects boards as a ticket source |
 | [`BOT.md`](./BOT.md) | Work as `sdlc-agent[bot]` instead of with a personal token, or run the token broker |
 | [`architecture/`](./architecture/README.md) | Understand how the system is put together, per version, with diagrams |

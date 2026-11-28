@@ -42,4 +42,4 @@ export class RedactInterceptor implements NestInterceptor {
 }
 
 /** The infrastructure secrets from the environment; credentials are added from CredentialsService. */
-export const apiSecrets = (env: NodeJS.ProcessEnv = process.env): (string | undefined)[] => [env.JIRA_API_TOKEN, env.JIRA_MCP_TOKEN, env.JIRA_MCP_OAUTH, env.SESSION_SECRET, env.DASHBOARD_PASSWORD, env.POSTGRES_PASSWORD, env.ENCRYPTION_KEY, env.SETUP_CODE, env.GITHUB_TOKEN, env.ANTHROPIC_API_KEY];
+export const apiSecrets = (env: NodeJS.ProcessEnv = process.env): (string | undefined)[] => [env.SESSION_SECRET, env.DASHBOARD_PASSWORD, env.POSTGRES_PASSWORD, env.ENCRYPTION_KEY, env.SETUP_CODE, env.GITHUB_TOKEN, env.ANTHROPIC_API_KEY];

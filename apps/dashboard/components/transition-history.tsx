@@ -3,19 +3,7 @@ import { StateBadge } from './state-badge';
 
 import type { TransitionView } from '@/lib/types';
 
-function JiraSync({ t }: { t: TransitionView }) {
-  if (t.jiraSyncResult === 'applied') return <span className="text-green">Moved to “{t.jiraStatusApplied}”</span>;
-  if (t.jiraSyncResult === 'failed') {
-    return (
-      <span role="alert" className="text-amber">
-        ⚠ Jira move to “{t.jiraStatusApplied}” failed: {t.jiraSyncError}
-      </span>
-    );
-  }
-  return <span className="text-muted">—</span>;
-}
-
-/** Every state change of a ticket, oldest first, with what happened in Jira (F15). A failed Jira move is a warning only. */
+/** Every state change of a ticket, oldest first. */
 export function TransitionHistory({ transitions }: { transitions: TransitionView[] }) {
   if (transitions.length === 0) return <p className="text-sm text-muted">No state changes yet.</p>;
   return (
@@ -26,7 +14,6 @@ export function TransitionHistory({ transitions }: { transitions: TransitionView
           <th className="py-2 font-normal">Change</th>
           <th className="py-2 font-normal">By</th>
           <th className="py-2 font-normal">Reason</th>
-          <th className="py-2 font-normal">Jira</th>
         </tr>
       </thead>
       <tbody>
@@ -42,9 +29,6 @@ export function TransitionHistory({ transitions }: { transitions: TransitionView
             </td>
             <td className="py-3 text-muted">{t.actor}</td>
             <td className="py-3">{t.reason ?? <span className="text-muted">—</span>}</td>
-            <td className="py-3">
-              <JiraSync t={t} />
-            </td>
           </tr>
         ))}
       </tbody>

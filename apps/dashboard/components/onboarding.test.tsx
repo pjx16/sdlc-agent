@@ -23,17 +23,16 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 const sentBody = (i = 0) => JSON.parse(String((fetchMock.mock.calls[i] as [string, RequestInit])[1].body));
 
-describe('OnboardForm: two fields', () => {
-  it('has only a repo URL and an optional Jira key, and starts the onboarding', async () => {
+describe('OnboardForm: one field', () => {
+  it('has only a repo URL, and starts the onboarding', async () => {
     fetchMock.mockResolvedValue(reply({ id: 'p9' }));
     render(<OnboardForm />);
-    expect(screen.getAllByRole('textbox')).toHaveLength(2);
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
     await userEvent.type(screen.getByLabelText('Repository URL'), 'https://github.com/acme/billing');
-    await userEvent.type(screen.getByLabelText('Jira project key (optional)'), 'SDA');
     await userEvent.click(screen.getByRole('button', { name: 'Start' }));
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/onboard');
-    expect(sentBody()).toEqual({ repoUrl: 'https://github.com/acme/billing', jiraProjectKey: 'SDA', githubAuth: 'token', jiraMode: 'rest' });
+    expect(sentBody()).toEqual({ repoUrl: 'https://github.com/acme/billing', githubAuth: 'token' });
     expect(push).toHaveBeenCalledWith('/projects/p9');
   });
 
@@ -60,10 +59,8 @@ describe('OnboardForm: two fields', () => {
 const proposal = (over: Partial<OnboardingProposal> = {}): OnboardingProposal => ({
   facts: {
     github: { defaultBranch: 'main', languages: ['TypeScript'] },
-    jira: { projectName: 'Billing', issueTypes: [{ name: 'Story', subtask: false }, { name: 'Epic', subtask: false }], statusesByType: [], labels: [] },
   },
   profile: { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '', exampleTestFile: null, baseBranch: 'main', installCheck: { command: 'npm ci', ok: true, tail: '' }, typecheckCheck: { command: 'npx tsc --noEmit', ok: false, tail: 'error TS2304' } },
-  advice: { statusMap: { KB: 'In Progress' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature', Epic: 'ignore' }, intakeLabel: 'sdlc-agent' },
   accepted: {},
   createdAt: '2026-11-14T10:00:00Z',
   ...over,
@@ -102,108 +99,117 @@ describe('OnboardingPanel', () => {
     expect(await screen.findByRole('status')).toBeInTheDocument();
   });
 
-  it('has one card per section, with the command checks and which cards must be accepted', () => {
+  it('shows the commands with their checks', () => {
     render(<OnboardingPanel projectId="p1" initial={view()} />);
-    for (const name of ['Commands', 'Jira statuses', 'Issue types', 'Intake label']) expect(screen.getByRole('region', { name })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Commands' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'GitHub board columns' })).not.toBeInTheDocument();
     const commands = screen.getByRole('region', { name: 'Commands' });
     expect(within(commands).getByText('npx jest {files}')).toBeInTheDocument();
     expect(within(commands).getByText(/Install check: passed/)).toBeInTheDocument();
     expect(within(commands).getByText(/Typecheck check: failed/)).toBeInTheDocument();
     expect(within(commands).getByText('error TS2304')).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Jira statuses' })).getByText('must be accepted')).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Intake label' })).getByText('must be accepted')).toBeInTheDocument();
-    expect(within(screen.getByRole('region', { name: 'Issue types' })).getByText('ignored')).toBeInTheDocument();
-  });
-
-  it('Confirm stays off until the status map and the label are accepted', async () => {
-    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => reply(view({ proposal: proposal({ accepted: { statusMap: true, label: JSON.parse(String(init.body)).action === 'accept' && String(_url).endsWith('/label') } }) })));
-    render(<OnboardingPanel projectId="p1" initial={view()} />);
-    const confirm = screen.getByRole('button', { name: 'Confirm the project' });
-    expect(confirm).toBeDisabled();
-    await userEvent.click(within(screen.getByRole('region', { name: 'Jira statuses' })).getByRole('button', { name: 'Accept' }));
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/sections/statusMap');
-    expect(sentBody()).toEqual({ action: 'accept' });
-    await userEvent.click(within(screen.getByRole('region', { name: 'Intake label' })).getByRole('button', { name: 'Accept' }));
-    expect(screen.getByRole('button', { name: 'Confirm the project' })).toBeEnabled();
   });
 
   it('turns the Accept button off once the section is accepted', async () => {
     render(<OnboardingPanel projectId="p1" initial={view({ proposal: proposal({ accepted: { commands: true } }) })} />);
     expect(within(screen.getByRole('region', { name: 'Commands' })).getByRole('button', { name: 'Accepted' })).toBeDisabled();
     expect(within(screen.getByRole('region', { name: 'Commands' })).getByRole('button', { name: 'Edit' })).toBeEnabled();
-    expect(within(screen.getByRole('region', { name: 'Intake label' })).getByRole('button', { name: 'Accept' })).toBeEnabled();
   });
 
   it('edits a section and sends the change', async () => {
     fetchMock.mockResolvedValue(reply(view()));
     render(<OnboardingPanel projectId="p1" initial={view()} />);
-    const label = screen.getByRole('region', { name: 'Intake label' });
-    await userEvent.click(within(label).getByRole('button', { name: 'Edit' }));
-    const input = within(label).getByLabelText('Label');
+    const commands = screen.getByRole('region', { name: 'Commands' });
+    await userEvent.click(within(commands).getByRole('button', { name: 'Edit' }));
+    const input = within(commands).getByLabelText('KB folder');
     await userEvent.clear(input);
-    await userEvent.type(input, 'agent-ready');
-    await userEvent.click(within(label).getByRole('button', { name: 'Save and accept' }));
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/sections/label');
-    expect(sentBody()).toEqual({ action: 'edit', value: { intakeLabel: 'agent-ready' } });
-  });
-
-  it('edits the routing as lines and sends them as a map', async () => {
-    fetchMock.mockResolvedValue(reply(view()));
-    render(<OnboardingPanel projectId="p1" initial={view()} />);
-    const card = screen.getByRole('region', { name: 'Issue types' });
-    await userEvent.click(within(card).getByRole('button', { name: 'Edit' }));
-    const box = within(card).getByRole('textbox');
-    await userEvent.clear(box);
-    await userEvent.type(box, 'Story: bug');
-    await userEvent.click(within(card).getByRole('button', { name: 'Save and accept' }));
-    expect(sentBody()).toEqual({ action: 'edit', value: { issueTypeRouting: { Story: 'bug' } } });
+    await userEvent.type(input, 'docs/knowledge');
+    await userEvent.click(within(commands).getByRole('button', { name: 'Save and accept' }));
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/sections/commands');
+    expect(sentBody()).toMatchObject({ action: 'edit', value: { kbDir: 'docs/knowledge' } });
   });
 
   it('shows the server error when an edit is refused', async () => {
-    fetchMock.mockResolvedValue(reply({ fields: { statusMap: 'KB is not a status of this Jira project' } }, 400));
+    fetchMock.mockResolvedValue(reply({ fields: { testCmdTemplate: 'must contain {files}' } }, 400));
     render(<OnboardingPanel projectId="p1" initial={view()} />);
-    await userEvent.click(within(screen.getByRole('region', { name: 'Jira statuses' })).getByRole('button', { name: 'Accept' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('not a status of this Jira project');
-  });
-
-  it('runs the dry run and shows the count, the first tickets and the label hint', async () => {
-    fetchMock.mockResolvedValue(reply({ jql: 'project = "SDA" AND labels = "sdlc-agent"', count: 0, tickets: [], note: 'Label not used yet. Add the label "sdlc-agent" to a Jira ticket to start.' }));
-    render(<OnboardingPanel projectId="p1" initial={view()} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Run the dry run' }));
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/dry-run');
-    expect(await screen.findByText('0 tickets currently match.')).toBeInTheDocument();
-    expect(screen.getByText(/Label not used yet/)).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole('region', { name: 'Commands' })).getByRole('button', { name: 'Accept' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('must contain {files}');
   });
 
   it('confirms, shows any warning and refreshes the page', async () => {
-    const accepted = proposal({ accepted: { statusMap: true, label: true } });
-    fetchMock.mockResolvedValue(reply({ warnings: ['The label could not be created in Jira.'] }));
+    const accepted = proposal({ accepted: { commands: true } });
+    fetchMock.mockResolvedValue(reply({ warnings: ['The label could not be created on the board.'] }));
     render(<OnboardingPanel projectId="p1" initial={view({ proposal: accepted })} />);
     await userEvent.click(screen.getByRole('button', { name: 'Confirm the project' }));
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/confirm');
-    expect(await screen.findByText(/The label could not be created/)).toBeInTheDocument();
+    expect(await screen.findByText(/could not be created on the board/)).toBeInTheDocument();
     expect(refresh).toHaveBeenCalled();
   });
 
-  it('a project without Jira needs no accepting and says it takes pasted tickets only', () => {
-    const p = proposal({ facts: { github: { defaultBranch: 'main', languages: [] }, jira: null } });
-    render(<OnboardingPanel projectId="p1" initial={view({ proposal: p })} />);
-    expect(screen.getByText(/pasted tickets only/)).toBeInTheDocument();
+  it('a project without a board needs no accepting and says it takes pasted tickets and GitHub issues only', () => {
+    render(<OnboardingPanel projectId="p1" initial={view()} />);
+    expect(screen.getByText(/pasted tickets and GitHub issues only/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm the project' })).toBeEnabled();
-    expect(screen.queryByRole('region', { name: 'Jira statuses' })).not.toBeInTheDocument();
+  });
+});
+
+describe('the GitHub board mapping', () => {
+  const boardProposal = (board: Partial<NonNullable<OnboardingProposal['board']>> = {}, accepted: OnboardingProposal['accepted'] = {}) =>
+    proposal({
+      facts: { github: { defaultBranch: 'main', languages: [], board: { columns: ['Todo', 'Doing', 'Approved', 'Done'] } } },
+      board: { statusMap: { PLANNING: 'Doing', DONE: 'Done' }, approval: { plan: 'Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false, ...board },
+      accepted,
+    });
+
+  it('shows the mapping, the approval columns and the intake column, and holds Confirm until it is accepted', () => {
+    render(<OnboardingPanel projectId="p1" initial={view({ proposal: boardProposal() })} />);
+    const card = screen.getByRole('region', { name: 'GitHub board columns' });
+    expect(within(card).getByText('Doing')).toBeInTheDocument();
+    expect(within(card).getAllByText('Approved').length).toBeGreaterThan(0);
+    expect(within(card).getByText('must be accepted')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm the project' })).toBeDisabled();
+    expect(screen.queryByText(/pasted tickets/)).not.toBeInTheDocument();
+  });
+
+  it('Confirm is on once the board card is accepted', () => {
+    render(<OnboardingPanel projectId="p1" initial={view({ proposal: boardProposal({}, { board: true }) })} />);
+    expect(screen.getByRole('button', { name: 'Confirm the project' })).toBeEnabled();
+  });
+
+  it('the default-columns switch is sent at once, and says the columns are added when needed', async () => {
+    fetchMock.mockResolvedValue(reply(view({ proposal: boardProposal({ useDefaultColumns: true }) })));
+    render(<OnboardingPanel projectId="p1" initial={view({ proposal: boardProposal() })} />);
+    const card = screen.getByRole('region', { name: 'GitHub board columns' });
+    const toggle = within(card).getByRole('switch', { name: /default columns/ });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await userEvent.click(toggle);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/p1/onboarding/sections/board');
+    expect(sentBody()).toEqual({ action: 'edit', value: { useDefaultColumns: true } });
+    expect(await within(card).findByText(/added to the board when they are first needed/)).toBeInTheDocument();
+  });
+
+  it('edits the columns as lines and sends them as a map', async () => {
+    fetchMock.mockResolvedValue(reply(view({ proposal: boardProposal() })));
+    render(<OnboardingPanel projectId="p1" initial={view({ proposal: boardProposal() })} />);
+    const card = screen.getByRole('region', { name: 'GitHub board columns' });
+    await userEvent.click(within(card).getByRole('button', { name: 'Edit' }));
+    const plan = within(card).getByLabelText('Plan approved column (empty for none)');
+    await userEvent.clear(plan);
+    await userEvent.type(plan, 'Done');
+    await userEvent.click(within(card).getByRole('button', { name: 'Save and accept' }));
+    expect(sentBody()).toEqual({ action: 'edit', value: { statusMap: { PLANNING: 'Doing', DONE: 'Done' }, approval: { plan: 'Done', breakdown: null }, intakeStatus: 'Todo' } });
   });
 });
 
 describe('ProjectSummary', () => {
-  const project = { id: 'p1', name: 'billing', repoUrl: 'https://github.com/acme/billing', baseBranch: 'main', stack: 'nestjs', jiraMode: 'rest', jiraProjectKey: 'SDA', settings: { ...DEFAULT_PROJECT_SETTINGS, jiraIssueTypeRouting: { Story: 'feature', Epic: 'ignore' }, confluence: { spaceKey: 'ENG', parentPageId: '1' } } } as unknown as ProjectView;
+  const project = { id: 'p1', name: 'billing', repoUrl: 'https://github.com/acme/billing', baseBranch: 'main', stack: 'nestjs', settings: { ...DEFAULT_PROJECT_SETTINGS, github: { ...DEFAULT_PROJECT_SETTINGS.github, mode: 'projects', project: { owner: 'acme', number: 3 } }, confluence: { spaceKey: 'ENG', parentPageId: '1' } } } as unknown as ProjectView;
   it('shows what the project is, without every setting', () => {
     render(<ProjectSummary project={project} />);
-    expect(screen.getByText('Jira SDA (REST API), and pasted tickets')).toBeInTheDocument();
-    expect(screen.getByText('Story → feature, Epic → ignored')).toBeInTheDocument();
+    expect(screen.getByText('GitHub board acme/3, and pasted tickets')).toBeInTheDocument();
     expect(screen.getByText('Committed to the knowledge-base folder of the repository')).toBeInTheDocument();
   });
-  it('says pasted tickets only without Jira', () => {
-    render(<ProjectSummary project={{ ...project, jiraMode: 'off', jiraProjectKey: undefined, settings: { ...project.settings, jiraIssueTypeRouting: {} } }} />);
+  it('says pasted tickets only without a GitHub source', () => {
+    render(<ProjectSummary project={{ ...project, settings: { ...project.settings, github: { ...project.settings.github, mode: 'off' } } }} />);
     expect(screen.getByText('Pasted tickets only')).toBeInTheDocument();
   });
 });

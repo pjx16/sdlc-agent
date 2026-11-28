@@ -1,18 +1,14 @@
 import { Module } from '@nestjs/common';
 import { CredentialsModule } from '../credentials/credentials.module';
 import { CredentialsService } from '../credentials/credentials.service';
-import { JiraClients } from '../jira/jira-clients';
-import { JiraModule } from '../jira/jira.module';
 import { LoggingModule } from '../logging.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PrismaService } from '../prisma/prisma.service';
-import { ApprovalPoller } from '../jira/approval-poller';
 import { StateMachine } from '../state/state-machine.service';
 import { SubtasksService } from '../subtasks/subtasks.service';
 import { StateModule } from '../state/state.module';
 import { BUDGET_GATE, BudgetGate } from './usage/budget-gate';
 import { AgentRunner } from './agent-runner/agent-runner';
-import { JiraConnectorClient } from './jira-connector/jira-connector-client';
 import { FileLogSink } from './agent-runner/file-log-sink';
 import { LOG_SINK } from './agent-runner/log-sink';
 import { PrismaStageRunStore, STAGE_RUN_STORE } from './agent-runner/stage-run-store';
@@ -22,7 +18,6 @@ import { GitRunner } from './git/git-runner';
 import { MirrorService } from './git/mirror.service';
 import { WorkspaceService } from './git/workspace.service';
 import { VerifyService } from './verify/verify.service';
-import { IntakePoller } from './intake/intake-poller';
 import { BreakdownHandler } from './pipeline/breakdown.handler';
 import { GITHUB_CLIENT, GhCliClient, type GitHubClient } from './github/github-client';
 import { InProgressHandler, SUBTASK_STEPS } from './pipeline/in-progress.handler';
@@ -53,6 +48,10 @@ import { GatewayTokens } from './llm-gateway/gateway-tokens';
 import { OnboardingWorker } from './onboarding/onboarding-worker';
 import { RepoAccessService } from './github/repo-access.service';
 import { GitHubAuth } from './github/github-auth.service';
+import { GithubIssueCreator } from './github/github-issue-creator';
+import { TicketComments } from './github/ticket-comments';
+import { GithubApprovalPoller } from './github/github-approval-poller';
+import { ApprovalService } from '../approval/approval.service';
 import { BrokerClient } from '../broker/broker-client';
 import { CiPoller } from './ci/ci-poller';
 import { SupportRaiser } from '../support/support-raiser';
@@ -73,7 +72,7 @@ import { WorkerRunner } from './worker-runner';
 
 /** The worker shares the database but has no HTTP surface and needs no dashboard credentials. */
 @Module({
-  imports: [LoggingModule, PrismaModule, CredentialsModule, StateModule, JiraModule],
+  imports: [LoggingModule, PrismaModule, CredentialsModule, StateModule],
   providers: [{ provide: WorkerConfig, useFactory: () => new WorkerConfig() },
     MirrorService,
     { provide: GitRunner, useFactory: (auth: GitHubAuth) => new GitRunner({ token: (ctx) => auth.tokenFor(ctx) }), inject: [GitHubAuth] },
@@ -85,20 +84,8 @@ import { WorkerRunner } from './worker-runner';
     { provide: LOG_SINK, useClass: FileLogSink },
     { provide: BUDGET_GATE, useFactory: (prisma: PrismaService) => new BudgetGate(prisma), inject: [PrismaService] },
     AgentRunner,
-    // Connector mode: Jira calls run the jiraConnector stage, so the client lives here and is plugged into the shared JiraClients.
-    {
-      provide: JiraConnectorClient,
-      useFactory: (prisma: PrismaService, runner: AgentRunner, clients: JiraClients) => {
-        const client = new JiraConnectorClient(prisma, runner);
-        clients.useConnector(client);
-        return client;
-      },
-      inject: [PrismaService, AgentRunner, JiraClients],
-    },
     VerifyService,
-    { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients, raiser: SupportRaiser) => new IntakePoller(prisma, clients, undefined, raiser), inject: [PrismaService, JiraClients, SupportRaiser] },
     SubtasksService,
-    ApprovalPoller,
     StageOutcomes,
     StageLauncher,
     KbBuildService,
@@ -135,20 +122,24 @@ import { WorkerRunner } from './worker-runner';
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: ConnectivityMonitor, useFactory: (p: PrismaService, st: StateMachine) => new ConnectivityMonitor(p, probesFromEnv() ?? [], undefined, st), inject: [PrismaService, StateMachine] },
     { provide: KbCatalogSync, useFactory: (p: PrismaService, g: GitRunner, c: WorkerConfig) => new KbCatalogSync(p, g, c), inject: [PrismaService, GitRunner, WorkerConfig] },
+    { provide: TicketComments, useFactory: (p: PrismaService, gh: GitHubClient) => new TicketComments(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
+    { provide: GithubIssueCreator, useFactory: (p: PrismaService, gh: GitHubClient, r: SupportRaiser) => new GithubIssueCreator(p, gh, r), inject: [PrismaService, GITHUB_CLIENT, SupportRaiser] },
     { provide: GithubIntake, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubIntake(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
+    ApprovalService,
+    { provide: GithubApprovalPoller, useFactory: (p: PrismaService, gh: GitHubClient, a: ApprovalService, c: TicketComments) => new GithubApprovalPoller(p, gh, a, c), inject: [PrismaService, GITHUB_CLIENT, ApprovalService, TicketComments] },
     { provide: GithubSync, useFactory: (p: PrismaService, gh: GitHubClient) => new GithubSync(p, gh), inject: [PrismaService, GITHUB_CLIENT] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
     { provide: RecoveryService, useFactory: (p: PrismaService, o: OrchestratorService) => new RecoveryService(p, o), inject: [PrismaService, OrchestratorService] },
-    { provide: OrchestratorService, useFactory: (p: PrismaService, l: StageLauncher, j: JiraClients) => new OrchestratorService(p, l, j), inject: [PrismaService, StageLauncher, JiraClients] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, onboarding: OnboardingWorker, image: AgentImageCheck, kb: KbCatalogSync, ghIntake: GithubIntake, ghSync: GithubSync, net: ConnectivityMonitor): Housekeeper[] => [net, ci, merge, cleanup, orphans, onboarding, image, kb, ghIntake, ghSync], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, OnboardingWorker, AgentImageCheck, KbCatalogSync, GithubIntake, GithubSync, ConnectivityMonitor] },
+    { provide: OrchestratorService, useFactory: (p: PrismaService, l: StageLauncher, c: TicketComments) => new OrchestratorService(p, l, c), inject: [PrismaService, StageLauncher, TicketComments] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, onboarding: OnboardingWorker, image: AgentImageCheck, kb: KbCatalogSync, ghIssues: GithubIssueCreator, ghIntake: GithubIntake, ghApproval: GithubApprovalPoller, ghSync: GithubSync, net: ConnectivityMonitor): Housekeeper[] => [net, ci, merge, cleanup, orphans, onboarding, image, kb, ghIssues, ghIntake, ghApproval, ghSync], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, OnboardingWorker, AgentImageCheck, KbCatalogSync, GithubIssueCreator, GithubIntake, GithubApprovalPoller, GithubSync, ConnectivityMonitor] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },
     RestartRecovery,
     {
       provide: WorkerLoop,
-      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier, creds: CredentialsService, prep: RerunPrep, orchestrator: OrchestratorService, recovery: RecoveryService, budgets: BudgetGate) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds, creds, prep, orchestrator, recovery, budgets),
-      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier, CredentialsService, RerunPrep, OrchestratorService, RecoveryService, BUDGET_GATE],
+      useFactory: (prisma: PrismaService, mirrors: MirrorService, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier, creds: CredentialsService, prep: RerunPrep, orchestrator: OrchestratorService, recovery: RecoveryService, budgets: BudgetGate) => new WorkerLoop(prisma, mirrors, states, handlers, undefined, housekeepers, holds, creds, prep, orchestrator, recovery, budgets),
+      inject: [PrismaService, MirrorService, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier, CredentialsService, RerunPrep, OrchestratorService, RecoveryService, BUDGET_GATE],
     },
     WorkerRunner,
   ],

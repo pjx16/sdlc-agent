@@ -33,7 +33,7 @@ describe('error policy table', () => {
     expect(ERROR_POLICY.TIMEOUT.recovery).toMatchObject({ kind: 'retry', retries: 1, then: 'fail' });
     expect(ERROR_POLICY.TURN_LIMIT.recovery).toMatchObject({ turnFactor: 1.5 });
     expect(ERROR_POLICY.INVALID_OUTPUT.recovery).toMatchObject({ withErrors: true });
-    expect(ERROR_POLICY.JIRA_ERROR.recovery.kind).toBe('retry_never_block');
+    expect(ERROR_POLICY.GITHUB_ERROR.recovery).toMatchObject({ kind: 'retry', retries: 3, then: 'hold' });
     expect(ERROR_POLICY.KILLED.recovery.kind).toBe('none');
   });
 });

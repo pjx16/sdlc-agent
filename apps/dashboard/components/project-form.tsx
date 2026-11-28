@@ -3,18 +3,15 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import {
-  CLAUDE_MD_MODES, DEFAULT_INTAKE_LABEL, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
-  ProjectSettingsSchema, defaultJiraJql, commandWarnings, stageWarnings, type ProjectStack,
+  CLAUDE_MD_MODES, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
+  ProjectSettingsSchema, commandWarnings, stageWarnings, type ProjectStack,
 } from '@sdlc/shared';
 import { Check, FormProvider, Num, Section, Select, Text, TextArea, Warnings } from './form';
-import { JiraModeNote } from './jira-mode-note';
 import { MirrorStatus } from './mirror-status';
-import { StatusMapping } from './status-mapping';
 import { collapseListErrors, getIn, setIn, type FormValues } from '@/lib/form';
 import { applyStackChange, initialValues, toPayload } from '@/lib/project-form';
 import type { ProjectView } from '@/lib/types';
 import { STAGE_LABELS } from '@/lib/stage-labels';
-import { JIRA_MODE_OPTIONS } from '@/lib/jira-modes';
 
 const options = (values: readonly string[]) => values.map((v) => ({ value: v, label: v }));
 
@@ -87,7 +84,6 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
   }
 
   const warnings = currentWarnings(values);
-  const jiraOn = values.jiraMode !== 'off';
   const githubMode = (values.settings as { github?: { mode?: string } } | undefined)?.github?.mode;
 
   return (
@@ -129,39 +125,16 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
               <Text path="settings.github.projectNumber" label="Project number" placeholder="3" hint="The number in the board's URL. The GitHub token needs the “project” scope." />
               <Text path="settings.github.statusField" label="Status field" />
               <Text path="settings.github.intakeStatus" label="Pick up cards in column" hint="Cards of this repository in this column become tickets." />
+              <Check path="settings.github.useDefaultColumns" label="Use sdlc-agent's own columns" hint="Plan review, Plan approved, Breakdown review and Breakdown approved are added to the board when they are first needed. Nothing already on the board changes." />
+              <Text path="settings.github.approval.plan" label="Plan approved column" hint="Moving a card to this column approves its plan. Ignored when sdlc-agent's own columns are on." />
+              <Text path="settings.github.approval.breakdown" label="Breakdown approved column" hint="Moving a card to this column approves its breakdown." />
             </>
           )}
+          {githubMode === 'issues' && <Text path="settings.github.approval.label" label="Approval label" hint="Adding this label to the issue approves the plan or the breakdown. It is removed once used." />}
         </Section>
 
-        <Section title="Jira">
-          <Select path="jiraMode" label="Jira mode" options={JIRA_MODE_OPTIONS} />
-          <JiraModeNote mode={String(values.jiraMode)} />
-          {values.jiraMode === 'connector' && (
-            <>
-              <Text path="settings.jiraConnector.serverName" label="Connector name" hint='As Claude Code lists it after "claude.ai " (run the login script with --check). Usually Atlassian.' />
-              <Num path="settings.jiraConnector.pollIntervalMin" label="Poll every (minutes)" hint="Each poll and each approval check runs a Claude agent." />
-            </>
-          )}
-          {jiraOn && (
-            <>
-              <Text path="jiraProjectKey" label="Jira project key" placeholder="ABC" />
-              <TextArea
-                path="jiraJql"
-                label="JQL"
-                placeholder={defaultJiraJql(String(values.jiraProjectKey ?? '')) || 'Enter the Jira project key first'}
-                hint={`Which tickets to pick up. Leave empty for the default, which picks up only issues labelled "${DEFAULT_INTAKE_LABEL}". Write your own query to change that.`}
-              />
-              <Text path="settings.jiraSubtaskTypeName" label="Sub-task type name" />
-              <Check path="settings.jiraWriteBack.comments" label="Write back comments" />
-              <Check path="settings.jiraWriteBack.transitions" label="Write back status transitions" />
-              <Check path="settings.jiraWriteBack.createSubtasks" label="Create Jira sub-tasks" />
-              <Check path="settings.intake.paste" label="Allow pasted tickets" />
-              <Text path="settings.jiraApprovalStatuses.plan" label="Plan approved status" hint="A ticket moved to this Jira status approves its plan." />
-              <Text path="settings.jiraApprovalStatuses.breakdown" label="Breakdown approved status" />
-              <StatusMapping projectId={project?.id} mode={String(values.jiraMode)} />
-            </>
-          )}
-          {!jiraOn && <p className="text-sm text-muted sm:col-span-2">Jira is off. Tickets are pasted into the dashboard.</p>}
+        <Section title="Tickets">
+          <Check path="settings.intake.paste" label="Allow pasted tickets" hint="Tickets typed into the dashboard, with or without a GitHub issue." />
         </Section>
 
         <Section title="Stages" description="Every stage has enabled, model and max turns. Changes apply from the next stage run.">
@@ -207,7 +180,7 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
           <Num path="settings.loopLimits.ciFix" label="CI fix rounds before asking me" hint="How many times the pipeline tries to fix failing CI checks by itself. 0 turns it off." />
           <Num path="settings.loopLimits.userRerun" label="Reruns you can request per stage" />
           <Num path="settings.loopLimits.orchestratorReplan" label="Re-plans the orchestrator may do" />
-          <Num path="settings.limits.prSoftLines" label="PR size: soft limit (changed lines)" hint="Past this the pipeline records it and tells Jira. Lockfiles and generated files are not counted." />
+          <Num path="settings.limits.prSoftLines" label="PR size: soft limit (changed lines)" hint="Past this the pipeline records it and writes a note on the ticket's issue. Lockfiles and generated files are not counted." />
           <Num path="settings.limits.prHardLines" label="PR size: hard limit (changed lines)" hint="Past this it also comments on the PR with the size of each commit and tells you in the inbox. Nothing is blocked." />
           <TextArea path="settings.verify.redInvalidPatterns" label="Invalid red-test patterns" hint="One regular expression per line. A failing test whose output matches is not a valid red." rows={4} />
         </Section>

@@ -3,10 +3,9 @@ import { FormatLoader } from '../format-loader';
 import { OrchestratorService } from '../orchestrator/orchestrator.service';
 import { writeArtifact } from '../../common/artifacts';
 import { SupportRaiser } from '../../support/support-raiser';
-import { ProjectSettingsSchema, type StageEnvelope, jiraOn } from '@sdlc/shared';
+import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
-import { jiraMarker } from '../../jira/jira-client';
-import { JiraClients } from '../../jira/jira-clients';
+import { TicketComments } from '../github/ticket-comments';
 import { PrismaService } from '../../prisma/prisma.service';
 import { featureKeyOf, lookup } from '../kb/kb-index';
 import { StageLauncher } from './stage-launcher';
@@ -30,8 +29,7 @@ export function composePlan(data: PlanData): string {
 }
 
 /**
- * PLANNING (rows 3 and 4): run the `plan` stage (read-only workspace), save the plan on the ticket, post it to Jira when
- * write-back is on, and go to the plan gate, or straight to breakdown when the gate (or the stage) is off (F7).
+ * PLANNING (rows 3 and 4): run the `plan` stage (read-only workspace), save the plan on the ticket, post it to the ticket's issue, and go to the plan gate, or straight to breakdown when the gate (or the stage) is off (F7).
  */
 @Injectable()
 export class PlanHandler implements StepHandler {
@@ -42,10 +40,10 @@ export class PlanHandler implements StepHandler {
     private readonly prisma: PrismaService,
     private readonly launcher: StageLauncher,
     private readonly outcomes: StageOutcomes,
-    private readonly jira: JiraClients,
     @Optional() raiser?: SupportRaiser,
     @Optional() @Inject(OrchestratorService) private readonly orchestrator?: OrchestratorService,
     @Optional() formats?: FormatLoader,
+    @Optional() private readonly comments?: TicketComments,
   ) {
     this.raiser = raiser ?? new SupportRaiser(prisma);
     this.formats = formats ?? new FormatLoader();
@@ -98,7 +96,7 @@ export class PlanHandler implements StepHandler {
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: plan } });
     await writeArtifact(this.prisma, ticket.id, 'plan', { planMarkdown: plan }, result.stageRunId).catch(() => undefined);
     await this.raiseOpenQuestions(ticket, (result.envelope as StageEnvelope).data as PlanData, result.stageRunId).catch((err: unknown) => this.logger.warn(`Raising the open questions of ${ticket.key} failed: ${err instanceof Error ? err.message : String(err)}`));
-    await this.commentOnJira(ticket, project.jiraMode, settings.jiraWriteBack.comments, plan);
+    await this.commentOnIssue(ticket, plan);
 
     return settings.gates.plan
       ? { kind: 'transition', to: 'AWAITING_PLAN_APPROVAL', reason: 'Plan ready for approval', stageRunId: result.stageRunId }
@@ -125,15 +123,10 @@ export class PlanHandler implements StepHandler {
     return last?.fromStatus === 'AWAITING_PLAN_APPROVAL' && last.reason ? last.reason : null;
   }
 
-  /** Posts the plan to the Jira issue (REST). A Jira problem never blocks the pipeline. */
-  private async commentOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, plan: string): Promise<void> {
-    if (!enabled || !jiraOn(jiraMode) || ticket.source !== 'jira' || !ticket.externalKey) return;
-    try {
-      await (await this.jira.forMode(jiraMode)).comment(ticket.externalKey, await this.formats.fill('jira-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`Posting the plan to ${ticket.externalKey} failed: ${message}`);
-      await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'jira', message: `Could not post the plan to Jira: ${message}`.slice(0, 500) } });
-    }
+  /** Posts the plan to the ticket's GitHub issue, in place of an earlier plan. Never blocks. */
+  private async commentOnIssue(ticket: Ticket, plan: string): Promise<void> {
+    if (!this.comments) return;
+    await this.comments.post(ticket, 'plan', await this.formats.fill('issue-plan', { key: ticket.key, plan }));
   }
+
 }

@@ -1,6 +1,6 @@
 # sdlc-agent
 
-Install and run **sdlc-agent**, a self-hosted, Docker-based engine that turns tickets (Jira or pasted) into reviewable pull requests with AI agents.
+Install and run **sdlc-agent**, a self-hosted, Docker-based engine that turns tickets (GitHub issues or created in the dashboard) into reviewable pull requests with AI agents.
 
 > [!NOTE]
 > **Status: 1.0.** Releases follow [semantic versioning](https://semver.org/): a breaking change comes only in a new major version, with upgrade notes in the [CHANGELOG](https://github.com/pjx16/sdlc-agent/blob/dev/CHANGELOG.md), and `sdlc-agent upgrade` carries an install across it.

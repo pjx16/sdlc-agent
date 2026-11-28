@@ -8,15 +8,8 @@ import { ProjectsModule } from './projects.module';
 const proposalFor = (over: Partial<OnboardingProposal> = {}): OnboardingProposal => ({
   facts: {
     github: { defaultBranch: 'main', languages: ['TypeScript'] },
-    jira: {
-      projectName: 'Billing',
-      issueTypes: [{ name: 'Story', subtask: false }, { name: 'Bug', subtask: false }, { name: 'Epic', subtask: false }, { name: 'Sub-task', subtask: true }],
-      statusesByType: [{ type: 'Story', statuses: [{ name: 'To Do', category: 'new' }, { name: 'In Progress', category: 'indeterminate' }, { name: 'In Review', category: 'indeterminate' }, { name: 'Done', category: 'done' }] }],
-      labels: ['backend'],
-    },
   },
   profile: { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '**/*.spec.ts', exampleTestFile: null, baseBranch: 'main', installCheck: { command: 'npm ci', ok: true, tail: '' }, typecheckCheck: null },
-  advice: { statusMap: { KB: 'In Progress', DONE: 'Done' }, approvalStatuses: { plan: 'In Review', breakdown: null }, issueTypeRouting: { Story: 'feature', Bug: 'bug', Epic: 'ignore', 'Sub-task': 'ignore' }, intakeLabel: 'sdlc-agent' },
   accepted: {},
   createdAt: '2026-11-14T10:00:00Z',
   ...over,
@@ -29,7 +22,7 @@ describe('Project onboarding API', () => {
   let n = 0;
 
   const proposed = async (over: Partial<OnboardingProposal> = {}, projectOver: Record<string, unknown> = {}) =>
-    t.prisma.project.create({ data: { name: `onb-${++n}`, repoUrl: 'https://github.com/acme/billing', stack: 'ts_node', testCmdTemplate: 'echo {files}', localKeyPrefix: `O${n}`, jiraMode: 'rest', jiraProjectKey: 'SDA', onboardingStatus: 'proposed', onboardingProposal: proposalFor(over) as never, ...projectOver } });
+    t.prisma.project.create({ data: { name: `onb-${++n}`, repoUrl: 'https://github.com/acme/billing', stack: 'ts_node', testCmdTemplate: 'echo {files}', localKeyPrefix: `O${n}`, onboardingStatus: 'proposed', onboardingProposal: proposalFor(over) as never, ...projectOver } });
   const patch = (id: string, section: string, body: Record<string, unknown>) => t.agent.patch(`/projects/${id}/onboarding/sections/${section}`).send(body);
   const reload = (id: string) => t.prisma.project.findUniqueOrThrow({ where: { id } });
 
@@ -45,9 +38,6 @@ describe('Project onboarding API', () => {
   beforeEach(async () => {
     await t.prisma.supportTicket.deleteMany();
     await t.prisma.project.deleteMany({ where: { name: { startsWith: 'onb-' } } });
-    t.jira.jira.tickets = [];
-    t.jira.jira.calls = [];
-    t.jira.jira.failWith = null;
   });
 
   describe('starting', () => {
@@ -55,10 +45,9 @@ describe('Project onboarding API', () => {
       await t.anonymous.post('/projects/onboard').send({ repoUrl: 'https://github.com/a/b' }).expect(401);
     });
 
-    it('creates a profiling project from a repo URL alone: no Jira, pasted tickets only', async () => {
+    it('creates a profiling project from a repo URL alone', async () => {
       const res = await t.agent.post('/projects/onboard').send({ repoUrl: 'https://github.com/acme/billing' }).expect(201);
-      expect(res.body).toMatchObject({ name: 'billing', jiraMode: 'off', onboardingStatus: 'profiling', mirrorStatus: 'pending', enabled: true });
-      expect(res.body.jiraProjectKey).toBeUndefined();
+      expect(res.body).toMatchObject({ name: 'billing', onboardingStatus: 'profiling', mirrorStatus: 'pending', enabled: true });
     });
 
     it('the project works with the personal token unless it is started as the bot, and the choice is kept', async () => {
@@ -69,11 +58,6 @@ describe('Project onboarding API', () => {
       await t.agent.post('/projects/onboard').send({ repoUrl: 'https://github.com/acme/bad', githubAuth: 'pat' }).expect(400);
     });
 
-    it('with a Jira key the project is in REST mode and the key is the ticket prefix', async () => {
-      const res = await t.agent.post('/projects/onboard').send({ repoUrl: 'https://github.com/acme/payments.git', jiraProjectKey: 'PAY' }).expect(201);
-      expect(res.body).toMatchObject({ name: 'payments', jiraMode: 'rest', jiraProjectKey: 'PAY', localKeyPrefix: 'PAY', onboardingStatus: 'profiling' });
-    });
-
     it('a second project for another owner with the same repo name gets a distinct name', async () => {
       await t.agent.post('/projects/onboard').send({ repoUrl: 'https://github.com/acme/api' }).expect(201);
       const second = await t.agent.post('/projects/onboard').send({ repoUrl: 'https://github.com/other/api' }).expect(201);
@@ -81,9 +65,9 @@ describe('Project onboarding API', () => {
       await t.prisma.project.deleteMany({ where: { name: { in: ['api', 'other-api'] } } });
     });
 
-    it('rejects a URL that is not an HTTPS github.com repository, and a malformed key', async () => {
-      const bad = await t.agent.post('/projects/onboard').send({ repoUrl: 'git@github.com:a/b.git', jiraProjectKey: 'lower' }).expect(400);
-      expect(bad.body.fields).toMatchObject({ repoUrl: expect.stringContaining('github.com'), jiraProjectKey: expect.stringContaining('upper-case') });
+    it('rejects a URL that is not an HTTPS github.com repository', async () => {
+      const bad = await t.agent.post('/projects/onboard').send({ repoUrl: 'git@github.com:a/b.git' }).expect(400);
+      expect(bad.body.fields).toMatchObject({ repoUrl: expect.stringContaining('github.com') });
     });
 
     it('the worker ignores it until confirmed, so it is also absent from nothing but its own queue', async () => {
@@ -98,15 +82,15 @@ describe('Project onboarding API', () => {
       const p = await proposed();
       const res = (await t.agent.get(`/projects/${p.id}/onboarding`).expect(200)).body;
       expect(res.status).toBe('proposed');
-      expect(res.proposal.advice.intakeLabel).toBe('sdlc-agent');
+      expect(res.proposal.profile.stack).toBe('nestjs');
     });
 
     it('accepting a section records it; editing records the change and counts as accepting', async () => {
       const p = await proposed();
       await patch(p.id, 'commands', { action: 'accept' }).expect(200);
-      const edited = (await patch(p.id, 'routing', { action: 'edit', value: { issueTypeRouting: { Bug: 'chore' } } }).expect(200)).body;
-      expect(edited.proposal.accepted).toEqual({ commands: true, routing: true });
-      expect(edited.proposal.advice.issueTypeRouting).toMatchObject({ Bug: 'chore', Story: 'feature' });
+      const edited = (await patch(p.id, 'commands', { action: 'edit', value: { kbDir: 'docs/kb2' } }).expect(200)).body;
+      expect(edited.proposal.accepted).toEqual({ commands: true });
+      expect(edited.proposal.profile.kbDir).toBe('docs/kb2');
     });
 
     it('edits the commands, and rejects a test command without {files}', async () => {
@@ -117,95 +101,72 @@ describe('Project onboarding API', () => {
       expect(bad.body.fields.testCmdTemplate).toContain('{files}');
     });
 
-    it('a status that is not in the Jira project, and an issue type that is not one of its types, are refused', async () => {
+    it('a section that is gone (the old Jira ones, Confluence) is a 404', async () => {
       const p = await proposed();
-      const status = await patch(p.id, 'statusMap', { action: 'edit', value: { statusMap: { KB: 'Invented' } } }).expect(400);
-      expect(JSON.stringify(status.body.fields)).toContain('not a status of this Jira project');
-      await patch(p.id, 'confluence', { action: 'edit', value: { confluenceSpaceKey: 'ENG' } }).expect(404); // the Confluence section is gone
-      const type = await patch(p.id, 'routing', { action: 'edit', value: { issueTypeRouting: { Wizard: 'bug' } } }).expect(400);
-      expect(JSON.stringify(type.body.fields)).toContain('not an issue type');
-    });
-
-    it('edits the status map and approval statuses with real statuses, and the label', async () => {
-      const p = await proposed();
-      const res = (await patch(p.id, 'statusMap', { action: 'edit', value: { statusMap: { REVIEW: 'In Review' }, approvalStatuses: { breakdown: 'Done' } } }).expect(200)).body;
-      expect(res.proposal.advice.statusMap).toMatchObject({ KB: 'In Progress', REVIEW: 'In Review' });
-      expect(res.proposal.advice.approvalStatuses).toEqual({ plan: 'In Review', breakdown: 'Done' });
-      expect((await patch(p.id, 'label', { action: 'edit', value: { intakeLabel: 'two words' } }).expect(400)).body.fields.intakeLabel).toBeDefined();
-      expect((await patch(p.id, 'label', { action: 'edit', value: { intakeLabel: 'agent-ready' } }).expect(200)).body.proposal.advice.intakeLabel).toBe('agent-ready');
+      for (const gone of ['statusMap', 'routing', 'label', 'confluence']) await patch(p.id, gone, { action: 'accept' }).expect(404);
     });
 
     it('404 for an unknown section or project; 409 when there is no proposal yet', async () => {
       const p = await proposed();
       await patch(p.id, 'colour', { action: 'accept' }).expect(404);
-      await patch('00000000-0000-0000-0000-000000000000', 'label', { action: 'accept' }).expect(404);
+      await patch('00000000-0000-0000-0000-000000000000', 'commands', { action: 'accept' }).expect(404);
       const profiling = await proposed({}, { onboardingStatus: 'profiling', onboardingProposal: undefined });
-      await patch(profiling.id, 'label', { action: 'accept' }).expect(409);
+      await patch(profiling.id, 'commands', { action: 'accept' }).expect(409);
     });
   });
 
-  describe('dry run', () => {
-    it('counts the tickets the intake query picks up now and lists up to five', async () => {
-      const p = await proposed();
-      t.jira.jira.tickets = Array.from({ length: 7 }, (_, i) => ({ key: `SDA-${i + 1}`, summary: `Ticket ${i + 1}`, description: '', issuetype: 'Story', labels: ['sdlc-agent'], priority: null }));
-      const res = (await t.agent.post(`/projects/${p.id}/onboarding/dry-run`).expect(200)).body;
-      expect(res.count).toBe(7);
-      expect(res.tickets).toHaveLength(5);
-      expect(res.tickets[0]).toEqual({ key: 'SDA-1', summary: 'Ticket 1', issueType: 'Story' });
-      expect(res.jql).toBe('project = "SDA" AND labels = "sdlc-agent" AND issuetype in ("Bug", "Story") ORDER BY created ASC');
-      expect(res.note).toBeNull();
-      expect(t.jira.jira.searches.at(-1)?.jiraJql).toBe(res.jql);
+  describe('the GitHub Projects board mapping', () => {
+    const withBoard = (over: Record<string, unknown> = {}) =>
+      proposed(
+        {
+          facts: { github: { defaultBranch: 'main', languages: [], board: { columns: ['Todo', 'Doing', 'Plan Approved', 'Done'] } } },
+          board: { statusMap: { PLANNING: 'Doing', DONE: 'Done' }, approval: { plan: 'Plan Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false },
+        },
+        over,
+      );
+
+    it('has to be accepted before the project is confirmed', async () => {
+      const p = await withBoard();
+      const res = await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(409);
+      expect(res.body.fields).toEqual({ board: 'must be accepted' });
     });
 
-    it('says the label is not used yet when nothing matches because nobody applied it', async () => {
-      const p = await proposed();
-      const res = (await t.agent.post(`/projects/${p.id}/onboarding/dry-run`).expect(200)).body;
-      expect(res).toMatchObject({ count: 0, note: expect.stringContaining('Label not used yet') });
-      await patch(p.id, 'label', { action: 'edit', value: { intakeLabel: 'backend' } }).expect(200); // "backend" is in use
-      expect((await t.agent.post(`/projects/${p.id}/onboarding/dry-run`).expect(200)).body.note).toBeNull();
+    it('is written to the project\'s GitHub settings on confirm', async () => {
+      const p = await withBoard({ settings: { github: { mode: 'projects', project: { owner: 'acme', number: 3 } } } });
+      await patch(p.id, 'board', { action: 'accept' }).expect(200);
+      const settings = (await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200)).body.project.settings;
+      expect(settings.github).toMatchObject({ mode: 'projects', project: { owner: 'acme', number: 3 }, intakeStatus: 'Todo', useDefaultColumns: false, statusMap: { PLANNING: 'Doing', DONE: 'Done' }, approval: { plan: 'Plan Approved', breakdown: null, label: 'sdlc:approved' } });
     });
 
-    it('a Jira problem is a 502 with its message; a project without Jira is a 409', async () => {
+    it('can be edited, in the board\'s own spelling, and refuses a column the board does not have', async () => {
+      const p = await withBoard();
+      await patch(p.id, 'board', { action: 'edit', value: { approval: { breakdown: 'done' }, useDefaultColumns: true } }).expect(200);
+      const board = ((await reload(p.id)).onboardingProposal as unknown as OnboardingProposal).board;
+      expect(board).toMatchObject({ approval: { plan: 'Plan Approved', breakdown: 'Done' }, useDefaultColumns: true });
+      const res = await patch(p.id, 'board', { action: 'edit', value: { statusMap: { KB: 'Shipped' } } }).expect(400);
+      expect(JSON.stringify(res.body.fields)).toContain('is not a column of this board');
+    });
+
+    it('is refused for a project with no board', async () => {
       const p = await proposed();
-      t.jira.jira.failWith = new Error('Jira 503');
-      expect((await t.agent.post(`/projects/${p.id}/onboarding/dry-run`).expect(502)).body.message).toContain('Jira 503');
-      const noJira = await proposed({}, { jiraMode: 'off', jiraProjectKey: null });
-      await t.agent.post(`/projects/${noJira.id}/onboarding/dry-run`).expect(409);
+      await patch(p.id, 'board', { action: 'accept' }).expect(400);
     });
   });
 
   describe('confirming', () => {
-    it('refuses until the status map and the label are accepted explicitly', async () => {
-      const p = await proposed();
-      const res = await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(409);
-      expect(res.body.fields).toEqual({ statusMap: 'must be accepted', label: 'must be accepted' });
-      await patch(p.id, 'statusMap', { action: 'accept' }).expect(200);
-      expect((await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(409)).body.fields).toEqual({ label: 'must be accepted' });
-      expect((await reload(p.id)).onboardingStatus).toBe('proposed');
-    });
-
     it('applies the proposal to the project and its settings, and activates it', async () => {
       const p = await proposed();
-      await patch(p.id, 'statusMap', { action: 'accept' });
-      await patch(p.id, 'label', { action: 'accept' });
       const res = (await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200)).body;
       expect(res.warnings).toEqual([]);
-      expect(res.project).toMatchObject({ onboardingStatus: 'confirmed', stack: 'nestjs', testCmdTemplate: 'npx jest {files}', baseBranch: 'main', jiraMode: 'rest', jiraProjectKey: 'SDA' });
-      const stored = await reload(p.id);
-      expect(stored.jiraJql).toBe('project = "SDA" AND labels = "sdlc-agent" AND issuetype in ("Bug", "Story") ORDER BY created ASC');
+      expect(res.project).toMatchObject({ onboardingStatus: 'confirmed', stack: 'nestjs', testCmdTemplate: 'npx jest {files}', baseBranch: 'main' });
       const settings = res.project.settings;
-      expect(settings.jiraStatusMap).toMatchObject({ KB: 'In Progress', DONE: 'Done', PLANNING: null });
-      expect(settings.jiraApprovalStatuses).toEqual({ plan: 'In Review' });
-      expect(settings.jiraIssueTypeRouting).toEqual({ Story: 'feature', Bug: 'bug', Epic: 'ignore', 'Sub-task': 'ignore' });
-      expect(settings.jiraSubtaskTypeName).toBe('Sub-task');
       expect('confluence' in settings).toBe(false);
+      expect(Object.keys(settings).filter((k) => k.startsWith('jira'))).toEqual([]);
     });
 
     it('starts a new project with the stage models and turn limits chosen in Settings', async () => {
       await t.prisma.globalSettings.upsert({ where: { id: 'global' }, update: { stageDefaults: { solutionDesign: { model: 'haiku', maxTurns: 6 }, implement: { model: 'opus', maxTurns: 90 } } }, create: { id: 'global', stageDefaults: { solutionDesign: { model: 'haiku', maxTurns: 6 }, implement: { model: 'opus', maxTurns: 90 } } } });
       const p = await proposed();
-      await patch(p.id, 'statusMap', { action: 'accept' });
-      await patch(p.id, 'label', { action: 'accept' });
       const stages = (await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200)).body.project.settings.stages;
       expect(stages.solutionDesign).toMatchObject({ model: 'haiku', maxTurns: 6 });
       expect(stages.implement).toMatchObject({ model: 'opus', maxTurns: 90, enabled: true });
@@ -216,27 +177,13 @@ describe('Project onboarding API', () => {
     it('closes the onboarding ticket and resolves it as confirmed', async () => {
       const p = await proposed();
       await raiser.raise({ kind: 'onboarding', projectId: p.id, title: 'Review', body: 'b', dedupeKey: `onboarding:${p.id}` });
-      await patch(p.id, 'statusMap', { action: 'accept' });
-      await patch(p.id, 'label', { action: 'accept' });
       await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200);
       expect(await t.prisma.supportTicket.findMany({ where: { projectId: p.id } })).toMatchObject([{ kind: 'onboarding', status: 'resolved', resolvedBy: 'user' }]);
-    });
-
-    it('a project without Jira needs no status map or label, and gets no Jira settings', async () => {
-      const p = await proposed(
-        { facts: { github: { defaultBranch: 'main', languages: [] }, jira: null }, advice: { statusMap: {}, approvalStatuses: { plan: null, breakdown: null }, issueTypeRouting: {}, intakeLabel: 'sdlc-agent' } },
-        { jiraMode: 'off', jiraProjectKey: null },
-      );
-      const res = (await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200)).body;
-      expect(res.project).toMatchObject({ onboardingStatus: 'confirmed', jiraMode: 'off' });
-      expect((await reload(p.id)).jiraJql).toBeNull();
     });
 
     it('a changed base branch queues a fresh mirror', async () => {
       const p = await proposed({}, { mirrorStatus: 'ok', baseBranch: 'main' });
       await patch(p.id, 'commands', { action: 'edit', value: { baseBranch: 'develop' } });
-      await patch(p.id, 'statusMap', { action: 'accept' });
-      await patch(p.id, 'label', { action: 'accept' });
       await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200);
       expect(await reload(p.id)).toMatchObject({ baseBranch: 'develop', mirrorStatus: 'pending' });
     });
@@ -245,8 +192,6 @@ describe('Project onboarding API', () => {
       const profiling = await proposed({}, { onboardingStatus: 'profiling', onboardingProposal: undefined });
       await t.agent.post(`/projects/${profiling.id}/onboarding/confirm`).expect(409);
       const p = await proposed();
-      await patch(p.id, 'statusMap', { action: 'accept' });
-      await patch(p.id, 'label', { action: 'accept' });
       await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200);
       await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(409);
     });

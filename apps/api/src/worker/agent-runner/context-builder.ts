@@ -71,8 +71,6 @@ export interface StageInputs {
   orchestrate?: { ticketKey: string; kind: string; state: string; question: string; moves: { kind: string; to: string; label: string; isDefault: boolean }[]; events: string[]; lastSummary: string; counts: string; findings: string[]; supportTickets: string[]; facts?: string };
   /** For the CI triager. */
   ci?: { check: string; logTail: string; reruns: number };
-  /** For the Jira connector: one operation, its arguments and the shape its result must have. */
-  jira?: { serverName: string; operation: string; args: Record<string, unknown>; resultShape: string };
   /** Earlier questions this stage asked for the ticket and the developer's answers (F13), oldest first. */
   qa?: { question: string; answer: string }[];
   /** Set on an automatic retry: why the last attempt failed (validation errors, or what the guard found), so the agent can avoid it. */
@@ -130,8 +128,7 @@ const DATA_SHAPES: Record<StageName, string> = {
   ciTriage: '{ kind: "code" | "flaky" | "infra", failingCommand (optional), summary }',
   kbUpdate: '{ featureKey, docPath, changed }',
   repoProfile: '{ stack: "ts_node" | "nestjs" | "nextjs", installCmd, typecheckCmd, testCmdTemplate (must contain {files}), kbDir, testFilePattern, exampleTestFile (a path, or null) }',
-  jiraConnector: '{ result, error }. `result` has exactly the shape given under "Result shape"; when the operation cannot be done, `result` is null and `error` says why in one sentence.',
-  onboardAdvise: '{ statusMap: { <internal state>: <Jira status name or null> }, approvalStatuses: { plan, breakdown }, issueTypeRouting: { <issue type>: "feature" | "bug" | "chore" | "ignore" }, intakeLabel }',
+  onboardAdvise: '{ board: { statusMap: { <internal state>: <column name or null> }, approval: { plan, breakdown }, intakeStatus, useDefaultColumns } }',
   assist: '{ reply, draft }. `reply` is your answer to the person, in plain words. `draft` is null, or { kind: "answer" | "plan_edit" | "rerun_note", text } when you have something they can apply with one click: the answer to the question, the whole edited plan, or the note for a rerun.',
 };
 
@@ -283,16 +280,6 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'onboardAdvise':
       sections.push({ heading: 'Facts', body: i.onboard?.facts ?? '_No facts._' });
       break;
-    case 'jiraConnector': {
-      const j = i.jira;
-      sections.push(
-        { heading: 'Connector', body: j ? `Use only the tools named \`mcp__claude_ai_${j.serverName}__*\`.` : '_No connector._' },
-        { heading: 'Operation', body: j?.operation ?? '' },
-        { heading: 'Arguments', body: fenced(JSON.stringify(j?.args ?? {}, null, 2)) },
-        { heading: 'Result shape', body: j?.resultShape ?? '' },
-      );
-      break;
-    }
     case 'assist': {
       const a = i.assist;
       const said = a ? [a.summary ? `Summary of the earlier conversation: ${a.summary}` : '', ...a.history.map((m) => `${m.role === 'user' ? 'Person' : 'You'}: ${m.text}`)].filter(Boolean).join('\n\n') : '';

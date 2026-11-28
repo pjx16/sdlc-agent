@@ -85,8 +85,8 @@ describe('Operations API', () => {
     await run('plan');
     await t.prisma.event.createMany({
       data: [
-        { type: 'jira', source: 'jira', level: 'info', message: 'ok' },
-        { type: 'jira', source: 'jira', level: 'warn', message: 'Jira failed: 503' },
+        { type: 'git', source: 'github', level: 'info', message: 'ok' },
+        { type: 'git', source: 'github', level: 'warn', message: 'GitHub failed: 503' },
         { type: 'error', source: 'github', level: 'error', message: 'GitHub failed', ticketId: k.id, errorCode: 'GITHUB_ERROR' },
         ...Array.from({ length: 25 }, (_, i) => ({ type: 'error', source: 'agent', level: 'error', message: `boom ${i}`, at: ago(i) })),
       ],
@@ -94,8 +94,8 @@ describe('Operations API', () => {
     const body = (await t.agent.get('/operations').expect(200)).body;
     const by = Object.fromEntries(body.integrations.map((i: { source: string }) => [i.source, i]));
     expect(by.claude).toMatchObject({ total: 2, errors: 1, rate: 0.5 });
-    expect(by.jira).toMatchObject({ total: 2, errors: 1 });
-    expect(by.github).toMatchObject({ total: 1, errors: 1 });
+    expect(by.jira).toBeUndefined();
+    expect(by.github).toMatchObject({ total: 3, errors: 2 });
     expect(body.orchestrator).toEqual({ decisions: 0, fallbacks: 0, fallbackRate: 0, costUsd: 0, inputTokens: 0, outputTokens: 0 });
     expect(body.recentErrors).toHaveLength(20);
     expect(body.recentErrors.find((e: { errorCode: string }) => e.errorCode === 'GITHUB_ERROR')).toMatchObject({ ticketKey: k.key });

@@ -26,7 +26,7 @@ const ACTION: Record<HoldAction, { label: string; description: string }> = {
 const pick = (...ids: HoldAction[]) => ids.map((id) => ({ id, ...ACTION[id] }));
 
 /** The stage names people see. */
-const STAGE: Record<string, string> = { kbBuild: 'knowledge-base build', kbUpdate: 'knowledge-base update', ciFix: 'CI fix', jiraRead: 'Jira read', jiraSync: 'Jira sync' };
+const STAGE: Record<string, string> = { kbBuild: 'knowledge-base build', kbUpdate: 'knowledge-base update', ciFix: 'CI fix' };
 const stageName = (s: string) => STAGE[s] ?? s;
 
 /** Explains a held or failed ticket and says what to do about it. Pure: everything comes from the server's hold info. */

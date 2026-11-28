@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
 import type { ProjectDto } from './project.dto';
+import { GithubReadService } from './github-read.service';
 import { OnboardingService } from './onboarding.service';
 import { ProjectsService } from './projects.service';
 
@@ -8,6 +9,7 @@ export class ProjectsController {
   constructor(
     private readonly projects: ProjectsService,
     private readonly onboarding: OnboardingService,
+    private readonly githubRead: GithubReadService,
   ) {}
 
   @Get()
@@ -15,10 +17,16 @@ export class ProjectsController {
     return this.projects.list();
   }
 
-  /** The two-field start: a repo URL and, optionally, a Jira project key. */
+  /** The two-field start: a repo URL. */
   @Post('onboard')
   start(@Body() body: unknown): Promise<ProjectDto> {
     return this.onboarding.start(body);
+  }
+
+  /** Open issues of the project's repository with exactly this title: so the create-ticket form can offer to link one instead of making a duplicate. */
+  @Get(':id/github/issues/search')
+  searchIssues(@Param('id') id: string, @Query('title') title?: string) {
+    return this.githubRead.searchOpenIssuesByTitle(id, title ?? '');
   }
 
   @Get(':id/onboarding')
@@ -35,12 +43,6 @@ export class ProjectsController {
   @Patch(':id/onboarding/sections/:section')
   section(@Param('id') id: string, @Param('section') section: string, @Body() body: unknown) {
     return this.onboarding.section(id, section, body);
-  }
-
-  @Post(':id/onboarding/dry-run')
-  @HttpCode(HttpStatus.OK)
-  dryRun(@Param('id') id: string) {
-    return this.onboarding.dryRun(id);
   }
 
   @Post(':id/onboarding/confirm')
@@ -85,11 +87,6 @@ export class ProjectsController {
   @HttpCode(HttpStatus.OK)
   remove(@Param('id') id: string) {
     return this.projects.remove(id);
-  }
-
-  @Get(':id/jira/statuses')
-  jiraStatuses(@Param('id') id: string): Promise<string[]> {
-    return this.projects.jiraStatuses(id);
   }
 
   @Post(':id/mirror/retry')

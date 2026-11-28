@@ -66,13 +66,6 @@ type AttemptResult =
   | { kind: 'claude_auth'; stageRunId: string }
   | { kind: 'killed'; errorCode: 'KILLED'; stageRunId: string };
 
-/** The Jira connector's claude.ai login lives in this volume, mounted as the CLI's config directory. */
-export const JIRA_CONNECTOR_HOME_VOLUME = 'sdlc_jira_connector_home';
-export const JIRA_CONNECTOR_HOME = '/connector-home';
-/** The proxy port that lets the connector reach Anthropic and claude.ai, and nothing else. */
-export const JIRA_CONNECTOR_PROXY = 'http://proxy:3129';
-export const JIRA_CONNECTOR_LOGIN_EXPIRED = 'The Jira connector is not signed in to claude.ai, or its login expired: run scripts/jira-connector-login.sh again';
-
 /** Hard stop on automatic attempts, whatever the policies say. */
 const MAX_TOTAL_ATTEMPTS = 8;
 
@@ -150,21 +143,19 @@ export class AgentRunner {
       schema: stageJsonSchema(req.stage),
       config: {
         stage: req.stage, modelAlias: req.modelAlias, modelAliases: req.modelAliases, maxTurns: Math.ceil(req.maxTurns * retry.turnFactor), resumeSession: req.resumeSession, thinkingTokens: req.thinkingTokens, attempt, round: req.round ?? 0,
-        connectorServer: req.inputs.jira?.serverName,
       },
       runsDir: path.join(this.config.dataDir, 'runs'),
       guidelinesDir: this.config.guidelinesDir,
       workspacePath: req.workspacePath,
     });
 
-    const connector = req.stage === 'jiraConnector';
     const proxy = `http://proxy:3128`;
     const gatewayKey = this.gatewayTokens.issue();
     const spec: ContainerSpec = {
       name: `sdlc-run-${stageRunId}`,
       image: this.config.agentImage,
       cmd: ['run-stage'],
-      env: connector ? this.connectorEnv() : {
+      env: {
         // No Anthropic API key in the container: the LLM gateway adds it. This key only opens the gateway, only while this run's container lives.
         ANTHROPIC_BASE_URL: this.config.llmGatewayUrl,
         ANTHROPIC_API_KEY: gatewayKey,
@@ -180,8 +171,7 @@ export class AgentRunner {
         ...(req.stage === 'assist' ? { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'safe.directory', GIT_CONFIG_VALUE_0: '*' } : {}),
         ...this.config.agentExtraEnv,
       },
-      // The Jira connector keeps its own claude.ai login (made once with scripts/jira-connector-login.sh) in a named volume.
-      extraBinds: connector ? [...this.config.agentExtraBinds, `${JIRA_CONNECTOR_HOME_VOLUME}:${JIRA_CONNECTOR_HOME}:rw`] : this.config.agentExtraBinds,
+      extraBinds: this.config.agentExtraBinds,
       workspace:
         access === 'none'
           ? undefined
@@ -232,11 +222,6 @@ export class AgentRunner {
     const status = typeof parsed.result?.api_error_status === 'number' ? parsed.result.api_error_status : null;
     const claudeCode = classifyClaudeError(text, status) ?? (isRateLimited(parsed) ? 'CLAUDE_RATE_LIMIT' : null);
 
-    if (claudeCode === 'CLAUDE_AUTH' && connector) {
-      // The connector's own claude.ai login was refused: that is a Jira connection problem, not the pipeline's Anthropic API key.
-      await this.store.finish(stageRunId, { ...base, status: 'failed', error: JIRA_CONNECTOR_LOGIN_EXPIRED, errorCode: 'JIRA_ERROR' });
-      return { kind: 'claude_auth', stageRunId };
-    }
     if (claudeCode === 'CLAUDE_AUTH') {
       const reason = describeError('CLAUDE_AUTH');
       await this.store.finish(stageRunId, { ...base, status: 'failed', error: reason, errorCode: 'CLAUDE_AUTH' });
@@ -264,7 +249,7 @@ export class AgentRunner {
       return { kind: 'needs_input', question: envelope.question as string, stageRunId };
     }
     await this.store.finish(stageRunId, { ...base, status: 'succeeded' });
-    if (!connector) await this.creds.markVerified('anthropic_api_key', null).catch(() => undefined); // a stage that ran proves the key works
+    await this.creds.markVerified('anthropic_api_key', null).catch(() => undefined); // a stage that ran proves the key works
     return { kind: 'done', envelope, stageRunId };
   }
 
@@ -289,27 +274,6 @@ export class AgentRunner {
   }
 
   /** An empty file used to hide the repository's CLAUDE.md (mode ours). */
-  /**
-   * The Jira connector cannot use the LLM gateway: claude.ai connectors load only for a claude.ai login (with the user:mcp_servers scope),
-   * and any API key turns them off. So it runs with its own login from the connector volume, and talks to Anthropic through the proxy port
-   * that allows Anthropic and claude.ai only. It gets no workspace, no other credential, and only the connector's tools.
-   */
-  private connectorEnv(): Record<string, string> {
-    return {
-      CLAUDE_CONFIG_DIR: JIRA_CONNECTOR_HOME,
-      ENABLE_CLAUDEAI_MCP_SERVERS: '1',
-      // The image turns non-essential traffic off; the connector list is fetched from claude.ai, so it is allowed here.
-      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '0',
-      HTTPS_PROXY: JIRA_CONNECTOR_PROXY,
-      HTTP_PROXY: JIRA_CONNECTOR_PROXY,
-      NO_PROXY: 'localhost,127.0.0.1',
-      DISABLE_AUTOUPDATER: '1',
-      DISABLE_TELEMETRY: '1',
-      DISABLE_ERROR_REPORTING: '1',
-      ...this.config.agentExtraEnv,
-    };
-  }
-
   private async emptyFile(): Promise<string> {
     const file = path.join(this.config.dataDir, 'empty-file');
     await mkdir(this.config.dataDir, { recursive: true });

@@ -21,7 +21,7 @@ describe('featureKeyOf (F6)', () => {
   it('uses the pasted field, normalized', () => {
     expect(featureKeyOf({ featureKey: 'Billing-Export' })).toBe('billing-export');
   });
-  it('uses a Jira label feature:<key> when there is no field', () => {
+  it('uses a label feature:<key> when there is no field', () => {
     expect(featureKeyOf({ featureKey: null, labels: ['backend', 'feature:bookings'] })).toBe('bookings');
     expect(featureKeyOf({ labels: ['Feature:Auth.Login '] })).toBe('auth.login');
   });

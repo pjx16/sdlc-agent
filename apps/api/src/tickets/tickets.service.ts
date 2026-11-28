@@ -1,10 +1,10 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { DECISION_POINTS, planFileUrl, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus, jiraOn } from '@sdlc/shared';
+import { DECISION_POINTS, planFileUrl, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TicketDraftSchema, buildTicketMarkdown, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { allArtifacts, writeArtifact } from '../common/artifacts';
+import { GuidelinesService } from '../guidelines/guidelines.service';
 import { parseBody } from '../common/parse-body';
 import { z } from 'zod';
-import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
 import { StateMachine } from '../state/state-machine.service';
 import { SubtasksService } from '../subtasks/subtasks.service';
@@ -41,9 +41,6 @@ export interface TransitionDto {
   /** advance | rerun | hold | resume | fail | retry | approve | reject */
   kind: string;
   note: string | null;
-  jiraStatusApplied: string | null;
-  jiraSyncResult: 'none' | 'applied' | 'failed';
-  jiraSyncError: string | null;
 }
 
 export interface ArtifactDto {
@@ -110,13 +107,16 @@ const RejectBody = z.object({ note: z.string({ error: 'required' }).trim().min(1
 
 const fieldError = (field: string, message: string) => new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { [field]: message });
 
+/** The create-ticket form sends its fields (`problem` is the one that every draft has); the older shape is a title and a body. */
+const isDraft = (body: unknown): boolean => typeof body === 'object' && body !== null && 'problem' in body;
+
 @Injectable()
 export class TicketsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly states: StateMachine,
-    private readonly jira: JiraClients,
     private readonly subtasks: SubtasksService,
+    private readonly guidelines: GuidelinesService,
   ) {}
 
   /** GET /tickets, newest activity first. Filters: `projectId`, `status`. */
@@ -172,13 +172,13 @@ export class TicketsService {
     };
   }
 
-  /** GET /tickets/:id/transitions: the state history, oldest first, with the Jira sync result of each step. */
+  /** GET /tickets/:id/transitions: the state history, oldest first. */
   async transitions(id: string): Promise<TransitionDto[]> {
     await this.findOr404(id);
     const rows = await this.prisma.stateTransition.findMany({ where: { ticketId: id }, orderBy: [{ at: 'asc' }, { id: 'asc' }] });
     return rows.map((r) => ({
       id: r.id, at: r.at.toISOString(), fromStatus: r.fromStatus, toStatus: r.toStatus, actor: r.actor, reason: r.reason, stageRunId: r.stageRunId,
-      kind: r.kind, note: r.note, jiraStatusApplied: r.jiraStatusApplied, jiraSyncResult: r.jiraSyncResult, jiraSyncError: r.jiraSyncError,
+      kind: r.kind, note: r.note,
     }));
   }
 
@@ -229,16 +229,24 @@ export class TicketsService {
     return runs.map((r) => ({ id: r.id, stage: r.stage, attempt: r.attempt, round: r.round, status: r.status, startedAt: iso(r.startedAt), endedAt: iso(r.endedAt) }));
   }
 
-  /** POST /tickets: a pasted ticket with a local key `<localKeyPrefix>-<n>`, status NEW. Works in every Jira mode. */
+  /**
+   * POST /tickets: a ticket made in the dashboard, with a local key `<localKeyPrefix>-<n>`, status NEW. It is either the fields of the
+   * create-ticket form (`problem`, `criteria`, ...: the text is built from them) or, as before, a title and a body.
+   */
   async paste(body: unknown): Promise<TicketDto> {
-    const input = parseBody(PasteTicketSchema, body);
+    const github = isDraft(body) ? (parseBody(TicketDraftSchema, body).github ?? null) : null;
+    const input = isDraft(body) ? await this.fromDraft(body) : parseBody(PasteTicketSchema, body);
     // A pasted ticket carries a kind. The older `type` field still works and the two stay consistent.
     const kind = input.kind ?? kindOfType(input.type ?? 'story');
     const type = input.type && !input.kind ? input.type : typeOfKind(kind);
     const project = await this.prisma.project.findUnique({ where: { id: input.projectId } });
     if (!project) throw fieldError('projectId', 'unknown project');
     if (!project.enabled) throw fieldError('projectId', 'this project is disabled');
-    if (!ProjectSettingsSchema.parse(project.settings).intake.paste) throw fieldError('projectId', 'pasting tickets is turned off for this project');
+    const settings = ProjectSettingsSchema.parse(project.settings);
+    if (!settings.intake.paste) throw fieldError('projectId', 'pasting tickets is turned off for this project');
+    // The issue is made (or linked) by the worker afterwards; the ticket does not wait for it.
+    const wantsIssue = Boolean(github && (github.create || github.link));
+    if (wantsIssue && settings.github.mode === 'off') throw fieldError('github', 'this project does not use GitHub issues or a Projects board');
     await this.checkAttachments(project, input.kbAttachments);
     const global = await this.prisma.globalSettings.findUnique({ where: { id: 'global' }, select: { intakePasteEnabled: true } });
     if (global && !global.intakePasteEnabled) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Pasting tickets is switched off in Settings (intake sources)');
@@ -252,12 +260,29 @@ export class TicketsService {
       const updated = await tx.project.update({ where: { id: project.id }, data: { nextLocalNumber: { increment: 1 } }, select: { nextLocalNumber: true, localKeyPrefix: true } });
       const key = `${updated.localKeyPrefix}-${updated.nextLocalNumber - 1}`;
       const created = await tx.ticket.create({
-        data: { projectId: project.id, key, source: 'paste', type, kind, title: input.title, body: input.body, featureKey: input.featureKey ?? null, kbAttachments: input.kbAttachments, status: 'NEW' },
+        data: {
+          projectId: project.id, key, source: 'paste', type, kind, title: input.title, body: input.body, featureKey: input.featureKey ?? null, kbAttachments: input.kbAttachments, status: 'NEW',
+          githubIssueState: wantsIssue ? 'pending' : 'none', githubIssueLink: github?.link ?? null,
+        },
       });
       await tx.event.create({ data: { ticketId: created.id, type: 'intake', message: `${key} pasted` } });
       return created;
     });
     return toTicketDto(ticket);
+  }
+
+  /** The form's fields as a pasted ticket: the text is built from them with the team's ticket format, exactly as the dashboard previews it. */
+  private async fromDraft(body: unknown): Promise<z.infer<typeof PasteTicketSchema>> {
+    const d = parseBody(TicketDraftSchema, body);
+    const template = await this.guidelines.read('formats/ticket.md').then((f) => f.content, () => undefined);
+    return { projectId: d.projectId, title: d.title, body: buildTicketMarkdown(d, template), kind: d.kind, featureKey: d.featureKey, kbAttachments: d.kbAttachments };
+  }
+
+  /** POST /tickets/:id/github-issue/retry: tries again to make the GitHub issue of a ticket where it failed. */
+  async retryGithubIssue(id: string): Promise<TicketDto> {
+    const ticket = await this.findOr404(id);
+    if (ticket.githubIssueState !== 'failed') throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'There is no failed GitHub issue to retry');
+    return toTicketDto(await this.prisma.ticket.update({ where: { id }, data: { githubIssueState: 'pending', githubIssueError: null } }));
   }
 
   /** Attached docs must be docs of the project's KB: when the worker has listed them, each path has to be one of them. */
@@ -318,8 +343,7 @@ export class TicketsService {
   }
 
   /**
-   * POST /tickets/:id/plan/approve: stores the edited plan if one is sent, and in REST mode re-reads the issue's title and
-   * description so edits made in Jira reach the breakdown stage (F7). Then BREAKDOWN (row 5).
+   * POST /tickets/:id/plan/approve: stores the edited plan if one is sent, then BREAKDOWN (row 5).
    */
   async approvePlan(id: string, body: unknown): Promise<TicketDto> {
     const { planMarkdown: edited, answers } = parseBody(ApproveBody, body ?? {});
@@ -339,7 +363,6 @@ export class TicketsService {
       await writeArtifact(this.prisma, id, 'plan', { planMarkdown, editedBy: 'user' }).catch(() => undefined);
     }
     if (decisions.length > 0) await this.prisma.supportTicket.updateMany({ where: { ticketId: id, kind: 'open_question', status: { in: ['open', 'answered'] } }, data: { status: 'resolved', resolvedBy: 'user', resolvedAt: new Date() } });
-    if (ticket.source === 'jira' && ticket.externalKey && jiraOn(ticket.project.jiraMode)) await this.refreshFromJira(ticket.id, ticket.key, ticket.externalKey, ticket.project.jiraMode);
 
     const { ticket: updated } = await this.states.transition(id, 'BREAKDOWN', 'user', planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown ? 'Plan approved with edits' : 'Plan approved', undefined, { kind: 'approve' });
     return toTicketDto(updated);
@@ -351,16 +374,6 @@ export class TicketsService {
     await this.awaitingPlan(id);
     const { ticket } = await this.states.transition(id, 'PLANNING', 'user', note, undefined, { kind: 'reject', note });
     return toTicketDto(ticket);
-  }
-
-  /** Developer edits made in Jira reach the next stages. A Jira problem is recorded and never blocks the approval. */
-  private async refreshFromJira(ticketId: string, key: string, externalKey: string, mode: string): Promise<void> {
-    try {
-      const issue = await (await this.jira.forMode(mode)).readStatus(externalKey);
-      await this.prisma.ticket.update({ where: { id: ticketId }, data: { title: issue.summary || undefined, body: issue.description } });
-    } catch (err) {
-      await this.prisma.event.create({ data: { ticketId, type: 'jira', message: `${key}: could not re-read the Jira issue: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500) } });
-    }
   }
 
   /** POST /tickets/:id/kb-update/rerun: queues one more kbUpdate on the current branch. Only in IN_HUMAN_REVIEW. */
@@ -466,7 +479,6 @@ export class TicketsService {
       await writeArtifact(this.prisma, id, 'breakdown', { subtasks: verdict.subtasks, editedBy: 'user' }).catch(() => undefined);
     }
     await this.subtasks.create(id, verdict.subtasks as SubtaskDraft[]);
-    await this.subtasks.publishToJira(id); // Jira sub-tasks when write-back is on; a Jira problem never blocks
     const { ticket: updated } = await this.states.transition(id, 'IN_PROGRESS', 'user', changed ? 'Breakdown approved with edits' : 'Breakdown approved', undefined, { kind: 'approve' });
     return toTicketDto(updated);
   }

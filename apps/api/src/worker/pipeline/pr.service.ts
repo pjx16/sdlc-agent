@@ -37,7 +37,6 @@ export class PrService {
     return buildPrDescription(
       {
       ticket: { key: t.key, title: t.title, body: t.body, externalKey: t.externalKey },
-      jiraBaseUrl: (await this.creds.resolve()).jira_base_url || undefined,
       testCommand: t.project.testCmdTemplate,
       remainingFindings: await this.remainingFindings(ticketId, t.reviewRound),
       subtasks: t.subtasks.map((s) => ({ seq: s.seq, title: s.title, featCommit: s.featCommit, acceptanceCriteria: Array.isArray(s.acceptanceCriteria) ? s.acceptanceCriteria.map(String) : [] })),

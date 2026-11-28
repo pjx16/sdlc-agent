@@ -15,7 +15,7 @@ describe('StateMachine against a real database (F15)', () => {
   const listener: TransitionListener = {
     async onTransition(r) {
       seen.push(r);
-      if (listenerShouldFail) throw new Error('jira is down');
+      if (listenerShouldFail) throw new Error('a listener is down');
     },
   };
 
@@ -42,7 +42,7 @@ describe('StateMachine against a real database (F15)', () => {
     const t = await ticket();
     const { ticket: updated, transition } = await sm.transition(t.id, 'KB', 'system', 'picked up', undefined);
     expect(updated.status).toBe('KB');
-    expect(transition).toMatchObject({ ticketId: t.id, fromStatus: 'NEW', toStatus: 'KB', actor: 'system', reason: 'picked up', jiraSyncResult: 'none' });
+    expect(transition).toMatchObject({ ticketId: t.id, fromStatus: 'NEW', toStatus: 'KB', actor: 'system', reason: 'picked up' });
     const rows = await prisma.stateTransition.findMany({ where: { ticketId: t.id } });
     expect(rows).toHaveLength(1);
     expect((await prisma.event.findMany({ where: { ticketId: t.id } }))[0]?.message).toBe(`${t.key}: NEW -> KB (picked up)`);

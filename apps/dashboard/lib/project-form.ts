@@ -1,5 +1,5 @@
 import {
-  DEFAULT_PROJECT_SETTINGS, STACK_PREFILLS, STAGE_NAMES, TICKET_STATUSES,
+  DEFAULT_PROJECT_SETTINGS, STACK_PREFILLS, STAGE_NAMES,
   type ProjectStack,
 } from '@sdlc/shared';
 import { splitLines, stringifyNumbers, toNumber, type FormValues } from './form';
@@ -19,7 +19,6 @@ const NUMERIC_PATHS = [
   'settings.recovery.maxAttempts',
   'settings.loopLimits.userRerun',
   'settings.loopLimits.orchestratorReplan',
-  'settings.jiraConnector.pollIntervalMin',
 ];
 
 export function initialValues(project?: ProjectView): FormValues {
@@ -35,9 +34,6 @@ export function initialValues(project?: ProjectView): FormValues {
       testCmdTemplate: project.testCmdTemplate,
       kbDir: project.kbDir,
       claudeMdMode: project.claudeMdMode,
-      jiraMode: project.jiraMode,
-      jiraProjectKey: project.jiraProjectKey ?? '',
-      jiraJql: project.jiraJql ?? '',
       localKeyPrefix: project.localKeyPrefix,
       enabled: project.enabled,
       settings: formSettings(project.settings),
@@ -52,9 +48,6 @@ export function initialValues(project?: ProjectView): FormValues {
     ...STACK_PREFILLS.ts_node,
     kbDir: 'docs/kb',
     claudeMdMode: 'both',
-    jiraMode: 'off',
-    jiraProjectKey: '',
-    jiraJql: '',
     localKeyPrefix: '',
     enabled: true,
     settings: formSettings(DEFAULT_PROJECT_SETTINGS),
@@ -64,18 +57,17 @@ export function initialValues(project?: ProjectView): FormValues {
 function formSettings(settings: ProjectView['settings']): FormValues {
   const s = stringifyNumbers(structuredClone(settings)) as unknown as FormValues & {
     verify: { redInvalidPatterns: string[] | string };
-    jiraStatusMap: Record<string, string | null>;
-    jiraApprovalStatuses: Record<string, string | undefined>;
   };
   s.verify.redInvalidPatterns = settings.verify.redInvalidPatterns.join('\n');
   (s as unknown as { securityRiskPatterns: string }).securityRiskPatterns = (settings.securityRiskPatterns ?? []).join('\n');
-  for (const status of TICKET_STATUSES) s.jiraStatusMap[status] = settings.jiraStatusMap[status] ?? '';
-  s.jiraApprovalStatuses = { plan: settings.jiraApprovalStatuses.plan ?? '', breakdown: settings.jiraApprovalStatuses.breakdown ?? '' };
   // The GitHub board is one object in the API and two fields in the form.
   const github = s as unknown as { github: { project: unknown; projectOwner?: string; projectNumber?: string } };
   github.github.projectOwner = settings.github.project?.owner ?? '';
   github.github.projectNumber = settings.github.project ? String(settings.github.project.number) : '';
   delete (github.github as { project?: unknown }).project;
+  const approval = (s as unknown as { github: { approval: { plan: string | null; breakdown: string | null } } }).github.approval;
+  approval.plan = settings.github.approval.plan ?? '';
+  approval.breakdown = settings.github.approval.breakdown ?? '';
   return s;
 }
 
@@ -91,14 +83,9 @@ export function toPayload(values: FormValues): Record<string, unknown> {
   const s = out.settings;
   s.verify.redInvalidPatterns = splitLines(String(s.verify.redInvalidPatterns ?? ''));
   s.securityRiskPatterns = splitLines(String(s.securityRiskPatterns ?? ''));
-  for (const status of TICKET_STATUSES) {
-    const v = String(s.jiraStatusMap[status] ?? '').trim();
-    s.jiraStatusMap[status] = v === '' ? null : v;
-  }
-  for (const key of ['plan', 'breakdown']) {
-    const v = String(s.jiraApprovalStatuses[key] ?? '').trim();
-    if (v === '') delete s.jiraApprovalStatuses[key];
-    else s.jiraApprovalStatuses[key] = v;
+  for (const key of ['plan', 'breakdown'] as const) {
+    const v = String((s.github.approval as Record<string, unknown>)[key] ?? '').trim();
+    (s.github.approval as Record<string, unknown>)[key] = v === '' ? null : v;
   }
   const gh = s.github as { project?: unknown; projectOwner?: string; projectNumber?: string };
   const owner = String(gh.projectOwner ?? '').trim();

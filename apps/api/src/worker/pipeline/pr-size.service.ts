@@ -1,7 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { ProjectSettingsSchema, jiraOn } from '@sdlc/shared';
-import { jiraMarker } from '../../jira/jira-client';
-import { JiraClients } from '../../jira/jira-clients';
+import { ProjectSettingsSchema } from '@sdlc/shared';
+import { TicketComments } from '../github/ticket-comments';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SupportRaiser } from '../../support/support-raiser';
 import { GitRunner } from '../git/git-runner';
@@ -36,7 +35,7 @@ async function perCommit(git: GitRunner, ws: string, base: string): Promise<stri
 /**
  * Keeps pull requests reviewable. After every subtask the size of the branch against the base is measured (added + deleted lines, lockfiles
  * and generated files left out) and stored on the ticket. It is the project's `limits.prSoftLines` and `limits.prHardLines` that matter:
- * - past the soft limit: a decision is recorded, an event is written and the Jira ticket is told, once;
+ * - past the soft limit: a decision is recorded, an event is written and the ticket's issue is told, once;
  * - past the hard limit: the same, plus a comment on the PR with the size of each commit (so it can be reviewed commit by commit) and a
  *   non-blocking item in the inbox.
  * It never stops the pipeline and never throws: a PR that is large is reported, not blocked.
@@ -51,7 +50,7 @@ export class PrSizeService {
     private readonly git: GitRunner,
     private readonly pr: PrService,
     @Optional() private readonly raiser?: SupportRaiser,
-    @Optional() private readonly jira?: JiraClients,
+    @Optional() private readonly comments?: TicketComments,
   ) {}
 
   async check(ticketId: string): Promise<void> {
@@ -73,7 +72,8 @@ export class PrSizeService {
       }`;
       await this.prisma.orchestratorDecision.create({ data: { ticketId, point: 'pr_size', legalMoves: [{ kind: 'continue', to: 'IN_PROGRESS' }] as never, chosen: 'continue IN_PROGRESS', reason, fallbackUsed: false } });
       await this.prisma.event.create({ data: { ticketId, type: 'git', level: 'warn', source: 'system', message: `Large pull request: ${reason}`.slice(0, 500) } });
-      await this.tellJira(ticket, project, `sdlc-agent noticed the pull request is getting large (${level} limit).\nWhy: ${reason}`, level);
+      // On the ticket's GitHub issue too: one comment for each level, rewritten if it is reported again.
+      if (this.comments) await this.comments.post(ticket, `pr-size-${level}`, `sdlc-agent noticed the pull request is getting large (${level} limit).\n\nWhy: ${reason}`);
       if (level === 'hard') await this.flagHard(ticket, project.baseBranch, ws, lines, limit);
     } catch (err) {
       this.logger.warn(`PR size check failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -91,12 +91,4 @@ export class PrSizeService {
     });
   }
 
-  private async tellJira(ticket: { key: string; source: string; externalKey: string | null }, project: { jiraMode: string; settings: unknown }, text: string, level: Level): Promise<void> {
-    try {
-      if (!this.jira || ticket.source !== 'jira' || !ticket.externalKey || !jiraOn(project.jiraMode) || !ProjectSettingsSchema.parse(project.settings).jiraWriteBack.comments) return;
-      await (await this.jira.forMode(project.jiraMode)).comment(ticket.externalKey, text, jiraMarker(ticket.key, `pr-size-${level}`, `${Date.now()}`));
-    } catch (err) {
-      this.logger.warn(`Could not write the PR size note to Jira for ${ticket.key}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
 }

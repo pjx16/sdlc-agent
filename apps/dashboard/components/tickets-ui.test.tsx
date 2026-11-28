@@ -85,7 +85,7 @@ describe('TicketsTable and filters', () => {
 
 describe('TransitionHistory (F15)', () => {
   const t = (over: Partial<TransitionView>): TransitionView => ({
-    id: 'x', at: '2026-11-11T10:00:00.000Z', fromStatus: 'NEW', toStatus: 'KB', actor: 'system', reason: null, stageRunId: null, jiraStatusApplied: null, jiraSyncResult: 'none', jiraSyncError: null, ...over,
+    id: 'x', at: '2026-11-11T10:00:00.000Z', fromStatus: 'NEW', toStatus: 'KB', actor: 'system', reason: null, stageRunId: null, ...over,
   });
 
   it('shows each state change with who made it and why', () => {
@@ -94,19 +94,6 @@ describe('TransitionHistory (F15)', () => {
     expect(screen.getByText('picked up')).toBeInTheDocument();
     expect(screen.getByText('user')).toBeInTheDocument();
     expect(screen.getAllByLabelText('to')).toHaveLength(2);
-  });
-
-  it('shows a successful Jira move, and a dash when nothing was mapped', () => {
-    render(<TransitionHistory transitions={[t({ id: '1', jiraSyncResult: 'applied', jiraStatusApplied: 'In Progress' }), t({ id: '2' })]} />);
-    expect(screen.getByText('Moved to “In Progress”')).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('shows a failed Jira move as a warning with the error, without hiding the transition', () => {
-    render(<TransitionHistory transitions={[t({ jiraSyncResult: 'failed', jiraStatusApplied: 'Shipped', jiraSyncError: 'Jira has no transition to "Shipped"', toStatus: 'DONE' })]} />);
-    const warning = screen.getByRole('alert');
-    expect(warning).toHaveTextContent('Jira move to “Shipped” failed: Jira has no transition to "Shipped"');
-    expect(screen.getByText('Done')).toBeInTheDocument();
   });
 
   it('has an empty state', () => {

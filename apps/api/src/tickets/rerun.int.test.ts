@@ -42,9 +42,7 @@ describe('Rerun engine', () => {
     await db?.drop();
   });
   beforeEach(async () => {
-    await setProject({ settings: {}, jiraMode: 'off' });
-    t.jira.jira.calls = [];
-    t.jira.jira.commentBodies = {};
+    await setProject({ settings: {} });
   });
 
   it('requires a session, and refuses an unknown ticket or a bad stage', async () => {
@@ -182,34 +180,6 @@ describe('Rerun engine', () => {
       await rerun(tk.id, { stage: 'IN_PROGRESS' }).expect(200);
       expect(await reload(tk.id)).toMatchObject({ reviewRound: 0, lastReviewedSha: null, ciFixDone: false, ciFixPending: false, kbUpdatePending: false });
       expect((await t.prisma.reviewFinding.findFirstOrThrow({ where: { ticketId: tk.id } })).status).toBe('fixed');
-    });
-  });
-
-  describe('Jira (outbound only)', () => {
-    it('posts one marker comment with the note, and never reads Jira to decide anything', async () => {
-      await setProject({ jiraMode: 'rest', jiraProjectKey: 'ABC' });
-      const tk = await journey('REVIEW', { source: 'jira', externalKey: 'ABC-1' });
-      await rerun(tk.id, { stage: 'PLANNING', note: 'use the existing repository' }).expect(200);
-      expect(t.jira.jira.commentBodies['ABC-1']).toHaveLength(1);
-      expect(t.jira.jira.commentBodies['ABC-1']?.[0]).toContain('Rerun of PLANNING requested: use the existing repository');
-      expect(t.jira.jira.commentBodies['ABC-1']?.[0]).toMatch(/\[sdlc-agent:R-\d+:rerun-PLANNING:[0-9a-f]{8}\]/);
-    });
-
-    it('a Jira problem is a warning and never blocks the rerun', async () => {
-      await setProject({ jiraMode: 'rest', jiraProjectKey: 'ABC' });
-      const tk = await journey('REVIEW', { source: 'jira', externalKey: 'ABC-2' });
-      t.jira.jira.failWith = new Error('Jira 503');
-      await rerun(tk.id, { stage: 'PLANNING' }).expect(200);
-      t.jira.jira.failWith = null;
-      expect((await reload(tk.id)).status).toBe('PLANNING');
-      expect((await t.prisma.event.findMany({ where: { ticketId: tk.id, level: 'warn' } })).some((e) => e.message.includes('Jira failed: Jira 503'))).toBe(true);
-    });
-
-    it('a pasted ticket, or a project with comments off, gets no comment', async () => {
-      await setProject({ jiraMode: 'rest', jiraProjectKey: 'ABC', settings: { jiraWriteBack: { comments: false } } });
-      const tk = await journey('REVIEW', { source: 'jira', externalKey: 'ABC-3' });
-      await rerun(tk.id, { stage: 'PLANNING' }).expect(200);
-      expect(t.jira.jira.commentBodies['ABC-3']).toBeUndefined();
     });
   });
 

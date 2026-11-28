@@ -15,7 +15,7 @@ const ok = (body: unknown, status = 200) => ({ ok: status < 400, status, json: a
 
 const existing: ProjectView = {
   id: 'p1', name: 'Billing', repoUrl: 'https://github.com/a/b', baseBranch: 'dev', stack: 'nestjs', installCmd: 'npm ci',
-  typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', claudeMdMode: 'both', jiraMode: 'off',
+  typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', claudeMdMode: 'both',
   localKeyPrefix: 'BILL', enabled: true, mirrorStatus: 'ok', mirrorError: null, nextLocalNumber: 1, createdAt: '', updatedAt: '',
   settings: DEFAULT_PROJECT_SETTINGS,
 };
@@ -54,26 +54,14 @@ describe('ProjectForm', () => {
     expect(screen.getByText(/The correctness review is skipped\./)).toBeInTheDocument();
   });
 
-  it('shows the Jira fields only when Jira is on', async () => {
+  it('shows the GitHub approval fields for the mode that uses them', async () => {
     render(<ProjectForm />);
-    expect(screen.queryByLabelText('Jira project key')).not.toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText('Jira mode'), 'rest');
-    expect(screen.getByLabelText('Jira project key')).toBeInTheDocument();
-    expect(screen.getByLabelText('DONE')).toBeInTheDocument();
-    expect(screen.getByLabelText('Sub-task type name')).toHaveValue('Sub-task');
-  });
-
-  it('shows the default Jira query (only issues labelled sdlc-agent) as the JQL placeholder, follows the project key, and leaves it empty so the default applies', async () => {
-    render(<ProjectForm />);
-    await userEvent.selectOptions(screen.getByLabelText('Jira mode'), 'rest');
-    const jql = screen.getByLabelText('JQL') as HTMLTextAreaElement;
-    expect(jql.value).toBe('');
-    expect(jql.placeholder).toBe('Enter the Jira project key first');
-    await userEvent.type(screen.getByLabelText('Jira project key'), 'ABC');
-    expect(jql.placeholder).toBe('project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC');
-    expect(screen.getByText(/Leave empty for the default, which picks up only issues labelled "sdlc-agent"\. Write your own query to change that\./)).toBeInTheDocument();
-    await userEvent.type(jql, 'project = ABC AND status = "Ready"');
-    expect(jql.value).toBe('project = ABC AND status = "Ready"'); // the user's query replaces the default
+    expect(screen.queryByLabelText('Plan approved column')).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('Source'), 'projects');
+    expect(screen.getByLabelText('Plan approved column')).toBeInTheDocument();
+    expect(screen.getByLabelText('Breakdown approved column')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('Source'), 'issues');
+    expect(screen.getByLabelText('Approval label')).toHaveValue('sdlc:approved');
   });
 
   it('creates a project: posts numbers as numbers and goes to the new project', async () => {

@@ -3,7 +3,7 @@ import { PrSizeService } from './pr-size.service';
 
 const NUMSTAT = (n: number) => `${n}\t0\tsrc/a.ts\n`; // n added lines in one file
 
-function setup(opts: { lines: number; level?: string | null; settings?: unknown }) {
+function setup(opts: { lines: number; level?: string | null; settings?: unknown; source?: string }) {
   const calls: string[][] = [];
   const git = {
     run: vi.fn(async (args: string[]) => {
@@ -17,14 +17,15 @@ function setup(opts: { lines: number; level?: string | null; settings?: unknown 
   const decisionCreate = vi.fn(async () => ({}));
   const eventCreate = vi.fn(async () => ({}));
   const prisma = {
-    ticket: { findUniqueOrThrow: async () => ({ id: 't1', key: 'SDA-7', title: 'x', projectId: 'p1', source: 'paste', externalKey: null, prSizeLevel: opts.level ?? null, project: { baseBranch: 'dev', jiraMode: 'off', settings: opts.settings ?? {} } }), update: ticketUpdate },
+    ticket: { findUniqueOrThrow: async () => ({ id: 't1', key: 'SDA-7', title: 'x', projectId: 'p1', source: opts.source ?? 'paste', externalKey: null, prSizeLevel: opts.level ?? null, project: { baseBranch: 'dev', jiraMode: 'off', settings: opts.settings ?? {} } }), update: ticketUpdate },
     orchestratorDecision: { create: decisionCreate },
     event: { create: eventCreate },
   };
   const pr = { postComment: vi.fn(async () => true) };
   const raiser = { raise: vi.fn(async () => ({})) };
-  const service = new PrSizeService(prisma as never, { workspacePath: () => '/ws' } as never, git as never, pr as never, raiser as never);
-  return { service, calls, ticketUpdate, decisionCreate, eventCreate, pr, raiser };
+  const comments = { post: vi.fn(async () => 'created') };
+  const service = new PrSizeService(prisma as never, { workspacePath: () => '/ws' } as never, git as never, pr as never, raiser as never, comments as never);
+  return { service, calls, ticketUpdate, decisionCreate, eventCreate, pr, raiser, comments };
 }
 
 describe('PrSizeService', () => {
@@ -76,5 +77,34 @@ describe('PrSizeService', () => {
       throw new Error('db down');
     };
     await expect(t.service.check('t1')).resolves.toBeUndefined();
+  });
+
+  describe('on the ticket\'s GitHub issue', () => {
+    it('past the soft limit it posts one comment for the soft level, with the reason', async () => {
+      const t = setup({ lines: 700, source: 'github' });
+      await t.service.check('t1');
+      expect(t.comments.post).toHaveBeenCalledTimes(1);
+      const [ticket, purpose, text] = t.comments.post.mock.calls[0] as unknown as [{ id: string; key: string }, string, string];
+      expect(ticket).toMatchObject({ id: 't1', key: 'SDA-7' });
+      expect(purpose).toBe('pr-size-soft');
+      expect(text).toContain('getting large (soft limit)');
+      expect(text).toContain('over the soft limit of 600');
+    });
+
+    it('past the hard limit it posts for the hard level, which does not overwrite the soft one', async () => {
+      const t = setup({ lines: 1700, level: 'soft', source: 'github' });
+      await t.service.check('t1');
+      expect((t.comments.post.mock.calls[0] as unknown as [unknown, string])[1]).toBe('pr-size-hard');
+    });
+
+    it('posts nothing under the limits, or when the level was already reported', async () => {
+      const under = setup({ lines: 300, source: 'github' });
+      await under.service.check('t1');
+      const again = setup({ lines: 750, level: 'soft', source: 'github' });
+      await again.service.check('t1');
+      expect(under.comments.post).not.toHaveBeenCalled();
+      expect(again.comments.post).not.toHaveBeenCalled();
+    });
+
   });
 });

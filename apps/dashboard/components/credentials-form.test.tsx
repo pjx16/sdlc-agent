@@ -8,7 +8,7 @@ const refresh = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
 
 const view = (key: CredentialView['key'], over: Partial<CredentialView> = {}): CredentialView => ({ key, source: 'unset', hint: null, verifiedAt: null, verifyError: null, updatedAt: null, ...over });
-const ALL: CredentialView['key'][] = ['anthropic_api_key', 'github_token', 'git_author_name', 'git_author_email', 'jira_base_url', 'jira_email', 'jira_api_token', 'jira_mcp_url', 'jira_mcp_token', 'jira_mcp_oauth', 'jira_cloud_id'];
+const ALL: CredentialView['key'][] = ['anthropic_api_key', 'github_token', 'git_author_name', 'git_author_email'];
 const views = (over: Partial<Record<CredentialView['key'], Partial<CredentialView>>> = {}) => ALL.map((k) => view(k, over[k]));
 const card = (id: string) => within(screen.getByTestId(`card-${id}`));
 const fetchMock = vi.fn();
@@ -20,29 +20,12 @@ describe('CredentialsForm', () => {
     refresh.mockReset();
   });
 
-  it('has exactly one Save and one Test button per card (Claude, GitHub, Jira, Rovo MCP), not one per field', () => {
+  it('has exactly one Save and one Test button per card (Claude and GitHub), not one per field', () => {
     render(<CredentialsForm initial={views()} />);
-    expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(4);
-    expect(screen.getAllByRole('button', { name: 'Test' })).toHaveLength(4);
+    expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Test' })).toHaveLength(2);
     expect(card('github').getAllByRole('textbox').length + card('github').getAllByLabelText(/token/i).length).toBeGreaterThan(1);
     expect(card('github').getAllByRole('button', { name: 'Save' })).toHaveLength(1);
-  });
-
-  it('Rovo MCP: Connect asks the API for the Atlassian consent page with this dashboard\'s origin, and goes there', async () => {
-    const assign = vi.fn();
-    vi.stubGlobal('location', { ...window.location, origin: 'http://localhost:3000', hostname: 'localhost', search: '', assign });
-    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ authorizeUrl: 'https://auth.example/authorize?x=1' }) });
-    render(<CredentialsForm initial={views()} />);
-    expect(card('jira-mcp').getByText('Not connected')).toBeInTheDocument();
-    await userEvent.click(card('jira-mcp').getByRole('button', { name: 'Connect with Atlassian' }));
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://auth.example/authorize?x=1'));
-    expect(fetchMock).toHaveBeenCalledWith('/api/jira-mcp/oauth/start', expect.objectContaining({ method: 'POST', body: JSON.stringify({ origin: 'http://localhost:3000' }) }));
-    vi.unstubAllGlobals();
-  });
-
-  it('marks the connector mode as the one that uses Claude tokens', () => {
-    render(<CredentialsForm initial={views()} />);
-    expect(card('jira-connector').getByText(/uses Claude tokens/)).toBeInTheDocument();
   });
 
   it('never renders a secret: only the last four characters as a hint, in an empty password input', () => {
@@ -116,11 +99,6 @@ describe('CredentialsForm', () => {
     expect(link.getAttribute('href')).toContain('pull_requests=write');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
-  });
-
-  it('says what the Jira account must be allowed to do', () => {
-    render(<CredentialsForm initial={views()} />);
-    expect(card('jira').getByText(/browse the project, comment, create subtasks and transition issues/)).toBeInTheDocument();
   });
 
   it('warns when ENCRYPTION_KEY is not set', () => {

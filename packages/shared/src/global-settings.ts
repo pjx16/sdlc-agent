@@ -27,7 +27,6 @@ export const GlobalSettingsSchema = z.object({
   /** The dashboard warns when a budget is this far used. */
   budgetWarnPct: int(80, 1, 100),
   /** Which sources the intake takes tickets from. The intake switch pauses all of them; these switch one off. */
-  intakeJiraEnabled: z.boolean({ error: 'must be true or false' }).default(true),
   intakeGithubEnabled: z.boolean({ error: 'must be true or false' }).default(true),
   intakePasteEnabled: z.boolean({ error: 'must be true or false' }).default(true),
   /** Budget days, weeks (from Monday) and months are counted in this IANA timezone. */
@@ -35,6 +34,8 @@ export const GlobalSettingsSchema = z.object({
   pollIntervalSec: int(120, 5, 3600),
   stageTimeoutMin: int(20, 1, 240),
   verifyTimeoutSec: int(600, 10, 7200),
+  /** Whether a ticket made in the dashboard also gets a GitHub issue: ask each time, always, or never. One choice for every project. */
+  githubIssueOnCreate: z.enum(['ask', 'always', 'never'], { error: 'must be ask, always or never' }).default('ask'),
   workspaceRetentionDays: int(7, 1, 365),
   logRetentionDays: int(30, 1, 3650),
   /** Tokens (input and output) one assistant conversation may use before it stops. */

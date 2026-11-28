@@ -24,7 +24,7 @@ const cap = (s: string): string => (s ? (s[0] ?? '').toUpperCase() + s.slice(1) 
 /** The display name of the agent behind a stage key. */
 export const AGENT_LABEL: Record<string, string> = {
   kbBuild: 'Documentor', kbUpdate: 'Documentor', plan: 'Planner', breakdown: 'Breakdown', tests: 'Test writer', implement: 'Coder', fix: 'Fixer', review: 'Reviewer',
-  orchestrate: 'Orchestrator', assist: 'Assistant', repoProfile: 'Repo profiler', onboardAdvise: 'Onboarding advisor', jiraConnector: 'Jira connector', featureMap: 'Feature mapper',
+  orchestrate: 'Orchestrator', assist: 'Assistant', repoProfile: 'Repo profiler', onboardAdvise: 'Onboarding advisor', featureMap: 'Feature mapper',
   solutionDesign: 'Solution architect', bugInvestigation: 'Bug investigator', technicalDesign: 'Technical architect', prReview: 'PR reviewer',
   qualityReview: 'Quality reviewer', securityReview: 'Security reviewer', ciTriage: 'CI triager',
 };
@@ -33,7 +33,7 @@ export const agentLabel = (stage: string): string => AGENT_LABEL[stage] ?? cap(s
 export interface EventDraft {
   level: EventLevel;
   source: EventSource;
-  /** The old coarse type, kept for existing filters: intake | state | stage | usage | jira | git | settings | support | error | worker. */
+  /** The old coarse type, kept for existing filters: intake | state | stage | usage | git | settings | support | error | worker. */
   type: string;
   message: string;
   errorCode?: ErrorCode;
@@ -43,7 +43,7 @@ export interface EventDraft {
 const subtaskLabel = (n?: number | null, of?: number | null): string => (n ? ` subtask ${n}${of ? `/${of}` : ''}` : '');
 
 const sourceOfCode = (code: ErrorCode): EventSource =>
-  code.startsWith('CLAUDE') ? 'claude' : code === 'JIRA_ERROR' ? 'jira' : code === 'GITHUB_ERROR' ? 'github' : code === 'GIT_ERROR' ? 'git' : code === 'KILLED' ? 'user' : 'agent';
+  code.startsWith('CLAUDE') ? 'claude' : code === 'GITHUB_ERROR' ? 'github' : code === 'GIT_ERROR' ? 'git' : code === 'KILLED' ? 'user' : 'agent';
 
 function errorDraft(p: { code: ErrorCode; vars?: Record<string, string | number | undefined>; retryAt?: Date; retry?: { n: number; of: number }; source?: EventSource }): EventDraft {
   const message = describeError(p.code, { ...p.vars, n: p.retry?.n, time: p.retryAt ? clock(p.retryAt) : p.vars?.time });
@@ -82,9 +82,6 @@ export const events = {
     level: 'info', source: 'user', type: 'state', message: `Rerun of ${p.stage} requested by ${p.actor}${p.note ? `: "${p.note}"` : ''}`, data: { stage: p.stage },
   }),
 
-  jiraSkipped: (p: { target: string; from: string }): EventDraft => ({
-    level: 'warn', source: 'jira', type: 'jira', message: `Jira transition to "${p.target}" skipped: not available from "${p.from}"`, errorCode: 'JIRA_ERROR',
-  }),
 
   workerStarted: (p: { version: string; pid: number }): EventDraft => ({ level: 'info', source: 'system', type: 'worker', message: `Worker started (version ${p.version}, pid ${p.pid})` }),
   workerRestarting: (): EventDraft => ({ level: 'error', source: 'system', type: 'error', message: 'Worker is restarting repeatedly' }),

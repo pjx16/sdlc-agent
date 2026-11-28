@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '../../..');
 
 describe('the agent roster', () => {
   it('has one row per agent and every pipeline stage runs exactly one agent', () => {
-    expect(AGENTS).toHaveLength(17);
+    expect(AGENTS).toHaveLength(16);
     expect(new Set(AGENTS.map((a) => a.name)).size).toBe(AGENTS.length);
     for (const stage of STAGE_NAMES) expect(AGENTS.filter((a) => a.stages.includes(stage))).toHaveLength(1);
   });
@@ -75,7 +75,7 @@ describe('the sdlc-subagents plugin', () => {
   it('plugin agents say nothing about how the pipeline runs them', () => {
     expect(pluginAgents).toHaveLength(PLUGIN_AGENTS.length);
     for (const [rel, text] of pluginAgents) {
-      for (const needle of ['needs_input', 'orchestrator', 'Jira', 'headless', '/workspace', 'reverted', 'default-CLAUDE.md', '## Output `data`']) expect(text, `${rel} ${needle}`).not.toContain(needle);
+      for (const needle of ['needs_input', 'orchestrator', 'headless', '/workspace', 'reverted', 'default-CLAUDE.md', '## Output `data`']) expect(text, `${rel} ${needle}`).not.toContain(needle);
       for (const needle of ['## Your report', '# Rules for every agent', '## Goal', '## Inputs', '## Result']) expect(text, `${rel} ${needle}`).toContain(needle);
       expect(text, rel).toMatch(/^---\nname: [a-z-]+\ndescription: .+\ntools: .+\nmodel: (haiku|sonnet|opus)\n---\n/);
     }

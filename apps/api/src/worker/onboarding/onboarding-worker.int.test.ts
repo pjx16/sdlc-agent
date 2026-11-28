@@ -2,25 +2,19 @@ import 'reflect-metadata';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { OnboardAdvice, OnboardingProposal, RepoProfile, StageEnvelope } from '@sdlc/shared';
+import type { OnboardingProposal, RepoProfile, StageEnvelope } from '@sdlc/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { JiraNotConfiguredError } from '../../jira/jira-clients';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SupportRaiser } from '../../support/support-raiser';
 import { FakeGitHub } from '../../testing/fake-github';
-import { FakeJira, FakeJiraClients } from '../../testing/fake-jira';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import type { StageRequest, StageResult } from '../agent-runner/agent-runner';
 import { WorkerConfig } from '../worker-config';
-import { OnboardingWorker, factsText, sanitizeAdvice } from './onboarding-worker';
+import { OnboardingWorker, factsText, sanitizeBoardAdvice } from './onboarding-worker';
 
 const profile: RepoProfile = { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '**/*.spec.ts', exampleTestFile: 'src/a.spec.ts' };
-const advice: OnboardAdvice = {
-  statusMap: { KB: 'In Progress', PLANNING: 'In Progress', DONE: 'Done', FAILED: 'Made up status' },
-  approvalStatuses: { plan: 'Plan Approved', breakdown: null },
-  issueTypeRouting: { Story: 'feature', Bug: 'bug', Epic: 'ignore', 'Sub-task': 'feature' },
-  intakeLabel: 'sdlc-agent',
-};
+const boardAnswer = { board: { statusMap: { PLANNING: 'Doing', KB: 'Nope', DONE: 'done' }, approval: { plan: 'Approved', breakdown: 'Invented' }, intakeStatus: 'todo', useDefaultColumns: false } };
+const boardSettings = { github: { mode: 'projects', project: { owner: 'acme', number: 3 } } };
 const done = (data: unknown): StageResult => ({ kind: 'done', envelope: { status: 'done', summary: 's', data } as StageEnvelope, stageRunId: 'r', attempts: 1 });
 
 describe('OnboardingWorker', () => {
@@ -29,8 +23,6 @@ describe('OnboardingWorker', () => {
   let tmp: string;
   let worker: OnboardingWorker;
   let github: FakeGitHub;
-  let jiraClients: FakeJiraClients;
-  let jira: FakeJira;
   let requests: StageRequest[] = [];
   let agent: (req: StageRequest) => StageResult;
   let verifyCalls: { cmd: string }[] = [];
@@ -38,7 +30,7 @@ describe('OnboardingWorker', () => {
   let n = 0;
 
   const project = (over: Record<string, unknown> = {}) =>
-    prisma.project.create({ data: { name: `acme-${++n}`, repoUrl: 'https://github.com/acme/billing', stack: 'ts_node', testCmdTemplate: 'echo {files}', localKeyPrefix: `A${n}`, onboardingStatus: 'profiling', jiraMode: 'rest', jiraProjectKey: 'SDA', ...over } });
+    prisma.project.create({ data: { name: `acme-${++n}`, repoUrl: 'https://github.com/acme/billing', stack: 'ts_node', testCmdTemplate: 'echo {files}', localKeyPrefix: `A${n}`, onboardingStatus: 'profiling', ...over } });
   const reload = (id: string) => prisma.project.findUniqueOrThrow({ where: { id } });
 
   beforeAll(async () => {
@@ -49,8 +41,6 @@ describe('OnboardingWorker', () => {
     tmp = mkdtempSync(path.join(tmpdir(), 'sdlc-onboard-'));
     const config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url } as NodeJS.ProcessEnv);
     github = new FakeGitHub();
-    jiraClients = new FakeJiraClients();
-    jira = jiraClients.jira;
     const mirrors = {
       async clone(p: { id: string }) {
         mkdirSync(config.mirrorPath(p.id), { recursive: true });
@@ -66,7 +56,7 @@ describe('OnboardingWorker', () => {
         return { ok, exitCode: ok ? 0 : 1, timedOut: false, tail: ok ? 'ok' : 'error TS2304: Cannot find name', output: '' };
       },
     };
-    worker = new OnboardingWorker(prisma, config, mirrors as never, git as never, github, jiraClients, runner as never, verify as never, new SupportRaiser(prisma));
+    worker = new OnboardingWorker(prisma, config, mirrors as never, git as never, github, runner as never, verify as never, new SupportRaiser(prisma));
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -79,21 +69,22 @@ describe('OnboardingWorker', () => {
     verifyOk = {};
     github.facts = { defaultBranch: 'main', languages: ['TypeScript'] };
     github.failFacts = null;
-    jira.failWith = null;
-    agent = (req) => done(req.stage === 'repoProfile' ? profile : advice);
+    github.ownerTypes = {};
+    github.failColumns = null;
+    github.columns = ['Todo', 'Doing', 'Approved', 'Done'];
+    agent = (req) => done(req.stage === 'repoProfile' ? profile : boardAnswer);
     await prisma.supportTicket.deleteMany();
     await prisma.globalSettings.deleteMany();
     await prisma.project.deleteMany({ where: { name: { startsWith: 'acme-' } } });
   });
 
   it('collects the facts, runs both agents and leaves a proposal for review, with one onboarding ticket', async () => {
-    const p = await project();
+    const p = await project({ settings: boardSettings });
     await worker.check();
     const after = await reload(p.id);
     expect(after).toMatchObject({ onboardingStatus: 'proposed', onboardingError: null, baseBranch: 'main', mirrorStatus: 'ok' });
     const proposal = after.onboardingProposal as unknown as OnboardingProposal;
-    expect(proposal.facts.github).toEqual({ defaultBranch: 'main', languages: ['TypeScript'] });
-    expect(proposal.facts.jira?.issueTypes.map((t) => t.name)).toContain('Story');
+    expect(proposal.facts.github).toEqual({ defaultBranch: 'main', languages: ['TypeScript'], board: { columns: ['Todo', 'Doing', 'Approved', 'Done'] } });
     expect('confluence' in proposal.facts).toBe(false);
     expect(proposal.profile).toMatchObject({ stack: 'nestjs', testCmdTemplate: 'npx jest {files}', baseBranch: 'main', installCheck: { command: 'npm ci', ok: true }, typecheckCheck: { command: 'npx tsc --noEmit', ok: true } });
     expect(proposal.accepted).toEqual({});
@@ -103,7 +94,7 @@ describe('OnboardingWorker', () => {
     const advise = requests.find((r) => r.stage === 'onboardAdvise');
     expect(profile?.workspacePath).toContain(path.join('onboarding', p.id));
     expect(advise?.workspacePath).toBeUndefined();
-    expect(advise?.inputs.onboard?.facts).toContain('Issue types:');
+    expect(advise?.inputs.onboard?.facts).toContain('Status columns of the board: Todo, Doing, Approved, Done');
     // Phase timings are kept in the proposal, and the live progress is cleared once the proposal exists.
     const done = await reload(p.id);
     expect(Object.keys((done.onboardingProposal as { timings: Record<string, number> }).timings).sort()).toEqual(['advise', 'checkout', 'facts', 'install', 'mirror', 'profile', 'typecheck']);
@@ -137,26 +128,6 @@ describe('OnboardingWorker', () => {
     });
   });
 
-  it('never leaves an invented Jira status, or issue type route in the proposal', async () => {
-    const p = await project();
-    agent = (req) => done(req.stage === 'repoProfile' ? profile : { ...advice, approvalStatuses: { plan: 'Plan Approved', breakdown: 'Ghost' } });
-    await worker.check();
-    const a = ((await reload(p.id)).onboardingProposal as unknown as OnboardingProposal).advice;
-    expect(a.statusMap.FAILED).toBeNull(); // not a status of the project
-    expect(a.statusMap.KB).toBe('In Progress');
-    expect(a.approvalStatuses).toEqual({ plan: null, breakdown: null }); // "Plan Approved" is not in the fake project either
-    expect(a.issueTypeRouting['Sub-task']).toBe('ignore'); // the sub-task type is always ignored
-  });
-
-  it('without a Jira key there is no advisor run, and the proposal still has the commands', async () => {
-    const p = await project({ jiraMode: 'off', jiraProjectKey: null });
-    await worker.check();
-    expect(requests.map((r) => r.stage)).toEqual(['repoProfile']);
-    const proposal = (await reload(p.id)).onboardingProposal as unknown as OnboardingProposal;
-    expect(proposal.facts.jira).toBeNull();
-    expect(proposal.advice).toMatchObject({ intakeLabel: 'sdlc-agent', issueTypeRouting: {} });
-  });
-
   it('records a failing install and does not run the typecheck after it', async () => {
     const p = await project();
     verifyOk['npm ci'] = false;
@@ -169,10 +140,43 @@ describe('OnboardingWorker', () => {
 
   it('skips an empty command', async () => {
     const p = await project();
-    agent = (req) => done(req.stage === 'repoProfile' ? { ...profile, typecheckCmd: '' } : advice);
+    agent = (req) => done(req.stage === 'repoProfile' ? { ...profile, typecheckCmd: '' } : boardAnswer);
     await worker.check();
     expect(((await reload(p.id)).onboardingProposal as unknown as OnboardingProposal).profile.typecheckCheck).toBeNull();
     expect(verifyCalls.map((c) => c.cmd)).toEqual(['npm ci']);
+  });
+
+  describe('a GitHub Projects board', () => {
+    it('gets a mapping proposal from the board\'s own columns, with names the board does not have taken out', async () => {
+      github.columns = ['Todo', 'Doing', 'Approved', 'Done'];
+      agent = (req) => done(req.stage === 'repoProfile' ? profile : boardAnswer);
+      const p = await project({ settings: boardSettings });
+      await worker.check();
+      const after = await reload(p.id);
+      expect(after.onboardingStatus).toBe('proposed');
+      const proposal = after.onboardingProposal as unknown as OnboardingProposal;
+      expect(proposal.facts.github.board).toEqual({ columns: ['Todo', 'Doing', 'Approved', 'Done'] });
+      expect(proposal.board).toEqual({ statusMap: { PLANNING: 'Doing', KB: null, DONE: 'Done' }, approval: { plan: 'Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false });
+      const asked = requests.find((r) => r.stage === 'onboardAdvise');
+      expect(JSON.stringify(asked?.inputs)).toContain('Status columns of the board: Todo, Doing, Approved, Done');
+    });
+
+    it('an issues-mode project has no board phase, and no advisor run either', async () => {
+      github.calls = [];
+      const p = await project({ settings: { github: { mode: 'issues' } } });
+      await worker.check();
+      expect((await reload(p.id)).onboardingStatus).toBe('proposed');
+      expect(requests.some((r) => r.stage === 'onboardAdvise')).toBe(false);
+      expect(((await reload(p.id)).onboardingProposal as unknown as OnboardingProposal).board).toBeUndefined();
+      expect(github.calls).not.toContain('statusColumns');
+    });
+
+    it('a board that cannot be read stops onboarding with the reason and a way out', async () => {
+      github.failColumns = new Error('Could not resolve to a ProjectV2');
+      const p = await project({ settings: boardSettings });
+      await worker.check();
+      expect(await reload(p.id)).toMatchObject({ onboardingStatus: 'draft', onboardingError: expect.stringContaining('GitHub board acme/3: Could not resolve to a ProjectV2. Check the board number') });
+    });
   });
 
   describe('failure leaves the project in draft with the reason, never half-configured', () => {
@@ -184,15 +188,15 @@ describe('OnboardingWorker', () => {
       expect(requests).toHaveLength(0);
     });
 
-    it('Jira not configured, or a wrong key', async () => {
-      const p = await project();
-      jira.failWith = new JiraNotConfiguredError();
+    it('a bot project whose board belongs to a user, which the GitHub App cannot read', async () => {
+      const board = { github: { mode: 'projects', project: { owner: 'pjx16', number: 7 } } };
+      github.ownerTypes = { pjx16: 'User' };
+      const bot = await project({ githubAuth: 'bot', settings: board });
+      const token = await project({ githubAuth: 'token', settings: board });
       await worker.check();
-      expect((await reload(p.id)).onboardingError).toContain('Jira is not configured');
-      const q = await project();
-      jira.failWith = new Error('Jira 404: No project could be found with key SDA');
-      await worker.check();
-      expect((await reload(q.id)).onboardingError).toContain('Check the project key');
+      await worker.check(); // one project at a time
+      expect(await reload(bot.id)).toMatchObject({ onboardingStatus: 'draft', onboardingError: expect.stringContaining('the GitHub App cannot read a user\'s Projects boards. Use a personal access token') });
+      expect((await reload(token.id)).onboardingStatus).toBe('proposed'); // a token can read it
     });
 
     it('a mirror that cannot be cloned', async () => {
@@ -231,7 +235,7 @@ describe('OnboardingWorker', () => {
     await worker.check();
     expect((await reload(b.id)).onboardingStatus).toBe('proposed');
     await worker.check(); // nothing left
-    expect(requests.length).toBe(4);
+    expect(requests.length).toBe(2); // one profiler run each: neither project uses a board
   });
 
   it('waits while the pipeline is paused for limits, but not when paused by hand', async () => {
@@ -245,20 +249,36 @@ describe('OnboardingWorker', () => {
   });
 });
 
-describe('factsText and sanitizeAdvice (pure)', () => {
+describe('factsText (pure)', () => {
   it('writes the facts as plain text the advisor can read', () => {
-    const t = factsText('billing', {
-      github: { defaultBranch: 'main', languages: ['TypeScript'] },
-      jira: { projectName: 'Billing', issueTypes: [{ name: 'Story', subtask: false }, { name: 'Sub-task', subtask: true }], statusesByType: [{ type: 'Story', statuses: [{ name: 'To Do', category: 'new' }] }], labels: [] },
-    });
-    expect(t).toContain('- Sub-task (the sub-task type)');
-    expect(t).toContain('- Story: To Do [new]');
-    expect(t).toContain('Labels already in use: none');
+    const t = factsText('billing', { github: { defaultBranch: 'main', languages: ['TypeScript'], board: { columns: ['Todo', 'Done'] } } });
+    expect(t).toContain('Default branch: main');
+    expect(t).toContain('Status columns of the board: Todo, Done');
     expect(t).not.toMatch(/confluence/i);
   });
 
-  it('with no advice at all, falls back on the default routing and label', () => {
-    const jira = { projectName: 'x', issueTypes: [{ name: 'Bug', subtask: false }, { name: 'Epic', subtask: false }], statusesByType: [], labels: [] };
-    expect(sanitizeAdvice(null, jira)).toEqual({ statusMap: {}, approvalStatuses: { plan: null, breakdown: null }, issueTypeRouting: { Bug: 'bug', Epic: 'ignore' }, intakeLabel: 'sdlc-agent' });
+});
+
+describe('sanitizeBoardAdvice and the board facts (pure)', () => {
+  const columns = ['Todo', 'Doing', 'Plan Approved', 'Done'];
+
+  it('keeps names the board has, in the board\'s spelling, and drops the rest', () => {
+    expect(sanitizeBoardAdvice({ statusMap: { PLANNING: 'doing', KB: 'Made up' }, approval: { plan: 'plan approved', breakdown: null }, intakeStatus: 'TODO', useDefaultColumns: false }, columns)).toEqual({
+      statusMap: { PLANNING: 'Doing', KB: null }, approval: { plan: 'Plan Approved', breakdown: null }, intakeStatus: 'Todo', useDefaultColumns: false,
+    });
+  });
+
+  it('recommends the default columns when there is no answer or the board has no columns', () => {
+    expect(sanitizeBoardAdvice(null, columns)).toMatchObject({ statusMap: {}, intakeStatus: null, useDefaultColumns: true });
+    expect(sanitizeBoardAdvice({ statusMap: {}, approval: { plan: null, breakdown: null }, intakeStatus: null, useDefaultColumns: false }, [])).toMatchObject({ useDefaultColumns: true });
+  });
+
+  it('keeps the advisor\'s own call for the default columns', () => {
+    expect(sanitizeBoardAdvice({ statusMap: {}, approval: { plan: null, breakdown: null }, intakeStatus: null, useDefaultColumns: true }, columns).useDefaultColumns).toBe(true);
+  });
+
+  it('puts the board in the facts', () => {
+    const facts = { github: { defaultBranch: 'main', languages: [], board: { columns } } };
+    expect(factsText('billing', facts)).toContain('Status columns of the board: Todo, Doing, Plan Approved, Done');
   });
 });

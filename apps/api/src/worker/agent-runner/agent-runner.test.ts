@@ -43,33 +43,6 @@ const setup = (behaviour: FakeBehaviour | FakeBehaviour[]) => {
   return { engine, store, runner: new AgentRunner(new ContainerRunner(engine), config, staticCredentials({ anthropic_api_key: 'tok' }), store, new NullLogSink()) };
 };
 
-describe('AgentRunner, Jira connector stage', () => {
-  const connectorData = { result: { key: 'A-1', status: 'To Do', summary: 's', description: 'd' }, error: null };
-  const connectorRequest = () => request({ stage: 'jiraConnector', modelAlias: 'haiku', workspacePath: undefined, inputs: { jira: { serverName: 'Jira', operation: 'read', args: { issueKey: 'A-1' }, resultShape: '{ key }' } } });
-
-  it('runs with its own claude.ai login and the connector proxy: no gateway key, no workspace, no other credential', async () => {
-    const { runner, engine } = setup({ lines: stream({ status: 'done', summary: 'ok', data: connectorData }) });
-    expect(await runner.run(connectorRequest())).toMatchObject({ kind: 'done' });
-    const created = engine.created[0];
-    const env = created?.Env ?? [];
-    expect(env).toContain('CLAUDE_CONFIG_DIR=/connector-home');
-    expect(env).toContain('HTTPS_PROXY=http://proxy:3129');
-    for (const name of ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL']) expect(env.some((e) => e.startsWith(`${name}=`)), name).toBe(false);
-    expect(env.some((e) => e.endsWith('=tok'))).toBe(false);
-    expect(created?.HostConfig?.Binds).toContain('sdlc_jira_connector_home:/connector-home:rw');
-    expect(created?.HostConfig?.Binds?.some((b) => b.includes(':/workspace'))).toBe(false);
-  });
-
-  it('a refused connector login does not mark the pipeline\'s Anthropic API key as rejected', async () => {
-    const marks: unknown[] = [];
-    const creds = { ...staticCredentials({ anthropic_api_key: 'tok' }), markVerified: async (...a: unknown[]) => void marks.push(a) };
-    const engine = new FakeEngine({ lines: [JSON.stringify({ type: 'result', subtype: 'success', is_error: true, api_error_status: 401, result: 'Invalid API key · Please run /login' })] });
-    const runner = new AgentRunner(new ContainerRunner(engine), config, creds as never, new MemoryStore(), new NullLogSink());
-    expect(await runner.run(connectorRequest())).toMatchObject({ kind: 'claude_auth' });
-    expect(marks).toHaveLength(0);
-  });
-});
-
 describe('AgentRunner', () => {
   it('gives each container its own gateway key, live only while the container runs', async () => {
     const engine = new FakeEngine([good, good]);

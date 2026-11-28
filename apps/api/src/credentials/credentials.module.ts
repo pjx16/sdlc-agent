@@ -2,12 +2,11 @@ import { Global, Module } from '@nestjs/common';
 import { CredentialTester, TESTER_OPTIONS } from './credential-tester';
 import { CredentialsController } from './credentials.controller';
 import { CredentialsService } from './credentials.service';
-import { JiraOAuthController } from './jira-oauth.controller';
 
 /** Global so the API and the worker can both inject CredentialsService. The controller is served by the API only (the worker has no HTTP surface). */
 @Global()
 @Module({
-  controllers: [CredentialsController, JiraOAuthController],
+  controllers: [CredentialsController],
   providers: [
     CredentialsService,
     // GITHUB_API_URL exists for the end-to-end tests, which point it at a local fake GitHub.

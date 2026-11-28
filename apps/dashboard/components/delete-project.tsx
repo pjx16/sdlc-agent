@@ -90,7 +90,7 @@ export function DeleteProject({ project }: { project: Pick<ProjectView, 'id' | '
               )}
               <li>The repository mirror and workspaces on this machine</li>
             </ul>
-            <p className="mt-3 text-sm text-muted">Nothing is changed on GitHub or Jira: branches and pull requests the agent already created stay where they are.</p>
+            <p className="mt-3 text-sm text-muted">Nothing is changed on GitHub: branches and pull requests the agent already created stay where they are.</p>
             {blocked && <p className="mt-3 text-sm text-amber">A stage of this project is running right now. Wait for it to finish or stop it from the Runs page, then delete the project.</p>}
             <label htmlFor="confirm-name" className="mt-4 block text-sm">
               Type <span className="font-mono">{project.name}</span> to confirm
