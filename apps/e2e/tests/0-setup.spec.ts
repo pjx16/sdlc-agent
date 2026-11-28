@@ -9,7 +9,8 @@ async function login(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: /sign in/i }).click();
-  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+  // Until GitHub and Anthropic are connected every page leads to the setup, so this spec cannot wait for the overview.
+  await expect(page).not.toHaveURL(/\/login/);
 }
 
 const github = (page: Page) => page.getByTestId('setup-github');
