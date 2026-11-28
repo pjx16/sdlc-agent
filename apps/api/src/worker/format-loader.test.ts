@@ -25,10 +25,10 @@ describe('FormatLoader', () => {
 
   it('uses an edited file from the next call on, and fills it', async () => {
     const loader = new FormatLoader(dir);
-    writeFileSync(path.join(dir, 'formats', 'jira-plan.md'), 'PLAN {{key}}:\n{{plan}}\n');
-    expect(await loader.fill('jira-plan', { key: 'A-1', plan: 'do it' })).toBe('PLAN A-1:\ndo it');
-    writeFileSync(path.join(dir, 'formats', 'jira-plan.md'), 'Changed {{key}}');
-    expect(await loader.fill('jira-plan', { key: 'A-1', plan: 'x' })).toBe('Changed A-1');
+    writeFileSync(path.join(dir, 'formats', 'issue-plan.md'), 'PLAN {{key}}:\n{{plan}}\n');
+    expect(await loader.fill('issue-plan', { key: 'A-1', plan: 'do it' })).toBe('PLAN A-1:\ndo it');
+    writeFileSync(path.join(dir, 'formats', 'issue-plan.md'), 'Changed {{key}}');
+    expect(await loader.fill('issue-plan', { key: 'A-1', plan: 'x' })).toBe('Changed A-1');
   });
 });
 

@@ -101,6 +101,16 @@ export const ProjectSettingsSchema = z.object({
       statusField: z.string().trim().min(1, 'required').default('Status'),
       intakeStatus: z.string().trim().min(1, 'required').default('Todo'),
       statusMap: z.record(z.string(), z.string().nullable()).default({}),
+      /** How a person approves from GitHub: `projects` mode, the card moves to the column named here; `issues` mode, the issue gets `label`. */
+      approval: z
+        .object({
+          plan: z.string().trim().min(1).nullable().default(null),
+          breakdown: z.string().trim().min(1).nullable().default(null),
+          label: z.string().trim().min(1, 'required').regex(/^\S+$/, 'must not contain spaces').default('sdlc:approved'),
+        })
+        .prefault({}),
+      /** Use sdlc-agent's own columns (GITHUB_DEFAULT_BOARD) for the status and approval columns, whatever is set above. */
+      useDefaultColumns: z.boolean().default(false),
     })
     .prefault({}),
   /** What each Jira issue type becomes: feature, bug, chore, or ignore. */
@@ -146,6 +156,29 @@ export const ProjectSettingsSchema = z.object({
     })
     .prefault({}),
 });
+
+/** The columns sdlc-agent uses on a board when the project does not map its own. */
+export const GITHUB_DEFAULT_BOARD = {
+  planReview: 'Plan review',
+  planApproved: 'Plan approved',
+  breakdownReview: 'Breakdown review',
+  breakdownApproved: 'Breakdown approved',
+  working: 'In Progress',
+  done: 'Done',
+} as const;
+
+/** What a project's card moves to for each state, and which columns approve: the project's own mapping, or the defaults. */
+export function githubBoard(gh: { statusMap: Record<string, string | null>; approval: { plan: string | null; breakdown: string | null }; useDefaultColumns: boolean }): {
+  statusMap: Record<string, string | null>;
+  approval: { plan: string | null; breakdown: string | null };
+} {
+  if (!gh.useDefaultColumns) return { statusMap: gh.statusMap, approval: { plan: gh.approval.plan, breakdown: gh.approval.breakdown } };
+  const b = GITHUB_DEFAULT_BOARD;
+  return {
+    statusMap: { ...gh.statusMap, AWAITING_PLAN_APPROVAL: b.planReview, AWAITING_BREAKDOWN_APPROVAL: b.breakdownReview },
+    approval: { plan: b.planApproved, breakdown: b.breakdownApproved },
+  };
+}
 
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ProjectSettingsSchema, type TicketType, jiraOn } from '@sdlc/shared';
 import { jiraMarker } from '../../jira/jira-client';
+import { TicketComments } from '../github/ticket-comments';
 import { GitHubAuth } from '../github/github-auth.service';
 import { JiraClients } from '../../jira/jira-clients';
 import { CredentialsService } from '../../credentials/credentials.service';
@@ -61,6 +62,7 @@ export class WorkspaceService {
     @Optional() private readonly jira?: JiraClients,
     @Optional() private readonly auth?: GitHubAuth,
     @Optional() private readonly signer?: CommitSigner,
+    @Optional() private readonly comments?: TicketComments,
   ) {}
 
   /** Waits and scale of the retry policy; tests shrink them. */
@@ -166,6 +168,7 @@ export class WorkspaceService {
     const reason = `GitHub still held ${shas.length} earlier commit${shas.length === 1 ? '' : 's'} of this ticket's branch (${short}), all made by the pipeline, from an attempt that a rerun replaced. They were replaced with the current work, under a lease that fails if anyone pushed in the meantime.`;
     await this.prisma.orchestratorDecision.create({ data: { ticketId: ticket.id, point: 'push_replace', legalMoves: [{ kind: 'push', to: 'push' }, { kind: 'replace_own_commits', to: 'push' }] as never, chosen: 'replace_own_commits push', reason, fallbackUsed: false } });
     await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'git', level: 'warn', source: 'git', message: `Replaced ${shas.length} earlier commit(s) of ${branch} on the remote (${short}): ${reason}`.slice(0, 500) } });
+    if (this.comments && ticket.source !== 'jira') await this.comments.post(ticket, `decision-push-${Date.now()}`, `sdlc-agent decided (push): replace its own earlier commits on ${branch}.\n\nWhy: ${reason}`);
     try {
       if (!this.jira || ticket.source !== 'jira' || !ticket.externalKey || !jiraOn(project.jiraMode) || !ProjectSettingsSchema.parse(project.settings).jiraWriteBack.comments) return;
       await (await this.jira.forMode(project.jiraMode)).comment(ticket.externalKey, `sdlc-agent decided (push): replace its own earlier commits on ${branch}.\nWhy: ${reason}`, jiraMarker(ticket.key, 'decision-push', `${Date.now()}`));

@@ -230,6 +230,17 @@ export class OnboardingWorker implements Housekeeper {
     }
   }
 
+  /**
+   * A GitHub App's installation token cannot read a user's Projects boards (only an organization's). A project that works through the bot
+   * and names a user-owned board is stopped here with a way out, instead of failing later on every poll.
+   */
+  private async checkBoardOwner(project: Project): Promise<void> {
+    const gh = ProjectSettingsSchema.parse(project.settings).github;
+    if (project.githubAuth !== 'bot' || gh.mode !== 'projects' || !gh.project) return;
+    if ((await this.github.ownerType(gh.project.owner).catch(() => null)) !== 'User') return;
+    throw new Error(`The board belongs to the user "${gh.project.owner}", and the GitHub App cannot read a user's Projects boards. Use a personal access token with the Projects permission for this project, or move the board to an organization.`);
+  }
+
   /** Step 1: code only, no AI. */
   async collectFacts(project: Project): Promise<OnboardingFacts> {
     let github;
@@ -238,6 +249,7 @@ export class OnboardingWorker implements Housekeeper {
     } catch (err) {
       throw new Error(`GitHub: ${err instanceof Error ? err.message : String(err)}. Check the GitHub token in Settings → Connections and the repository URL.`, { cause: err });
     }
+    await this.checkBoardOwner(project);
     let jira: JiraFacts | null = null;
     if (jiraOn(project.jiraMode) && project.jiraProjectKey) {
       try {

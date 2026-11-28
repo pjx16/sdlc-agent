@@ -6,6 +6,7 @@ import { SupportRaiser } from '../../support/support-raiser';
 import { ProjectSettingsSchema, type StageEnvelope, jiraOn } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { jiraMarker } from '../../jira/jira-client';
+import { TicketComments } from '../github/ticket-comments';
 import { JiraClients } from '../../jira/jira-clients';
 import { PrismaService } from '../../prisma/prisma.service';
 import { featureKeyOf, lookup } from '../kb/kb-index';
@@ -46,6 +47,7 @@ export class PlanHandler implements StepHandler {
     @Optional() raiser?: SupportRaiser,
     @Optional() @Inject(OrchestratorService) private readonly orchestrator?: OrchestratorService,
     @Optional() formats?: FormatLoader,
+    @Optional() private readonly comments?: TicketComments,
   ) {
     this.raiser = raiser ?? new SupportRaiser(prisma);
     this.formats = formats ?? new FormatLoader();
@@ -99,6 +101,7 @@ export class PlanHandler implements StepHandler {
     await writeArtifact(this.prisma, ticket.id, 'plan', { planMarkdown: plan }, result.stageRunId).catch(() => undefined);
     await this.raiseOpenQuestions(ticket, (result.envelope as StageEnvelope).data as PlanData, result.stageRunId).catch((err: unknown) => this.logger.warn(`Raising the open questions of ${ticket.key} failed: ${err instanceof Error ? err.message : String(err)}`));
     await this.commentOnJira(ticket, project.jiraMode, settings.jiraWriteBack.comments, plan);
+    await this.commentOnIssue(ticket, plan);
 
     return settings.gates.plan
       ? { kind: 'transition', to: 'AWAITING_PLAN_APPROVAL', reason: 'Plan ready for approval', stageRunId: result.stageRunId }
@@ -125,11 +128,17 @@ export class PlanHandler implements StepHandler {
     return last?.fromStatus === 'AWAITING_PLAN_APPROVAL' && last.reason ? last.reason : null;
   }
 
+  /** Posts the plan to the ticket's GitHub issue, in place of an earlier plan. A ticket that came from Jira keeps its Jira comment. Never blocks. */
+  private async commentOnIssue(ticket: Ticket, plan: string): Promise<void> {
+    if (!this.comments || ticket.source === 'jira') return;
+    await this.comments.post(ticket, 'plan', await this.formats.fill('issue-plan', { key: ticket.key, plan }));
+  }
+
   /** Posts the plan to the Jira issue (REST). A Jira problem never blocks the pipeline. */
   private async commentOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, plan: string): Promise<void> {
     if (!enabled || !jiraOn(jiraMode) || ticket.source !== 'jira' || !ticket.externalKey) return;
     try {
-      await (await this.jira.forMode(jiraMode)).comment(ticket.externalKey, await this.formats.fill('jira-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
+      await (await this.jira.forMode(jiraMode)).comment(ticket.externalKey, await this.formats.fill('issue-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Posting the plan to ${ticket.externalKey} failed: ${message}`);

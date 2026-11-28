@@ -6,11 +6,13 @@ import type { StageEnvelope } from '@sdlc/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SubtasksService } from '../../subtasks/subtasks.service';
+import { FakeGitHub } from '../../testing/fake-github';
 import { FakeJira, FakeJiraClients } from '../../testing/fake-jira';
+import { TicketComments } from '../github/ticket-comments';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import type { StageRequest, StageResult } from '../agent-runner/agent-runner';
 import { WorkerConfig } from '../worker-config';
-import { BreakdownHandler } from './breakdown.handler';
+import { BreakdownHandler, breakdownComment } from './breakdown.handler';
 import { StageLauncher } from './stage-launcher';
 import { StageOutcomes } from './stage-outcomes';
 
@@ -22,6 +24,8 @@ describe('breakdown stage (F8)', () => {
   let prisma: PrismaService;
   let tmp: string;
   let handler: BreakdownHandler;
+  let onGithub: BreakdownHandler;
+  let github: FakeGitHub;
   let jira: FakeJira;
   let projectId: string;
   let n = 0;
@@ -50,7 +54,10 @@ describe('breakdown stage (F8)', () => {
     };
     const clients = new FakeJiraClients();
     jira = clients.jira;
-    handler = new BreakdownHandler(prisma, new StageLauncher(prisma, config, runner as never), new StageOutcomes(prisma), new SubtasksService(prisma, clients));
+    const launcher = new StageLauncher(prisma, config, runner as never);
+    handler = new BreakdownHandler(prisma, launcher, new StageOutcomes(prisma), new SubtasksService(prisma, clients));
+    github = new FakeGitHub();
+    onGithub = new BreakdownHandler(prisma, launcher, new StageOutcomes(prisma), new SubtasksService(prisma, clients), new TicketComments(prisma, github));
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -62,6 +69,7 @@ describe('breakdown stage (F8)', () => {
     failWith = null;
     jira.calls = [];
     jira.failWith = null;
+    github.reset();
     reply = answer([st(1), st(2, { dependsOn: [1] })]);
     await prisma.stateTransition.deleteMany();
     await prisma.project.update({ where: { id: projectId }, data: { settings: {} } });
@@ -75,6 +83,47 @@ describe('breakdown stage (F8)', () => {
     expect(requests[0]?.inputs).toMatchObject({ plan: '# Approved plan', maxSubtasks: 8 });
     const draft = (await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).breakdownDraft as { seq: number }[];
     expect(draft.map((s) => s.seq)).toEqual([1, 2]);
+  });
+
+  describe('the breakdown on the ticket\'s GitHub issue', () => {
+    let issue = 40;
+    const issueTicket = () => ticket({ source: 'github', externalKey: `acme/billing#${++issue}` });
+    const thread = () => github.threads.get(`acme/billing#${issue}`) ?? [];
+
+    it('writes the subtasks as a task list: a checkbox each, with what makes it done', () => {
+      expect(breakdownComment('K-1', [st(1, { title: 'Add the endpoint', acceptanceCriteria: ['returns 200', 'is documented'] }), st(2)] as never)).toBe(
+        ['## Breakdown for K-1', '2 subtasks. Approve it in the dashboard.', '', '- [ ] **S1. Add the endpoint**', '  - returns 200', '  - is documented', '- [ ] **S2. Subtask 2**', '  - works'].join('\n'),
+      );
+      expect(breakdownComment('K-1', [st(1)] as never)).toContain('1 subtask.');
+    });
+
+    it('posts it as one comment when the draft is ready', async () => {
+      const t = await issueTicket();
+      await onGithub.run(t);
+      expect(thread()).toHaveLength(1);
+      expect(thread()[0]!.body).toContain(`## Breakdown for ${t.key}`);
+      expect(thread()[0]!.body).toContain('- [ ] **S2. Subtask 2**');
+      expect(thread()[0]!.body).toContain(`<!-- sdlc-agent:${t.key}:breakdown -->`);
+    });
+
+    it('a new breakdown (after a rejection) updates that comment, never adds a second', async () => {
+      const t = await issueTicket();
+      await onGithub.run(t);
+      reply = answer([st(1, { title: 'One bigger step' })]);
+      await onGithub.run(await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } }));
+      expect(thread()).toHaveLength(1);
+      expect(thread()[0]!.body).toContain('One bigger step');
+      expect(thread()[0]!.body).not.toContain('Subtask 2');
+    });
+
+    it('a Jira ticket gets nothing on GitHub, and a failed comment does not stop the breakdown', async () => {
+      await onGithub.run(await ticket({ source: 'jira', externalKey: 'SDA-9' }));
+      expect(github.calls).not.toContain('upsertIssueComment');
+      github.failComments = new Error('gh: HTTP 502');
+      const t = await issueTicket();
+      expect(await onGithub.run(t)).toMatchObject({ kind: 'transition' });
+      expect((await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).breakdownDraft).toHaveLength(2);
+    });
   });
 
   it('stores the list sorted by seq even if the model returned it out of order', async () => {
