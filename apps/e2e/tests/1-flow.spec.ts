@@ -46,7 +46,7 @@ test('paste a ticket into a ready project', async ({ page }) => {
   await dialog.getByLabel('Project').selectOption({ label: SEED.project });
   await dialog.getByLabel('Title').fill('Pasted from the browser');
   await dialog.getByLabel('Problem').fill('A ticket that was typed in.');
-  await dialog.getByLabel('Criterion 1').fill('It shows up on its page');
+  await dialog.getByLabel('Criterion 1', { exact: true }).fill('It shows up on its page');
   await expect(dialog.getByRole('region', { name: 'Preview of the ticket' }).getByRole('heading', { name: 'Problem' })).toBeVisible(); // the preview follows what is typed
   await dialog.getByRole('button', { name: 'Create ticket' }).click();
   await page.waitForURL(/\/tickets\/[0-9a-f-]+/);
