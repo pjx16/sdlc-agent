@@ -25,7 +25,9 @@ test('pages need a session; a wrong password is refused; the right one logs in',
 
 test('create a project', async ({ page }) => {
   await login(page);
-  await page.goto('/projects/new?manual=1');
+  await page.goto('/projects');
+  await page.getByRole('button', { name: 'New project' }).click(); // a modal, not another page
+  await page.getByRole('tab', { name: 'Manual' }).click();
   await page.getByLabel('Name', { exact: true }).fill('Shipping');
   await page.getByLabel('Repository URL').fill('https://github.com/acme/shipping');
   await page.getByLabel('Local ticket prefix').fill('SHIP');

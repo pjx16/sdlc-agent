@@ -250,3 +250,24 @@ button:disabled {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
+
+/* Modals (components/modal.tsx): a short fade and scale in, unless the person asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  dialog.modal[open] {
+    animation: modal-in 140ms ease-out;
+  }
+  dialog.modal[open]::backdrop {
+    animation: modal-fade 140ms ease-out;
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+}
