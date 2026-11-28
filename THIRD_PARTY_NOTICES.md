@@ -23,10 +23,10 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 
 | Licence | Packages |
 | --- | --- |
-| MIT | 277 |
+| MIT | 377 |
 | Apache-2.0 | 48 |
-| ISC | 37 |
-| BSD-3-Clause | 17 |
+| ISC | 38 |
+| BSD-3-Clause | 19 |
 | LGPL-3.0-or-later | 10 |
 | OFL-1.1 | 3 |
 | Apache-2.0 AND LGPL-3.0-or-later | 3 |
@@ -152,13 +152,22 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [@types/d3-time](https://www.npmjs.com/package/@types/d3-time) | 3.0.0 | MIT |
 | [@types/d3-time-format](https://www.npmjs.com/package/@types/d3-time-format) | 2.1.0 | MIT |
 | [@types/d3-timer](https://www.npmjs.com/package/@types/d3-timer) | 3.0.2 | MIT |
+| [@types/debug](https://www.npmjs.com/package/@types/debug) | 4.1.13 | MIT |
+| [@types/estree](https://www.npmjs.com/package/@types/estree) | 1.0.10 | MIT |
+| [@types/estree-jsx](https://www.npmjs.com/package/@types/estree-jsx) | 1.0.5 | MIT |
 | [@types/geojson](https://www.npmjs.com/package/@types/geojson) | 7946.0.16 | MIT |
+| [@types/hast](https://www.npmjs.com/package/@types/hast) | 3.0.5 | MIT |
 | [@types/lodash](https://www.npmjs.com/package/@types/lodash) | 4.17.27 | MIT |
+| [@types/mdast](https://www.npmjs.com/package/@types/mdast) | 4.0.4 | MIT |
+| [@types/ms](https://www.npmjs.com/package/@types/ms) | 2.1.0 | MIT |
 | [@types/node](https://www.npmjs.com/package/@types/node) | 26.6.6 | MIT |
 | [@types/pg](https://www.npmjs.com/package/@types/pg) | 8.23.1 | MIT |
 | [@types/react](https://www.npmjs.com/package/@types/react) | 19.3.0 | MIT |
 | [@types/react-dom](https://www.npmjs.com/package/@types/react-dom) | 19.3.0 | MIT |
+| [@types/unist](https://www.npmjs.com/package/@types/unist) | 2.0.11 | MIT |
+| [@types/unist](https://www.npmjs.com/package/@types/unist) | 3.0.3 | MIT |
 | [@types/use-sync-external-store](https://www.npmjs.com/package/@types/use-sync-external-store) | 0.0.6 | MIT |
+| [@ungap/structured-clone](https://www.npmjs.com/package/@ungap/structured-clone) | 1.4.0 | ISC |
 | [@visx/curve](https://www.npmjs.com/package/@visx/curve) | 4.0.1-alpha.0 | MIT |
 | [@visx/event](https://www.npmjs.com/package/@visx/event) | 4.0.1-alpha.0 | MIT |
 | [@visx/grid](https://www.npmjs.com/package/@visx/grid) | 4.0.1-alpha.0 | MIT |
@@ -177,6 +186,7 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [asn1](https://www.npmjs.com/package/asn1) | 0.2.6 | MIT |
 | [atomic-sleep](https://www.npmjs.com/package/atomic-sleep) | 1.0.0 | MIT |
 | [aws-ssl-profiles](https://www.npmjs.com/package/aws-ssl-profiles) | 1.1.2 | MIT |
+| [bail](https://www.npmjs.com/package/bail) | 2.0.2 | MIT |
 | [base64-js](https://www.npmjs.com/package/base64-js) | 1.5.1 | MIT |
 | [baseline-browser-mapping](https://www.npmjs.com/package/baseline-browser-mapping) | 2.11.35 | Apache-2.0 |
 | [bcrypt-pbkdf](https://www.npmjs.com/package/bcrypt-pbkdf) | 1.0.2 | BSD-3-Clause |
@@ -191,6 +201,11 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [call-bind-apply-helpers](https://www.npmjs.com/package/call-bind-apply-helpers) | 1.0.2 | MIT |
 | [call-bound](https://www.npmjs.com/package/call-bound) | 1.0.4 | MIT |
 | [caniuse-lite](https://www.npmjs.com/package/caniuse-lite) | 1.0.30001826 | CC-BY-4.0 |
+| [ccount](https://www.npmjs.com/package/ccount) | 2.0.1 | MIT |
+| [character-entities](https://www.npmjs.com/package/character-entities) | 2.0.2 | MIT |
+| [character-entities-html4](https://www.npmjs.com/package/character-entities-html4) | 2.1.0 | MIT |
+| [character-entities-legacy](https://www.npmjs.com/package/character-entities-legacy) | 3.0.0 | MIT |
+| [character-reference-invalid](https://www.npmjs.com/package/character-reference-invalid) | 2.0.1 | MIT |
 | [chokidar](https://www.npmjs.com/package/chokidar) | 5.0.0 | MIT |
 | [chownr](https://www.npmjs.com/package/chownr) | 1.1.4 | ISC |
 | [classnames](https://www.npmjs.com/package/classnames) | 2.5.1 | MIT |
@@ -199,6 +214,7 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [clsx](https://www.npmjs.com/package/clsx) | 2.1.1 | MIT |
 | [color-convert](https://www.npmjs.com/package/color-convert) | 2.0.1 | MIT |
 | [color-name](https://www.npmjs.com/package/color-name) | 1.1.4 | MIT |
+| [comma-separated-tokens](https://www.npmjs.com/package/comma-separated-tokens) | 2.0.3 | MIT |
 | [confbox](https://www.npmjs.com/package/confbox) | 0.2.4 | MIT |
 | [confbox](https://www.npmjs.com/package/confbox) | 0.3.2 | MIT |
 | [content-disposition](https://www.npmjs.com/package/content-disposition) | 2.0.1 | MIT |
@@ -228,12 +244,15 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [d3-timer](https://www.npmjs.com/package/d3-timer) | 3.0.2 | ISC |
 | [debug](https://www.npmjs.com/package/debug) | 4.4.3 | MIT |
 | [decimal.js-light](https://www.npmjs.com/package/decimal.js-light) | 2.5.1 | MIT |
+| [decode-named-character-reference](https://www.npmjs.com/package/decode-named-character-reference) | 1.3.0 | MIT |
 | [deepmerge-ts](https://www.npmjs.com/package/deepmerge-ts) | 8.0.2 | BSD-3-Clause |
 | [defu](https://www.npmjs.com/package/defu) | 6.1.7 | MIT |
 | [delaunator](https://www.npmjs.com/package/delaunator) | 5.1.0 | ISC |
 | [depd](https://www.npmjs.com/package/depd) | 2.0.0 | MIT |
+| [dequal](https://www.npmjs.com/package/dequal) | 2.0.3 | MIT |
 | [destr](https://www.npmjs.com/package/destr) | 2.0.5 | MIT |
 | [detect-libc](https://www.npmjs.com/package/detect-libc) | 2.1.2 | Apache-2.0 |
+| [devlop](https://www.npmjs.com/package/devlop) | 1.1.0 | MIT |
 | [docker-modem](https://www.npmjs.com/package/docker-modem) | 5.0.7 | Apache-2.0 |
 | [dockerode](https://www.npmjs.com/package/dockerode) | 5.0.1 | Apache-2.0 |
 | [dotenv](https://www.npmjs.com/package/dotenv) | 17.4.2 | BSD-2-Clause |
@@ -252,10 +271,13 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [es-toolkit](https://www.npmjs.com/package/es-toolkit) | 1.53.2 | MIT |
 | [escalade](https://www.npmjs.com/package/escalade) | 3.2.0 | MIT |
 | [escape-html](https://www.npmjs.com/package/escape-html) | 1.0.3 | MIT |
+| [escape-string-regexp](https://www.npmjs.com/package/escape-string-regexp) | 5.0.0 | MIT |
+| [estree-util-is-identifier-name](https://www.npmjs.com/package/estree-util-is-identifier-name) | 3.0.0 | MIT |
 | [etag](https://www.npmjs.com/package/etag) | 1.8.1 | MIT |
 | [eventemitter3](https://www.npmjs.com/package/eventemitter3) | 5.0.4 | MIT |
 | [express](https://www.npmjs.com/package/express) | 5.3.0 | MIT |
 | [exsolve](https://www.npmjs.com/package/exsolve) | 1.2.0 | MIT |
+| [extend](https://www.npmjs.com/package/extend) | 3.0.2 | MIT |
 | [fast-check](https://www.npmjs.com/package/fast-check) | 3.23.2 | MIT |
 | [fast-decode-uri-component](https://www.npmjs.com/package/fast-decode-uri-component) | 1.0.1 | MIT |
 | [fast-deep-equal](https://www.npmjs.com/package/fast-deep-equal) | 3.1.3 | MIT |
@@ -282,14 +304,26 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [graphmatch](https://www.npmjs.com/package/graphmatch) | 1.1.1 | MIT |
 | [has-symbols](https://www.npmjs.com/package/has-symbols) | 1.1.0 | MIT |
 | [hasown](https://www.npmjs.com/package/hasown) | 2.0.4 | MIT |
+| [hast-util-to-jsx-runtime](https://www.npmjs.com/package/hast-util-to-jsx-runtime) | 2.3.7 | MIT |
+| [hast-util-to-text](https://www.npmjs.com/package/hast-util-to-text) | 4.0.5 | MIT |
+| [hast-util-whitespace](https://www.npmjs.com/package/hast-util-whitespace) | 3.0.0 | MIT |
+| [highlight.js](https://www.npmjs.com/package/highlight.js) | 11.11.2 | BSD-3-Clause |
+| [highlight.js](https://www.npmjs.com/package/highlight.js) | 11.12.0 | BSD-3-Clause |
+| [html-url-attributes](https://www.npmjs.com/package/html-url-attributes) | 3.0.1 | MIT |
 | [http-errors](https://www.npmjs.com/package/http-errors) | 2.0.1 | MIT |
 | [iconv-lite](https://www.npmjs.com/package/iconv-lite) | 0.7.3 | MIT |
 | [ieee754](https://www.npmjs.com/package/ieee754) | 1.2.1 | BSD-3-Clause |
 | [immer](https://www.npmjs.com/package/immer) | 11.2.10 | MIT |
 | [inherits](https://www.npmjs.com/package/inherits) | 2.0.4 | ISC |
+| [inline-style-parser](https://www.npmjs.com/package/inline-style-parser) | 0.2.9 | MIT |
 | [internmap](https://www.npmjs.com/package/internmap) | 2.0.3 | ISC |
 | [ipaddr.js](https://www.npmjs.com/package/ipaddr.js) | 1.9.1 | MIT |
+| [is-alphabetical](https://www.npmjs.com/package/is-alphabetical) | 2.0.1 | MIT |
+| [is-alphanumerical](https://www.npmjs.com/package/is-alphanumerical) | 2.0.1 | MIT |
+| [is-decimal](https://www.npmjs.com/package/is-decimal) | 2.0.1 | MIT |
 | [is-fullwidth-code-point](https://www.npmjs.com/package/is-fullwidth-code-point) | 3.0.0 | MIT |
+| [is-hexadecimal](https://www.npmjs.com/package/is-hexadecimal) | 2.0.1 | MIT |
+| [is-plain-obj](https://www.npmjs.com/package/is-plain-obj) | 4.1.0 | MIT |
 | [is-promise](https://www.npmjs.com/package/is-promise) | 4.0.0 | MIT |
 | [is-property](https://www.npmjs.com/package/is-property) | 1.0.2 | MIT |
 | [isexe](https://www.npmjs.com/package/isexe) | 2.0.0 | ISC |
@@ -300,11 +334,58 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [lodash](https://www.npmjs.com/package/lodash) | 4.18.1 | MIT |
 | [lodash.camelcase](https://www.npmjs.com/package/lodash.camelcase) | 4.3.0 | MIT |
 | [long](https://www.npmjs.com/package/long) | 5.3.2 | Apache-2.0 |
+| [longest-streak](https://www.npmjs.com/package/longest-streak) | 3.1.0 | MIT |
+| [lowlight](https://www.npmjs.com/package/lowlight) | 3.3.0 | MIT |
 | [lru.min](https://www.npmjs.com/package/lru.min) | 1.1.5 | MIT |
+| [markdown-table](https://www.npmjs.com/package/markdown-table) | 3.1.0 | MIT |
 | [math-intrinsics](https://www.npmjs.com/package/math-intrinsics) | 1.1.0 | MIT |
+| [mdast-util-find-and-replace](https://www.npmjs.com/package/mdast-util-find-and-replace) | 3.0.5 | MIT |
+| [mdast-util-from-markdown](https://www.npmjs.com/package/mdast-util-from-markdown) | 2.1.0 | MIT |
+| [mdast-util-gfm](https://www.npmjs.com/package/mdast-util-gfm) | 3.1.0 | MIT |
+| [mdast-util-gfm-autolink-literal](https://www.npmjs.com/package/mdast-util-gfm-autolink-literal) | 2.1.2 | MIT |
+| [mdast-util-gfm-footnote](https://www.npmjs.com/package/mdast-util-gfm-footnote) | 2.1.0 | MIT |
+| [mdast-util-gfm-strikethrough](https://www.npmjs.com/package/mdast-util-gfm-strikethrough) | 2.0.1 | MIT |
+| [mdast-util-gfm-table](https://www.npmjs.com/package/mdast-util-gfm-table) | 2.0.1 | MIT |
+| [mdast-util-gfm-task-list-item](https://www.npmjs.com/package/mdast-util-gfm-task-list-item) | 2.0.1 | MIT |
+| [mdast-util-mdx-expression](https://www.npmjs.com/package/mdast-util-mdx-expression) | 2.0.1 | MIT |
+| [mdast-util-mdx-jsx](https://www.npmjs.com/package/mdast-util-mdx-jsx) | 3.2.2 | MIT |
+| [mdast-util-mdxjs-esm](https://www.npmjs.com/package/mdast-util-mdxjs-esm) | 2.0.1 | MIT |
+| [mdast-util-phrasing](https://www.npmjs.com/package/mdast-util-phrasing) | 4.1.0 | MIT |
+| [mdast-util-to-hast](https://www.npmjs.com/package/mdast-util-to-hast) | 13.2.2 | MIT |
+| [mdast-util-to-markdown](https://www.npmjs.com/package/mdast-util-to-markdown) | 2.2.4 | MIT |
+| [mdast-util-to-string](https://www.npmjs.com/package/mdast-util-to-string) | 4.0.0 | MIT |
 | [media-typer](https://www.npmjs.com/package/media-typer) | 0.3.0 | MIT |
 | [media-typer](https://www.npmjs.com/package/media-typer) | 1.1.1 | MIT |
 | [merge-descriptors](https://www.npmjs.com/package/merge-descriptors) | 2.0.0 | MIT |
+| [micromark](https://www.npmjs.com/package/micromark) | 4.0.3 | MIT |
+| [micromark-core-commonmark](https://www.npmjs.com/package/micromark-core-commonmark) | 2.0.4 | MIT |
+| [micromark-extension-gfm](https://www.npmjs.com/package/micromark-extension-gfm) | 3.0.0 | MIT |
+| [micromark-extension-gfm-autolink-literal](https://www.npmjs.com/package/micromark-extension-gfm-autolink-literal) | 2.1.0 | MIT |
+| [micromark-extension-gfm-footnote](https://www.npmjs.com/package/micromark-extension-gfm-footnote) | 2.1.0 | MIT |
+| [micromark-extension-gfm-strikethrough](https://www.npmjs.com/package/micromark-extension-gfm-strikethrough) | 2.1.0 | MIT |
+| [micromark-extension-gfm-table](https://www.npmjs.com/package/micromark-extension-gfm-table) | 2.1.2 | MIT |
+| [micromark-extension-gfm-tagfilter](https://www.npmjs.com/package/micromark-extension-gfm-tagfilter) | 2.0.0 | MIT |
+| [micromark-extension-gfm-task-list-item](https://www.npmjs.com/package/micromark-extension-gfm-task-list-item) | 2.1.0 | MIT |
+| [micromark-factory-destination](https://www.npmjs.com/package/micromark-factory-destination) | 2.0.1 | MIT |
+| [micromark-factory-label](https://www.npmjs.com/package/micromark-factory-label) | 2.0.1 | MIT |
+| [micromark-factory-space](https://www.npmjs.com/package/micromark-factory-space) | 2.1.0 | MIT |
+| [micromark-factory-title](https://www.npmjs.com/package/micromark-factory-title) | 2.0.1 | MIT |
+| [micromark-factory-whitespace](https://www.npmjs.com/package/micromark-factory-whitespace) | 2.0.1 | MIT |
+| [micromark-util-character](https://www.npmjs.com/package/micromark-util-character) | 2.1.1 | MIT |
+| [micromark-util-chunked](https://www.npmjs.com/package/micromark-util-chunked) | 2.0.1 | MIT |
+| [micromark-util-classify-character](https://www.npmjs.com/package/micromark-util-classify-character) | 2.0.1 | MIT |
+| [micromark-util-combine-extensions](https://www.npmjs.com/package/micromark-util-combine-extensions) | 2.0.1 | MIT |
+| [micromark-util-decode-numeric-character-reference](https://www.npmjs.com/package/micromark-util-decode-numeric-character-reference) | 2.0.2 | MIT |
+| [micromark-util-decode-string](https://www.npmjs.com/package/micromark-util-decode-string) | 2.0.1 | MIT |
+| [micromark-util-edit-map](https://www.npmjs.com/package/micromark-util-edit-map) | 1.0.0 | MIT |
+| [micromark-util-encode](https://www.npmjs.com/package/micromark-util-encode) | 2.0.1 | MIT |
+| [micromark-util-html-tag-name](https://www.npmjs.com/package/micromark-util-html-tag-name) | 2.0.1 | MIT |
+| [micromark-util-normalize-identifier](https://www.npmjs.com/package/micromark-util-normalize-identifier) | 2.0.1 | MIT |
+| [micromark-util-resolve-all](https://www.npmjs.com/package/micromark-util-resolve-all) | 2.0.1 | MIT |
+| [micromark-util-sanitize-uri](https://www.npmjs.com/package/micromark-util-sanitize-uri) | 2.0.1 | MIT |
+| [micromark-util-subtokenize](https://www.npmjs.com/package/micromark-util-subtokenize) | 2.1.0 | MIT |
+| [micromark-util-symbol](https://www.npmjs.com/package/micromark-util-symbol) | 2.0.1 | MIT |
+| [micromark-util-types](https://www.npmjs.com/package/micromark-util-types) | 2.0.3 | MIT |
 | [mime-db](https://www.npmjs.com/package/mime-db) | 1.52.0 | MIT |
 | [mime-db](https://www.npmjs.com/package/mime-db) | 1.54.0 | MIT |
 | [mime-types](https://www.npmjs.com/package/mime-types) | 2.1.35 | MIT |
@@ -327,6 +408,7 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [on-exit-leak-free](https://www.npmjs.com/package/on-exit-leak-free) | 2.1.2 | MIT |
 | [on-finished](https://www.npmjs.com/package/on-finished) | 2.4.2 | MIT |
 | [once](https://www.npmjs.com/package/once) | 1.4.0 | ISC |
+| [parse-entities](https://www.npmjs.com/package/parse-entities) | 4.0.2 | MIT |
 | [parseurl](https://www.npmjs.com/package/parseurl) | 1.3.3 | MIT |
 | [path-key](https://www.npmjs.com/package/path-key) | 3.1.1 | MIT |
 | [path-to-regexp](https://www.npmjs.com/package/path-to-regexp) | 8.4.2 | MIT |
@@ -358,6 +440,7 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [prisma](https://www.npmjs.com/package/prisma) | 7.10.1 | Apache-2.0 |
 | [process-warning](https://www.npmjs.com/package/process-warning) | 5.1.1 | MIT |
 | [proper-lockfile](https://www.npmjs.com/package/proper-lockfile) | 4.1.2 | MIT |
+| [property-information](https://www.npmjs.com/package/property-information) | 7.2.0 | MIT |
 | [protobufjs](https://www.npmjs.com/package/protobufjs) | 7.6.6 | BSD-3-Clause |
 | [proxy-addr](https://www.npmjs.com/package/proxy-addr) | 2.0.8 | MIT |
 | [pump](https://www.npmjs.com/package/pump) | 3.0.4 | MIT |
@@ -370,6 +453,7 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [react](https://www.npmjs.com/package/react) | 19.3.1 | MIT |
 | [react-dom](https://www.npmjs.com/package/react-dom) | 19.3.1 | MIT |
 | [react-is](https://www.npmjs.com/package/react-is) | 17.0.2 | MIT |
+| [react-markdown](https://www.npmjs.com/package/react-markdown) | 10.1.0 | MIT |
 | [react-redux](https://www.npmjs.com/package/react-redux) | 9.3.1 | MIT |
 | [readable-stream](https://www.npmjs.com/package/readable-stream) | 3.6.2 | MIT |
 | [readdirp](https://www.npmjs.com/package/readdirp) | 5.1.1 | MIT |
@@ -378,6 +462,11 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [redux](https://www.npmjs.com/package/redux) | 5.0.1 | MIT |
 | [redux-thunk](https://www.npmjs.com/package/redux-thunk) | 3.1.0 | MIT |
 | [reflect-metadata](https://www.npmjs.com/package/reflect-metadata) | 0.2.2 | Apache-2.0 |
+| [rehype-highlight](https://www.npmjs.com/package/rehype-highlight) | 7.0.2 | MIT |
+| [remark-gfm](https://www.npmjs.com/package/remark-gfm) | 4.0.1 | MIT |
+| [remark-parse](https://www.npmjs.com/package/remark-parse) | 11.0.0 | MIT |
+| [remark-rehype](https://www.npmjs.com/package/remark-rehype) | 11.1.2 | MIT |
+| [remark-stringify](https://www.npmjs.com/package/remark-stringify) | 11.0.0 | MIT |
 | [remeda](https://www.npmjs.com/package/remeda) | 2.33.4 | MIT |
 | [require-directory](https://www.npmjs.com/package/require-directory) | 2.1.1 | MIT |
 | [require-from-string](https://www.npmjs.com/package/require-from-string) | 2.0.2 | MIT |
@@ -407,6 +496,7 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [signal-exit](https://www.npmjs.com/package/signal-exit) | 4.1.0 | ISC |
 | [sonic-boom](https://www.npmjs.com/package/sonic-boom) | 4.2.1 | MIT |
 | [source-map-js](https://www.npmjs.com/package/source-map-js) | 1.2.2 | BSD-3-Clause |
+| [space-separated-tokens](https://www.npmjs.com/package/space-separated-tokens) | 2.0.2 | MIT |
 | [split-ca](https://www.npmjs.com/package/split-ca) | 1.0.1 | ISC |
 | [split2](https://www.npmjs.com/package/split2) | 4.2.0 | ISC |
 | [sql-escaper](https://www.npmjs.com/package/sql-escaper) | 1.5.2 | MIT |
@@ -416,8 +506,10 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [streamsearch](https://www.npmjs.com/package/streamsearch) | 1.1.0 | MIT |
 | [string_decoder](https://www.npmjs.com/package/string_decoder) | 1.3.0 | MIT |
 | [string-width](https://www.npmjs.com/package/string-width) | 4.2.3 | MIT |
+| [stringify-entities](https://www.npmjs.com/package/stringify-entities) | 4.0.5 | MIT |
 | [strip-ansi](https://www.npmjs.com/package/strip-ansi) | 6.0.1 | MIT |
 | [strtok3](https://www.npmjs.com/package/strtok3) | 10.7.0 | MIT |
+| [style-to-object](https://www.npmjs.com/package/style-to-object) | 2.0.2 | MIT |
 | [styled-jsx](https://www.npmjs.com/package/styled-jsx) | 5.1.6 | MIT |
 | [tar-fs](https://www.npmjs.com/package/tar-fs) | 2.1.5 | MIT |
 | [tar-stream](https://www.npmjs.com/package/tar-stream) | 2.2.0 | MIT |
@@ -425,6 +517,8 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [tiny-invariant](https://www.npmjs.com/package/tiny-invariant) | 1.3.3 | MIT |
 | [toidentifier](https://www.npmjs.com/package/toidentifier) | 1.0.1 | MIT |
 | [token-types](https://www.npmjs.com/package/token-types) | 6.2.0 | MIT |
+| [trim-lines](https://www.npmjs.com/package/trim-lines) | 3.0.1 | MIT |
+| [trough](https://www.npmjs.com/package/trough) | 2.2.0 | MIT |
 | [tslib](https://www.npmjs.com/package/tslib) | 2.9.1 | 0BSD |
 | [tweetnacl](https://www.npmjs.com/package/tweetnacl) | 0.14.5 | Unlicense |
 | [type-is](https://www.npmjs.com/package/type-is) | 1.6.18 | MIT |
@@ -433,11 +527,19 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [uid](https://www.npmjs.com/package/uid) | 2.0.2 | MIT |
 | [uint8array-extras](https://www.npmjs.com/package/uint8array-extras) | 1.6.0 | MIT |
 | [undici-types](https://www.npmjs.com/package/undici-types) | 8.9.0 | MIT |
+| [unified](https://www.npmjs.com/package/unified) | 11.0.5 | MIT |
+| [unist-util-is](https://www.npmjs.com/package/unist-util-is) | 6.0.1 | MIT |
+| [unist-util-position](https://www.npmjs.com/package/unist-util-position) | 5.0.0 | MIT |
+| [unist-util-stringify-position](https://www.npmjs.com/package/unist-util-stringify-position) | 4.0.0 | MIT |
+| [unist-util-visit](https://www.npmjs.com/package/unist-util-visit) | 5.2.0 | MIT |
+| [unist-util-visit-parents](https://www.npmjs.com/package/unist-util-visit-parents) | 6.1.0 | MIT |
 | [unpipe](https://www.npmjs.com/package/unpipe) | 1.0.0 | MIT |
 | [use-sync-external-store](https://www.npmjs.com/package/use-sync-external-store) | 1.7.0 | MIT |
 | [util-deprecate](https://www.npmjs.com/package/util-deprecate) | 1.0.2 | MIT |
 | [valibot](https://www.npmjs.com/package/valibot) | 1.4.2 | MIT |
 | [vary](https://www.npmjs.com/package/vary) | 1.1.2 | MIT |
+| [vfile](https://www.npmjs.com/package/vfile) | 6.0.3 | MIT |
+| [vfile-message](https://www.npmjs.com/package/vfile-message) | 4.0.4 | MIT |
 | [victory-vendor](https://www.npmjs.com/package/victory-vendor) | 37.4.1 | MIT AND ISC AND BSD-3-Clause |
 | [which](https://www.npmjs.com/package/which) | 2.0.2 | ISC |
 | [wrap-ansi](https://www.npmjs.com/package/wrap-ansi) | 7.0.0 | MIT |
@@ -448,3 +550,4 @@ proprietary software from Anthropic under its own terms, and is built on your ma
 | [yargs-parser](https://www.npmjs.com/package/yargs-parser) | 21.1.1 | ISC |
 | [zeptomatch](https://www.npmjs.com/package/zeptomatch) | 2.1.0 | MIT |
 | [zod](https://www.npmjs.com/package/zod) | 4.6.7 | MIT |
+| [zwitch](https://www.npmjs.com/package/zwitch) | 2.0.4 | MIT |
